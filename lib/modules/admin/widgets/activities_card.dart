@@ -18,7 +18,7 @@ class ActivitiesCard extends StatelessWidget {
 
   //const ActivitiesCard({super.key});
   const ActivitiesCard({
-    Key? key,
+    super.key,
     required this.group,
     required this.groupTitle,
     required this.groupId,
@@ -27,7 +27,7 @@ class ActivitiesCard extends StatelessWidget {
     this.onDelete,
     this.onBeltNameChanged, // ← Aquí
 
-  }) : super(key: key);
+  });
 
   // Callback para cuando se edite
   void _handleEdit() {
@@ -71,12 +71,12 @@ class ActivitiesCard extends StatelessWidget {
             }
             Navigator.of(context).pop();
           },
-          child: const Text('Guardar'),
             style: ElevatedButton.styleFrom(
                 backgroundColor: const Color.fromARGB(255, 14, 162, 221),
                 foregroundColor: const Color.fromARGB(255, 241, 239, 239), // color del texto
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
+          child: const Text('Guardar'),
         ),
       ],
     ),
@@ -130,7 +130,7 @@ class ActivitiesCard extends StatelessWidget {
                 activityId: activityId,      // ✅ Ahora SÍ lo pasamos
                 groupId: groupId,
                 onNameChanged: (newName){
-                 this.onNameChanged?.call(activityId, newName);
+                 onNameChanged?.call(activityId, newName);
                 },
                 onDelete: () {
                   // 👈 Aquí usas el index que conoces
@@ -198,8 +198,7 @@ class GroupHeaderWithMenu extends StatelessWidget {
   final String title;
   final VoidCallback? onEdit; // ← Callback opcional para cuando se edite
 
-  const GroupHeaderWithMenu({Key? key, required this.title, this.onEdit})
-    : super(key: key);
+  const GroupHeaderWithMenu({super.key, required this.title, this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -269,14 +268,14 @@ class ActivityCard extends StatelessWidget {
   
 
   const ActivityCard({
-    Key? key,
+    super.key,
     required this.group,
     required this.activityId,   // ✅ NUEVO: Obligatorio
     required this.groupId,
     this.onNameChanged,
     this.onDelete,
     this.onTap, // Recibe el callback
-    }) : super(key: key);
+    });
   
   
 
@@ -391,13 +390,13 @@ class ActivityCard extends StatelessWidget {
             }
             Navigator.of(context).pop();
           },
-          child: const Text('Guardar'),
 
           style: ElevatedButton.styleFrom(
                 backgroundColor: const Color.fromARGB(255, 14, 162, 221),
                 foregroundColor: const Color.fromARGB(255, 241, 239, 239), // color del texto
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
+          child: const Text('Guardar'),
         ),
       ],
     ),
@@ -424,8 +423,8 @@ class ActivityCard extends StatelessWidget {
                 onDelete?.call();
                 Navigator.of(context).pop();
               },
-              child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),

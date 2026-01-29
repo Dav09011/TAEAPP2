@@ -4,9 +4,9 @@ class AddDialog extends StatefulWidget {
   final Function(Map<String,dynamic>)onSave;
 
   const AddDialog({
-    Key? key,
+    super.key,
     required this.onSave,
-    }) : super(key:key);
+    });
 
 
 

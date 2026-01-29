@@ -271,7 +271,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                     setState(() { exercises.remove(exercise); });
                   },
                 ),
-              )).toList(),
+              )),
 
               // Botón para agregar ejercicio (abre un modal secundario)
               ElevatedButton.icon(
@@ -687,7 +687,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                           );
                         },
                       );
-                    }).toList(),
+                    }),
                     
                     if (beltNames.isEmpty)
                       const Center(child: Text('¡Empieza agregando la primera sección de cinta!')),

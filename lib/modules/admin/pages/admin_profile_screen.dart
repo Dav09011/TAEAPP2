@@ -8,13 +8,13 @@ class AdminProfileScreen extends StatelessWidget {
   final String imageUrl;
 
   const AdminProfileScreen({
-    Key? key,
+    super.key,
     required this.fullName,
     required this.email,
     required this.phone,
     required this.role,
     required this.imageUrl,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -4,9 +4,9 @@ class AddGroupDialog extends StatefulWidget {
   final Function(Map<String, dynamic>) onSave;
 
   const AddGroupDialog({
-    Key? key,
+    super.key,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   State<AddGroupDialog> createState() => _AddGroupDialogState();

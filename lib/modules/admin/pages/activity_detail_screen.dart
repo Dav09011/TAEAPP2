@@ -19,12 +19,12 @@ class ActivityDetailScreen extends StatefulWidget {
   final List<String> exercises;
 
   const ActivityDetailScreen({
-    Key? key,
+    super.key,
     required this.activityId, // Nuevo
     required this.groupId, // Nuevo
     required this.activityName,
     required this.exercises,
-  }) : super(key: key);
+  });
 
   @override
   State<ActivityDetailScreen> createState() => _ActivityDetailScreenState();
@@ -530,7 +530,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
 //  Widget para reproducir video dentro del modal
 class VideoViewer extends StatefulWidget {
   final Uint8List videoBytes;
-  const VideoViewer({required this.videoBytes});
+  const VideoViewer({super.key, required this.videoBytes});
 
   @override
   State<VideoViewer> createState() => _VideoViewerState();

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class BranchDetailsScreen extends StatelessWidget {
   final String branchName;
 
-  const BranchDetailsScreen({Key? key, required this.branchName}) : super(key: key);
+  const BranchDetailsScreen({super.key, required this.branchName});
 
   @override
   Widget build(BuildContext context) {

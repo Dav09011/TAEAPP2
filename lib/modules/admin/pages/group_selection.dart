@@ -11,7 +11,7 @@ import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 class BranchGroupsScreen extends StatefulWidget {
   final String branchName;
   
-  const BranchGroupsScreen({Key? key, required this.branchName}) : super(key: key);
+  const BranchGroupsScreen({super.key, required this.branchName});
 
   @override
   State<BranchGroupsScreen> createState() => _BranchGroupsScreenState();

@@ -6,7 +6,7 @@ import 'package:tae_app/modules/admin/widgets/search_bar.dart';
 class StudentsSectionScreen extends StatefulWidget {
   final String? groupName;
 
-  const StudentsSectionScreen({Key? key, this.groupName}) : super(key: key);
+  const StudentsSectionScreen({super.key, this.groupName});
 
   @override
   State<StudentsSectionScreen> createState() => _StudentsSectionScreenState();
@@ -16,7 +16,7 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   
   // Alumnos seleccionados globalmente
-  Set<Map<String, dynamic>> _selectedStudentsGlobal = {};
+  final Set<Map<String, dynamic>> _selectedStudentsGlobal = {};
   String _searchQuery = '';
 
   // ============================================================
@@ -340,12 +340,12 @@ class StudentCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const StudentCard({
-    Key? key,
+    super.key,
     required this.name,
     required this.image,
     required this.isSelected,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -410,13 +410,13 @@ class BeltGroup extends StatelessWidget {
   final ValueChanged<Set<Map<String, dynamic>>> onSelectionChanged;
 
   const BeltGroup({
-    Key? key,
+    super.key,
     required this.beltName,
     required this.students,
     required this.selectedStudents,
     required this.onSeeMore,
     required this.onSelectionChanged,
-  }) : super(key: key);
+  });
 
   void _toggleSelection(Map<String, dynamic> student) {
     final newSelection = Set<Map<String, dynamic>>.from(

@@ -56,7 +56,7 @@ class AlumnosPorGrupoScreen extends StatelessWidget {
                       );
                       */
                     },
-                  )).toList(),
+                  )),
                 ],
               );
             },

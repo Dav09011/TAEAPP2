@@ -100,11 +100,11 @@ class _CashPaymentRequestsScreenState
               });
               Navigator.pop(context);
             },
-            child: const Text('Confirmar'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.purple,
               foregroundColor: Colors.white,
             ),
+            child: const Text('Confirmar'),
           ),
         ],
       );

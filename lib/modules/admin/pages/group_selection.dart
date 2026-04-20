@@ -7,6 +7,7 @@ import 'package:tae_app/modules/admin/widgets/search_bar.dart';
 import 'wallet_screen.dart';
 import 'profile_screen.dart';
 import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class BranchGroupsScreen extends StatefulWidget {
   final String branchName;
@@ -206,83 +207,92 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             constraints.maxWidth > 800 ? 600 : constraints.maxWidth * 0.95;
 
         return Center(
-          child: InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ActivitiesSection(
-                    groupName: group['name'],
+        child: Container(
+          width: maxCardWidth,
+          margin: const EdgeInsets.only(bottom: 26),
+          padding: const EdgeInsets.all(26),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // === Info del grupo (toca para ir a actividades) ===
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ActivitiesSection(
+                          groupName: group['name'],
+                        ),
+                      ),
+                    );
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        group['name'],
+                        style: const TextStyle(
+                          fontSize: 23,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Tipo de cinta(s): ${group["beltType"]}',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      Text(
+                        'Horario: ${group["schedule"]}',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                      Text(
+                        'Alumnos: ${group["alumns"]}',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
-            child: Container(
-              width: maxCardWidth,
-              margin: const EdgeInsets.only(bottom: 26),
-              padding: const EdgeInsets.all(26),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ],
               ),
-              child: Row(
-                children: [
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          group['name'],
-                          style: const TextStyle(
-                            fontSize: 23,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Tipo de cinta(s): ${group["beltType"]}',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        Text(
-                          'Horario: ${group["schedule"]}',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                        Text(
-                          'Alumnos: ${group["alumns"]}',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.group_outlined,
-                    size: 50,
-                    color: Color.fromARGB(255, 57, 56, 56),
-                  )
-                ],
-              ),
-            ),
+
+              // === Icono QR para moverlo ===
+              Positioned(
+                bottom: 0.1,
+                right: 1,
+                child: GestureDetector(
+                onTap: () => _showQRDialog(context, group),
+                child: const Icon(
+                Icons.qr_code,
+                size: 36,
+                color: Colors.black87,
+        ),
+      ),
+    ),
+            ],
           ),
-        );
+        ),
+      );
       },
     );
   }
@@ -314,6 +324,174 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
       _selectedIndex = index;
     });
   }
+
+  void _showQRDialog(BuildContext context, Map<String, dynamic> group) {
+  
+  showDialog(
+    context: context,
+    builder: (context) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              group['name'],
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.branchName,
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+             const SizedBox(height: 24),
+            const Text(
+              '¿Para quién es el QR?',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 20),
+            // === Opción: Alumno ===
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showQRCode(context, group, tipo: 'alumno');
+                },
+                icon: const Icon(Icons.school_outlined),
+                label: const Text('QR para Alumno'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // === Opción: Usuario Privilegiado ===
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showQRCode(context, group, tipo: 'privilegiado');
+                },
+                icon: const Icon(Icons.admin_panel_settings_outlined),
+                label: const Text('QR para Usuario Privilegiado'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+            ),
+            
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+void _showQRCode(BuildContext context, Map<String, dynamic> group, {required String tipo}) {
+  final bool esPrivilegiado = tipo == 'privilegiado';
+
+  final String qrData = esPrivilegiado
+      ? 'PRIVILEGIADO|Grupo:${group['name']}|Sucursal:${widget.branchName}|Cinta:${group['beltType']}|Horario:${group['schedule']}'
+      : 'ALUMNO|Grupo:${group['name']}|Sucursal:${widget.branchName}|Cinta:${group['beltType']}|Horario:${group['schedule']}';
+
+  showDialog(
+    context: context,
+    builder: (context) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // === Badge tipo ===
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: esPrivilegiado ? Colors.amber[700] : Colors.black,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    esPrivilegiado
+                        ? Icons.admin_panel_settings_outlined
+                        : Icons.school_outlined,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    esPrivilegiado ? 'Usuario Privilegiado' : 'Alumno',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            Text(
+              group['name'],
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              widget.branchName,
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 20),
+
+            // === QR ===
+            QrImageView(
+              data: qrData,
+              version: QrVersions.auto,
+              size: 220,
+              backgroundColor: Colors.white,
+            ),
+            const SizedBox(height: 12),
+
+            Text(
+              'Escanea para registrar acceso',
+              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+            ),
+            const SizedBox(height: 16),
+
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar', style: TextStyle(color: Colors.black, fontSize: 16)),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {

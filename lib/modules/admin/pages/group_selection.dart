@@ -420,6 +420,11 @@ void _showQRCode(BuildContext context, Map<String, dynamic> group, {required Str
     ? 'PRIVILEGIADO|GrupoId:${group['docId']}|Grupo:${group['name']}|Sucursal:${widget.branchName}'
     : 'ALUMNO|GrupoId:${group['docId']}|Grupo:${group['name']}|Sucursal:${widget.branchName}';
 
+  // === GENERACIÓN DEL CÓDIGO NUMÉRICO ===
+  // Tomamos los datos del QR, los convertimos a un número único (hashCode), 
+  // aseguramos que sea positivo (abs) y tomamos los primeros 6 dígitos.
+  final String codigoCorto = qrData.hashCode.abs().toString().padRight(6, '0').substring(0, 6);
+
   showDialog(
     context: context,
     builder: (context) => Dialog(
@@ -478,6 +483,25 @@ void _showQRCode(BuildContext context, Map<String, dynamic> group, {required Str
               backgroundColor: Colors.white,
             ),
             const SizedBox(height: 12),
+
+            // === CÓDIGO NUMÉRICO DE RESPALDO (NUEVO) ===
+            Text(
+              'O ingresa el código:',
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              // Separamos el código visualmente (ej. "123 456") para que sea más fácil de leer
+              '${codigoCorto.substring(0,3)} ${codigoCorto.substring(3,6)}', 
+              style: const TextStyle(
+                fontSize: 24, 
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2.0, // Espacio entre los números
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            // ===========================================
 
             Text(
               'Escanea para registrar acceso',

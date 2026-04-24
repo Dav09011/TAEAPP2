@@ -1,7 +1,6 @@
 // main_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'notes_students.dart';
 import 'alumn.dart';
 
 class AlumnosPorGrupoScreen extends StatelessWidget {

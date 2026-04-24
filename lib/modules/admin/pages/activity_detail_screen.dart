@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/foundation.dart'; // ← para usar kIsWeb
 import 'dart:io';

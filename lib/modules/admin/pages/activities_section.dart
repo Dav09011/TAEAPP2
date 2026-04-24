@@ -13,8 +13,9 @@ import 'package:tae_app/modules/admin/widgets/search_bar.dart';
 // =========================================================
 class ActivitiesSection extends StatefulWidget {
   final String? groupName;
+  final String? groupDocId;
 
-  const ActivitiesSection({super.key, this.groupName});
+  const ActivitiesSection({super.key, this.groupName, this.groupDocId,});
 
   @override
   State<ActivitiesSection> createState() => _ActivitiesSectionState();
@@ -26,6 +27,7 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
   List<Widget> get _screens => [
     ActivitiesSectionScreen(
       groupName: widget.groupName,
+      groupDocId: widget.groupDocId,
     ),
     const WalletScreen(),
     ProfileScreen(
@@ -71,8 +73,9 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
 
 class ActivitiesSectionScreen extends StatefulWidget {
   final String? groupName;
+  final String? groupDocId;
 
-  const ActivitiesSectionScreen({super.key, this.groupName});
+  const ActivitiesSectionScreen({super.key, this.groupName, this.groupDocId,});
 
   @override
   State<ActivitiesSectionScreen> createState() => _ActivitiesSectionScreenState();
@@ -494,7 +497,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                           // Botón: Ver alumnos
                           InkWell(
                             onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (context) => StudentsSectionScreen(groupName: widget.groupName ?? 'Alumnos')));
+                              Navigator.push(context, MaterialPageRoute(builder: (context) => StudentsSectionScreen(groupName: widget.groupName ?? 'Alumnos', groupDocId: widget.groupDocId,)));
                             },
                             // ✅ DISEÑO RESTAURADO: Usando Container con borde
                             child: Container(

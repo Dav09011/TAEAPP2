@@ -11,7 +11,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 class BranchGroupsScreen extends StatefulWidget {
   final String branchName;
-  
   const BranchGroupsScreen({super.key, required this.branchName});
 
   @override
@@ -56,7 +55,9 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
         'fecha_creacion': FieldValue.serverTimestamp(),
       };
 
-      await _db.collection('grupos').add(groupToSave);
+      await _db.collection('grupos')
+      .doc(newGroupData['name']) // 👈 usa el nombre como ID
+      .set(groupToSave);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -151,6 +152,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                     final allGroups = snapshot.data!.docs.map((doc) {
                       final data = doc.data() as Map<String, dynamic>? ?? {};
                       return {
+                        'docId': doc.id,
                         'name': data['nombre_grupo'] ?? 'Sin Nombre',
                         'beltType': data['tipo_cinta'] ?? 'N/A',
                         'schedule': data['horario'] ?? 'Sin horario',
@@ -233,6 +235,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                       MaterialPageRoute(
                         builder: (context) => ActivitiesSection(
                           groupName: group['name'],
+                          
                         ),
                       ),
                     );
@@ -414,8 +417,8 @@ void _showQRCode(BuildContext context, Map<String, dynamic> group, {required Str
   final bool esPrivilegiado = tipo == 'privilegiado';
 
   final String qrData = esPrivilegiado
-      ? 'PRIVILEGIADO|Grupo:${group['name']}|Sucursal:${widget.branchName}|Cinta:${group['beltType']}|Horario:${group['schedule']}'
-      : 'ALUMNO|Grupo:${group['name']}|Sucursal:${widget.branchName}|Cinta:${group['beltType']}|Horario:${group['schedule']}';
+    ? 'PRIVILEGIADO|GrupoId:${group['docId']}|Grupo:${group['name']}|Sucursal:${widget.branchName}'
+    : 'ALUMNO|GrupoId:${group['docId']}|Grupo:${group['name']}|Sucursal:${widget.branchName}';
 
   // === GENERACIÓN DEL CÓDIGO NUMÉRICO ===
   // Tomamos los datos del QR, los convertimos a un número único (hashCode), 

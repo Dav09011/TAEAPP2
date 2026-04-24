@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // Widgets personalizados
 import 'package:tae_app/modules/admin/widgets/adaptive_branch_list.dart';
@@ -46,13 +47,7 @@ class _MainBranchesState extends State<MainBranches> {
   final List<Widget> _screens = [
     BranchesScreen(),
     WalletScreen(),
-    ProfileScreen(
-      fullName: 'Josepe',
-      email: 'Josepe13186',
-      phone: '34234234',
-      role: 'Administrador',
-      imageUrl: '',
-    ),
+    ProfileScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -80,18 +75,44 @@ class BranchesScreen extends StatefulWidget {
 
 class _BranchesScreenState extends State<BranchesScreen> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance; // ✅ Instancia de Auth añadida
+
   late final Stream<QuerySnapshot> _branchesStream;
+  String _searchQuery = '';
 
-    String _searchQuery = ''; // ← Nueva variable
-
+  // ✅ Nuevas variables para controlar el acceso
+  List<String> _sucursalesPermitidas = [];
+  bool _cargandoPermisos = true;
 
   @override
   void initState() {
     super.initState();
     _branchesStream = _db.collection('sucursales').orderBy('name').snapshots();
+    _cargarPermisosAdmin(); // ✅ Cargar permisos antes de mostrar los datos
   }
 
-
+  // ✅ Función para leer las sucursales asignadas al admin actual
+  Future<void> _cargarPermisosAdmin() async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid != null) {
+        final userDoc = await _db.collection('usuarios').doc(uid).get();
+        if (userDoc.exists && userDoc.data()!.containsKey('sucursales')) {
+          final List<dynamic> sucursales = userDoc['sucursales'];
+          setState(() {
+            _sucursalesPermitidas = sucursales.map((e) => e.toString()).toList();
+            _cargandoPermisos = false;
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      print("Error obteniendo permisos de sucursales: $e");
+    }
+    
+    // Si falla o no tiene sucursales, quitamos el loading de todos modos
+    setState(() => _cargandoPermisos = false);
+  }
 
   void _openAddBranchDialog(BuildContext context) {
     showDialog(
@@ -101,13 +122,27 @@ class _BranchesScreenState extends State<BranchesScreen> {
           final String branchName = newBranchData['name'];
           
           try {
-            // Guardamos en Firebase
+            // Guardamos en Firebase (sucursales)
             await _db.collection('sucursales').add({
               'name': branchName,
               'classes': newBranchData['classes'] ?? 0,
               'participants': newBranchData['participants'] ?? 0,
               'fecha_creacion': FieldValue.serverTimestamp(),
             });
+
+            // 👇 --- INICIO DE LO NUEVO --- 👇
+            // Le damos permiso al admin actual para ver la sucursal que acaba de crear
+            final uid = _auth.currentUser?.uid;
+            if (uid != null) {
+              await _db.collection('usuarios').doc(uid).update({
+                'sucursales': FieldValue.arrayUnion([branchName])
+              });
+              // Actualizamos la lista local para que aparezca en pantalla al instante
+              setState(() {
+                _sucursalesPermitidas.add(branchName);
+              });
+            }
+            // 👆 --- FIN DE LO NUEVO --- 👆
 
             print("✅ Sucursal guardada: $branchName");
 
@@ -122,7 +157,7 @@ class _BranchesScreenState extends State<BranchesScreen> {
                 content: Text('Sucursal "$branchName" creada exitosamente'),
                 behavior: SnackBarBehavior.floating,
                 backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
+                duration: const Duration(seconds: 4),
               ),
             );
 
@@ -164,15 +199,20 @@ class _BranchesScreenState extends State<BranchesScreen> {
     );
   }
 
-
-  
-  // Función para filtrar por nombre
+  // ✅ Modificamos el filtro para bloquear las sucursales no permitidas
   List<Map<String, dynamic>> _filtrarSucursales(
     List<Map<String, dynamic>> sucursales,
     String query,
   ) {
-    if (query.isEmpty) return sucursales;
-    return sucursales.where((sucursal) {
+    // 1. Filtrar SOLO las que están en el arreglo del administrador
+    var sucursalesDelAdmin = sucursales.where((s) {
+      return _sucursalesPermitidas.contains(s['name']);
+    }).toList();
+
+    // 2. Aplicar el filtro de la barra de búsqueda
+    if (query.isEmpty) return sucursalesDelAdmin;
+    
+    return sucursalesDelAdmin.where((sucursal) {
       final nombre = (sucursal['name'] as String?)?.toLowerCase() ?? '';
       return nombre.contains(query.toLowerCase());
     }).toList();
@@ -180,6 +220,14 @@ class _BranchesScreenState extends State<BranchesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Mostrar un indicador mientras consultamos el documento de "usuarios"
+    if (_cargandoPermisos) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -188,8 +236,6 @@ class _BranchesScreenState extends State<BranchesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 🔹 Barra de búsqueda
-              // ✅ BarSearch con funcionalidad
               BarSearch(
                 hintText: 'Buscar sucursal',
                 onSearch: (query) {
@@ -200,7 +246,6 @@ class _BranchesScreenState extends State<BranchesScreen> {
               ),
               const SizedBox(height: 10),
 
-              // 🔹 Botón "Agregar Sucursal"
               Align(
                 alignment: Alignment.centerRight,
                 child: Material(
@@ -230,13 +275,11 @@ class _BranchesScreenState extends State<BranchesScreen> {
 
               const SizedBox(height: 20),
 
-              // 🔹 StreamBuilder para listar sucursales
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: _branchesStream,
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
-                      print("Error en StreamBuilder: ${snapshot.error}");
                       return const Center(
                           child: Text('Error al cargar las sucursales.'));
                     }
@@ -250,6 +293,7 @@ class _BranchesScreenState extends State<BranchesScreen> {
                           child: Text('No hay sucursales registradas.'));
                     }
 
+                    // Mapeo inicial
                     final branchesFromFirebase =
                         snapshot.data!.docs.map((doc) {
                       final data = doc.data() as Map<String, dynamic>;
@@ -261,21 +305,22 @@ class _BranchesScreenState extends State<BranchesScreen> {
                       };
                     }).toList();
 
-                     // ✅ Filtrar según la búsqueda
-                      final branchesFiltradas = _filtrarSucursales(
-                        branchesFromFirebase,
-                        _searchQuery,
-                      );
+                    // ✅ Aplicamos el filtro doble (Permisos + Búsqueda)
+                    final branchesFiltradas = _filtrarSucursales(
+                      branchesFromFirebase,
+                      _searchQuery,
+                    );
 
-                       if (branchesFiltradas.isEmpty) {
-                        return const Center(child: Text('No hay resultados.'));
+                    if (branchesFiltradas.isEmpty) {
+                      // Mensaje específico si el arreglo de permisos está vacío
+                      if (_sucursalesPermitidas.isEmpty && _searchQuery.isEmpty) {
+                        return const Center(child: Text('No tienes sucursales asignadas.'));
                       }
-
+                      return const Center(child: Text('No hay resultados.'));
+                    }
 
                     return AdaptiveBranchList(
-                      // branches: branchesFromFirebase, //  ERROR: no es branchesFiltradas
                       branches: branchesFiltradas,
-
                       icon: Icons.location_on_outlined,
                       onTap: (branchName) {
                         Navigator.push(

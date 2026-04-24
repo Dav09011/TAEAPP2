@@ -82,8 +82,7 @@ class _BranchesScreenState extends State<BranchesScreen> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   late final Stream<QuerySnapshot> _branchesStream;
 
-    String _searchQuery = ''; // ← Nueva variable
-
+  String _searchQuery = ''; // ← Nueva variable
 
   @override
   void initState() {
@@ -91,81 +90,78 @@ class _BranchesScreenState extends State<BranchesScreen> {
     _branchesStream = _db.collection('sucursales').orderBy('name').snapshots();
   }
 
-
-
   void _openAddBranchDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AddDialog(
-        onSave: (newBranchData) async {
-          final String branchName = newBranchData['name'];
-          
-          try {
-            // Guardamos en Firebase
-            await _db.collection('sucursales').add({
-              'name': branchName,
-              'classes': newBranchData['classes'] ?? 0,
-              'participants': newBranchData['participants'] ?? 0,
-              'fecha_creacion': FieldValue.serverTimestamp(),
-            });
+      builder:
+          (context) => AddDialog(
+            onSave: (newBranchData) async {
+              final String branchName = newBranchData['name'];
 
-            print("✅ Sucursal guardada: $branchName");
+              try {
+                // Guardamos en Firebase
+                await _db.collection('sucursales').add({
+                  'name': branchName,
+                  'classes': newBranchData['classes'] ?? 0,
+                  'participants': newBranchData['participants'] ?? 0,
+                  'fecha_creacion': FieldValue.serverTimestamp(),
+                });
 
-            // Cerramos el diálogo DESPUÉS de guardar
-            if (!context.mounted) return;
-            Navigator.of(context).pop();
+                print("✅ Sucursal guardada: $branchName");
 
-            // Mostramos SnackBar DESPUÉS de cerrar el diálogo
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Sucursal "$branchName" creada exitosamente'),
-                behavior: SnackBarBehavior.floating,
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+                // Cerramos el diálogo DESPUÉS de guardar
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
 
-            // Esperamos un momento
-            await Future.delayed(const Duration(milliseconds: 400));
+                // Mostramos SnackBar DESPUÉS de cerrar el diálogo
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Sucursal "$branchName" creada exitosamente'),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
 
-            // Navegamos a la pantalla de grupos
-            if (!context.mounted) return;
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => BranchGroupsScreen(
-                  branchName: branchName,
-                ),
-              ),
-            );
-            
-          } catch (e) {
-            print("❌ Error al guardar sucursal: $e");
-            
-            // Cerramos el diálogo primero
-            if (context.mounted) {
-              Navigator.of(context).pop();
-            }
-            
-            // Mostramos error DESPUÉS de cerrar
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error al crear la sucursal: ${e.toString()}'),
-                  behavior: SnackBarBehavior.floating,
-                  backgroundColor: Colors.red,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-            }
-          }
-        },
-      ),
+                // Esperamos un momento
+                await Future.delayed(const Duration(milliseconds: 400));
+
+                // Navegamos a la pantalla de grupos
+                if (!context.mounted) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (context) => BranchGroupsScreen(branchName: branchName),
+                  ),
+                );
+              } catch (e) {
+                print("❌ Error al guardar sucursal: $e");
+
+                // Cerramos el diálogo primero
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+
+                // Mostramos error DESPUÉS de cerrar
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Error al crear la sucursal: ${e.toString()}',
+                      ),
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
     );
   }
 
-
-  
   // Función para filtrar por nombre
   List<Map<String, dynamic>> _filtrarSucursales(
     List<Map<String, dynamic>> sucursales,
@@ -238,7 +234,8 @@ class _BranchesScreenState extends State<BranchesScreen> {
                     if (snapshot.hasError) {
                       print("Error en StreamBuilder: ${snapshot.error}");
                       return const Center(
-                          child: Text('Error al cargar las sucursales.'));
+                        child: Text('Error al cargar las sucursales.'),
+                      );
                     }
 
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -247,30 +244,30 @@ class _BranchesScreenState extends State<BranchesScreen> {
 
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                       return const Center(
-                          child: Text('No hay sucursales registradas.'));
+                        child: Text('No hay sucursales registradas.'),
+                      );
                     }
 
                     final branchesFromFirebase =
                         snapshot.data!.docs.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      return {
-                        'name': data['name'] ?? 'Sin nombre',
-                        'classes': (data['classes'] as num?)?.toInt() ?? 0,
-                        'participants':
-                            (data['participants'] as num?)?.toInt() ?? 0,
-                      };
-                    }).toList();
+                          final data = doc.data() as Map<String, dynamic>;
+                          return {
+                            'name': data['name'] ?? 'Sin nombre',
+                            'classes': (data['classes'] as num?)?.toInt() ?? 0,
+                            'participants':
+                                (data['participants'] as num?)?.toInt() ?? 0,
+                          };
+                        }).toList();
 
-                     // ✅ Filtrar según la búsqueda
-                      final branchesFiltradas = _filtrarSucursales(
-                        branchesFromFirebase,
-                        _searchQuery,
-                      );
+                    // ✅ Filtrar según la búsqueda
+                    final branchesFiltradas = _filtrarSucursales(
+                      branchesFromFirebase,
+                      _searchQuery,
+                    );
 
-                       if (branchesFiltradas.isEmpty) {
-                        return const Center(child: Text('No hay resultados.'));
-                      }
-
+                    if (branchesFiltradas.isEmpty) {
+                      return const Center(child: Text('No hay resultados.'));
+                    }
 
                     return AdaptiveBranchList(
                       // branches: branchesFromFirebase, //  ERROR: no es branchesFiltradas
@@ -281,9 +278,10 @@ class _BranchesScreenState extends State<BranchesScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => BranchGroupsScreen(
-                              branchName: branchName.toString(),
-                            ),
+                            builder:
+                                (context) => BranchGroupsScreen(
+                                  branchName: branchName.toString(),
+                                ),
                           ),
                         );
                       },

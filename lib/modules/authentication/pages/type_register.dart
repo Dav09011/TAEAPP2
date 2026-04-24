@@ -1,10 +1,7 @@
 // archivo: forgot_password_page.dart
 import 'package:flutter/material.dart';
-// Redireccion al registro de alumno maestro.
-import 'register_teacher_student.dart';
-// Redireccion al registro de admin maestro.
-import 'register_admin.dart';
 
+// Redireccion al registro de alumno maestro.
 class TypeRegister extends StatelessWidget {
   const TypeRegister({super.key});
 
@@ -76,13 +73,7 @@ class TypeRegister extends StatelessWidget {
                         ),
                       ),
                       onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) => const RegisterAdmin(),
-                          ),
-                        );
+                        Navigator.pushNamed(context, '/register-admin');
                       },
                       child: Text(
                         'Administrador',
@@ -107,13 +98,7 @@ class TypeRegister extends StatelessWidget {
                         ),
                       ),
                       onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) => const RegisterTeacherStudent(),
-                          ),
-                        );
+                        Navigator.pushNamed(context, '/register-user');
                       },
                       child: Text(
                         'Alumno / Instructor',

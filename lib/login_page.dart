@@ -30,13 +30,13 @@ class WelcomeTaeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      // (Opcional) Puedes añadir un título a la aplicación
-      title: 'TAE App', 
-      // La propiedad 'home' define el widget inicial (tu LoginPage)
-      home: LoginPage(), 
-      // Si quieres que el banner "DEBUG" desaparezca:
+    return MaterialApp(
+      title: 'TAE App',
       debugShowCheckedModeBanner: false,
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const LoginPage(),
+      },
     );
   }
 }

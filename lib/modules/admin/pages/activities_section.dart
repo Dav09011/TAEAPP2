@@ -14,8 +14,14 @@ import 'package:tae_app/modules/admin/widgets/search_bar.dart';
 class ActivitiesSection extends StatefulWidget {
   final String? groupName;
   final String? groupDocId;
+  final bool isReadOnly;
 
-  const ActivitiesSection({super.key, this.groupName, this.groupDocId,});
+  const ActivitiesSection({
+    super.key,
+    this.groupName,
+    this.groupDocId,
+    this.isReadOnly = false,
+  });
 
   @override
   State<ActivitiesSection> createState() => _ActivitiesSectionState();
@@ -28,6 +34,7 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
     ActivitiesSectionScreen(
       groupName: widget.groupName,
       groupDocId: widget.groupDocId,
+      isReadOnly: widget.isReadOnly,
     ),
     const WalletScreen(),
     ProfileScreen(
@@ -47,6 +54,24 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isReadOnly) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.groupName ?? 'Actividades',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.black,
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: ActivitiesSectionScreen(
+          groupName: widget.groupName,
+          groupDocId: widget.groupDocId,
+          isReadOnly: true,
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -74,8 +99,14 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
 class ActivitiesSectionScreen extends StatefulWidget {
   final String? groupName;
   final String? groupDocId;
+  final bool isReadOnly;
 
-  const ActivitiesSectionScreen({super.key, this.groupName, this.groupDocId,});
+  const ActivitiesSectionScreen({
+    super.key,
+    this.groupName,
+    this.groupDocId,
+    this.isReadOnly = false,
+  });
 
   @override
   State<ActivitiesSectionScreen> createState() => _ActivitiesSectionScreenState();
@@ -85,11 +116,13 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   String _searchQuery = ''; 
 
+  String? get _groupId => widget.groupDocId ?? widget.groupName;
+
   // ----------------------------------------------------
   // LÓGICA DE AGREGAR/GUARDAR (Persistente) - MANTENIDA
   // ----------------------------------------------------
   void _addActivityToBelt(String beltName, String activityName, List<String> exercises) async {
-    final String? groupId = widget.groupName;
+    final String? groupId = _groupId;
     if (groupId == null || groupId.isEmpty) return;
 
     try {
@@ -119,7 +152,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
   }
 
   void _addBeltSection(String newBeltName) async {
-    final String? groupId = widget.groupName;
+    final String? groupId = _groupId;
     if (groupId == null || groupId.isEmpty) return;
 
     try {
@@ -150,7 +183,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
   // BORRAR/EDITAR ACTIVIDAD - MANTENIDA
   // ----------------------------------------------------
   void _deleteActivity(String activityId) async {
-    final String? groupId = widget.groupName;
+    final String? groupId = _groupId;
     if (groupId == null || groupId.isEmpty) return;
 
     try {
@@ -173,7 +206,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
   }
 
   void _updateActivityName(String activityId, String newName) async {
-    final String? groupId = widget.groupName;
+    final String? groupId = _groupId;
     if (groupId == null || groupId.isEmpty) return;
 
     try {
@@ -372,7 +405,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
   }
 
   void _updateBeltSectionName(String oldName, String newName) async {
-  final String? groupId = widget.groupName;
+  final String? groupId = _groupId;
   if (groupId == null || groupId.isEmpty) return;
 
   try {
@@ -450,7 +483,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
   // ---------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    final String? groupId = widget.groupName;
+    final String? groupId = _groupId;
     if (groupId == null || groupId.isEmpty) {
         return const Center(child: Text("Error: El grupo no fue seleccionado correctamente."));
     }
@@ -489,134 +522,126 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Botones "Ver alumnos" y "Agregar Sección"
-                    Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Botón: Ver alumnos
-                          InkWell(
-                            onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (context) => StudentsSectionScreen(groupName: widget.groupName ?? 'Alumnos', groupDocId: widget.groupDocId,)));
-                            },
-                            // ✅ DISEÑO RESTAURADO: Usando Container con borde
-                            child: Container(
+                    if (!widget.isReadOnly) ...[
+                      Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                Navigator.push(context, MaterialPageRoute(builder: (context) => StudentsSectionScreen(groupName: widget.groupName ?? 'Alumnos', groupDocId: widget.groupDocId,)));
+                              },
+                              child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 30,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: const Color.fromARGB(255, 176, 180, 184),
+                                      width: 1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const [
+                                      Text(
+                                        'Ver alumnos',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      SizedBox(width: 5),
+                                      Icon(
+                                        Icons.remove_red_eye,
+                                        size: 18,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ),
+                            InkWell(
+                              onTap: () async {
+                                 final controller = TextEditingController();
+                                 await showDialog(
+                                   context: context,
+                                   builder: (ctx) => AlertDialog(
+                                     backgroundColor: Colors.white,
+                                     title: const Text("Nueva sección de cinta"),
+                                     content: TextField(
+                                       controller: controller, 
+                                       decoration: InputDecoration(
+                                         hintText: "Ej: Cintas Moradas",
+                                         labelStyle: const TextStyle(color: Colors.blueGrey),
+                                         border: OutlineInputBorder(borderSide: BorderSide(color: Colors.blue.shade400)),
+                                         focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.blue,width: 2)),
+                                       )
+                                     ),
+                                     actions: [
+                                       TextButton(
+                                        onPressed: () => Navigator.pop(ctx),
+                                        style: ElevatedButton.styleFrom(
+                                          foregroundColor: const Color.fromARGB(179, 41, 40, 40),
+                                        ),
+                                        child: const Text("Cancelar")
+                                      ),
+                                       TextButton(
+                                         onPressed: () {
+                                           if (controller.text.trim().isNotEmpty) {
+                                             _addBeltSection(controller.text.trim());
+                                           }
+                                           Navigator.pop(ctx);
+                                         },
+                                         style: ElevatedButton.styleFrom(
+                                           backgroundColor: Colors.blueAccent,
+                                           foregroundColor: Colors.white,
+                                           shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                           ),
+                                         ),
+                                         child: const Text("Crear"),
+                                       ),
+                                     ],
+                                   ),
+                                 );
+                              },
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 30,
+                                  horizontal: 10,
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: const Color.fromARGB(255, 176, 180, 184),
-                                    width: 1,
-                                  ),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: const [
                                     Text(
-                                      'Ver alumnos',
+                                      'Agregar Sección',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 14,
+                                        color: Color.fromARGB(255, 0, 0, 0),
                                       ),
                                     ),
                                     SizedBox(width: 5),
                                     Icon(
-                                      Icons.remove_red_eye,
+                                      Icons.add_circle_outline,
+                                      color: Color.fromARGB(255, 0, 0, 0),
                                       size: 18,
                                     ),
                                   ],
                                 ),
                               ),
-                          ),
-
-                          // Botón: Agregar Sección
-                          InkWell(
-                            onTap: () async {
-                               final controller = TextEditingController();
-                               await showDialog(
-                                 context: context,
-                                 builder: (ctx) => AlertDialog(
-                                   // ✅ DISEÑO RESTAURADO
-                                   backgroundColor: Colors.white,
-                                   title: const Text("Nueva sección de cinta"),
-                                   content: TextField(
-                                     controller: controller, 
-                                     decoration: InputDecoration(
-                                       hintText: "Ej: Cintas Moradas",
-                                       // ✅ DISEÑO RESTAURADO
-                                       labelStyle: const TextStyle(color: Colors.blueGrey),
-                                       border: OutlineInputBorder(borderSide: BorderSide(color: Colors.blue.shade400)),
-                                       focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.blue,width: 2)),
-                                     )
-                                   ),
-                                   actions: [
-                                     TextButton(
-                                      onPressed: () => Navigator.pop(ctx),
-                                      // ✅ DISEÑO RESTAURADO
-                                      style: ElevatedButton.styleFrom(
-                                        foregroundColor: const Color.fromARGB(179, 41, 40, 40),
-                                      ),
-                                      child: const Text("Cancelar")
-                                    ),
-                                     TextButton(
-                                       onPressed: () {
-                                         if (controller.text.trim().isNotEmpty) {
-                                           _addBeltSection(controller.text.trim()); // GUARDAR EN FIREBASE - MANTENIDA
-                                         }
-                                         Navigator.pop(ctx);
-                                       },
-                                       // ✅ DISEÑO RESTAURADO
-                                       style: ElevatedButton.styleFrom(
-                                         backgroundColor: Colors.blueAccent,
-                                         foregroundColor: Colors.white,
-                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                         ),
-                                       ),
-                                       child: const Text("Crear"),
-                                     ),
-                                   ],
-                                 ),
-                               );
-                            },
-                            // ✅ DISEÑO RESTAURADO: InkWell para el botón de Agregar Sección
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  Text(
-                                    'Agregar Sección',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      color: Color.fromARGB(255, 0, 0, 0),
-                                    ),
-                                  ),
-                                  SizedBox(width: 5),
-                                  Icon(
-                                    Icons.add_circle_outline,
-                                    color: Color.fromARGB(255, 0, 0, 0),
-                                    size: 18,
-                                  ),
-                                ],
-                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 20),
+                    ],
 
                     // 4. Listar las Tarjetas de Actividades (Stream Anidado) - MANTENIDO
                     ...beltNames.map((beltName) {
@@ -660,7 +685,8 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
           group: [],
           groupTitle: beltName,
           groupId: groupId,
-          onAddActivity: () => _showAddActivityDialog(beltName),
+          isReadOnly: widget.isReadOnly,
+          onAddActivity: widget.isReadOnly ? null : () => _showAddActivityDialog(beltName),
           onNameChanged: (activityId, newName) {
             _updateActivityName(activityId, newName);
           },
@@ -677,7 +703,8 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                             group: filteredActivities,
                             groupTitle: beltName,
                             groupId: groupId,
-                            onAddActivity: () => _showAddActivityDialog(beltName),
+                            isReadOnly: widget.isReadOnly,
+                            onAddActivity: widget.isReadOnly ? null : () => _showAddActivityDialog(beltName),
                             onNameChanged: (activityId, newName) {
                               _updateActivityName(activityId, newName);
                             },

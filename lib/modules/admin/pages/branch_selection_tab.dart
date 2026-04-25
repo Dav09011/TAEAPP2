@@ -128,6 +128,7 @@ class _BranchesScreenState extends State<BranchesScreen> {
               'classes': newBranchData['classes'] ?? 0,
               'participants': newBranchData['participants'] ?? 0,
               'fecha_creacion': FieldValue.serverTimestamp(),
+
             });
 
             // 👇 --- INICIO DE LO NUEVO --- 👇

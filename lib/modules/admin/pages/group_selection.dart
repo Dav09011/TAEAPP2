@@ -235,7 +235,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                       MaterialPageRoute(
                         builder: (context) => ActivitiesSection(
                           groupName: group['name'],
-                          
+                          groupDocId: group['docId'],
                         ),
                       ),
                     );

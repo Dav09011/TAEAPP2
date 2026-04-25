@@ -6,6 +6,7 @@ class ActivitiesCard extends StatelessWidget {
 
   final String groupTitle;
   final String groupId;
+  final bool isReadOnly;
   final VoidCallback? onAddActivity; // ← Callback opcional
 
     // 👇 Nuevos callbacks
@@ -22,6 +23,7 @@ class ActivitiesCard extends StatelessWidget {
     required this.group,
     required this.groupTitle,
     required this.groupId,
+    this.isReadOnly = false,
     this.onAddActivity,
      this.onNameChanged,
     this.onDelete,
@@ -91,27 +93,43 @@ class ActivitiesCard extends StatelessWidget {
         // Encabezado con menú desplegable y botón de agregar
         Row(
           children: [
-            // ✅ Widget reutilizable con menú
-            GroupHeaderWithMenu(
-              title: groupTitle, // ← Personalizado
-              onEdit: () {
-                  _showEditBeltNameDialog(context, groupTitle, onBeltNameChanged);
-                },            
+            if (isReadOnly)
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(
+                  groupTitle,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-            const SizedBox(width: 25),
-            InkWell(
-              // Agregar una actividad
-              onTap: onAddActivity, // ← Llama al callback si existe
-
-
-              borderRadius: BorderRadius.circular(8),
-              child: const Padding(
-                padding: EdgeInsets.all(12.0),
-                child: Icon(Icons.add_circle_outline, size: 30),
+              )
+            else ...[
+              GroupHeaderWithMenu(
+                title: groupTitle,
+                onEdit: () {
+                    _showEditBeltNameDialog(context, groupTitle, onBeltNameChanged);
+                  },            
+                  ),
+              const SizedBox(width: 25),
+              InkWell(
+                onTap: onAddActivity,
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.all(12.0),
+                  child: Icon(Icons.add_circle_outline, size: 30),
+                ),
               ),
-            ),
+            ],
           ],
         ),
+        if (group.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              isReadOnly
+                  ? 'Aun no hay ejercicios asignados en esta seccion.'
+                  : 'Aun no hay actividades en esta seccion.',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          ),
 
         // Espacio vertical
         const SizedBox(height: 16),
@@ -129,6 +147,7 @@ class ActivitiesCard extends StatelessWidget {
                 group: activity,
                 activityId: activityId,      // ✅ Ahora SÍ lo pasamos
                 groupId: groupId,
+                isReadOnly: isReadOnly,
                 onNameChanged: (newName){
                  onNameChanged?.call(activityId, newName);
                 },
@@ -261,6 +280,7 @@ class ActivityCard extends StatelessWidget {
   final Map<String, dynamic> group;
   final String activityId;  // ✅ NUEVO: ID de la actividad
   final String groupId;      // ✅ NUEVO: ID del grupo
+  final bool isReadOnly;
   // 👇 Nuevos callbacks para editar/eliminar actividades
   final ValueChanged<String>? onNameChanged; // ✅ Solo el nuevo nombre
   final VoidCallback? onDelete;              // ✅ Sin parámetros
@@ -272,6 +292,7 @@ class ActivityCard extends StatelessWidget {
     required this.group,
     required this.activityId,   // ✅ NUEVO: Obligatorio
     required this.groupId,
+    this.isReadOnly = false,
     this.onNameChanged,
     this.onDelete,
     this.onTap, // Recibe el callback
@@ -329,28 +350,32 @@ class ActivityCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                 // ✅ Botón de edición mejorado
-                IconButton(
-                  icon: const Icon(Icons.edit_note_sharp, size: 20),
-                  onPressed: () => _showEditDialog(context),
-                ),
-                
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ActivityDetailScreen(
-                          activityId: activityId,     // ✅ Pasamos el ID
-                          groupId: groupId,
-                          activityName: group['name'],
-                          exercises: List<String>.from(group['exercises']),
+                if (isReadOnly)
+                  const SizedBox.shrink()
+                else
+                  IconButton(
+                    icon: const Icon(Icons.edit_note_sharp, size: 20),
+                    onPressed: () => _showEditDialog(context),
+                  ),
+                if (isReadOnly)
+                  const SizedBox(width: 24)
+                else
+                  IconButton(
+                    icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ActivityDetailScreen(
+                            activityId: activityId,
+                            groupId: groupId,
+                            activityName: group['name'],
+                            exercises: List<String>.from(group['exercises']),
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                )
+                      );
+                    },
+                  )
               ],
             ),
           ],
@@ -479,5 +504,4 @@ class ActivityCard extends StatelessWidget {
       );
     }
 }
-
 

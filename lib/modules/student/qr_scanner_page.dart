@@ -89,9 +89,12 @@ final usuarioData = usuarioSnap.data() ?? {};
 final nombre =
     '${usuarioData['nombre'] ?? ''} ${usuarioData['ap'] ?? ''}'.trim();
 
-// 6. Obtener tipo de cinta del grupo
+    // 6. Obtener informacion del grupo para guardar la relacion en el perfil
 final grupoSnap = await db.collection('grupos').doc(grupoId).get();
-final cinta = grupoSnap['tipo_cinta'] ?? '';
+final grupoData = grupoSnap.data() ?? {};
+final cinta = grupoData['tipo_cinta'] ?? '';
+final sucursal = grupoData['id_sucursal'] ?? '';
+final horario = grupoData['horario'] ?? '';
 
 // 7. Agregar alumno con ID autogenerado (igual que los existentes)
 await db
@@ -110,6 +113,24 @@ await db
 await db.collection('grupos').doc(grupoId).update({
   'total_alumnos': FieldValue.increment(1),
 });
+
+// 8.1 Guardar acceso rapido al grupo en el documento del usuario
+await db.collection('usuarios').doc(user.uid).set({
+  'grupos': FieldValue.arrayUnion([
+    {
+      'groupId': grupoId,
+      'groupName': nombreGrupo,
+      'branchName': sucursal,
+      'beltType': cinta,
+      'schedule': horario,
+    }
+  ]),
+  'grupo_id': grupoId,
+  'grupo_nombre': nombreGrupo,
+  'grupo_sucursal': sucursal,
+  'grupo_cinta': cinta,
+  'grupo_horario': horario,
+}, SetOptions(merge: true));
 
 // 9. Éxito
 if (mounted) _showSuccess(nombreGrupo);

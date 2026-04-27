@@ -12,6 +12,7 @@ import 'package:tae_app/modules/authentication/pages/register_admin.dart';
 import 'package:tae_app/modules/authentication/pages/register_teacher_student.dart';
 import 'package:tae_app/modules/admin/pages/wallet_screen.dart';
 import 'package:tae_app/modules/admin/pages/wallet_fees.dart';
+import 'package:tae_app/modules/admin/pages/wallet_student_status.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,7 @@ class WelcomeTaeApp extends StatelessWidget {
         '/wallet': (context) => const WalletScreen(), // La principal
         '/wallet-fees':
             (context) => const WalletFeesPage(), // La de configuración
+        '/wallet-student-status': (context) => const WalletStudentStatusPage(),
       },
     );
   }

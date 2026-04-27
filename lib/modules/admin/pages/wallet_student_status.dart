@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class WalletFeesPage extends StatelessWidget {
-  const WalletFeesPage({super.key});
+class WalletStudentStatusPage extends StatelessWidget {
+  const WalletStudentStatusPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -9,7 +9,7 @@ class WalletFeesPage extends StatelessWidget {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
-          'Configurar Tarifas',
+          'Estado de Alumnos',
           style: TextStyle(color: Colors.black),
         ),
         backgroundColor: Colors.white,

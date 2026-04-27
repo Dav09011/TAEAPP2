@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart'; // Opcional, pero recomendada
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -11,6 +12,7 @@ class WalletScreen extends StatefulWidget {
 
 class _WalletScreenState extends State<WalletScreen> {
   bool _isPressed = false;
+  String _sucursalSeleccionada = "General";
 
   @override
   Widget build(BuildContext context) {
@@ -98,13 +100,47 @@ class _WalletScreenState extends State<WalletScreen> {
                                 color: Colors.blueAccent,
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                'Hola, Jorge Gomez',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey[800],
-                                ),
+                              FutureBuilder<DocumentSnapshot>(
+                                // 1. Obtenemos el UID del usuario actual
+                                future:
+                                    FirebaseFirestore.instance
+                                        .collection('usuarios')
+                                        .doc(
+                                          FirebaseAuth
+                                              .instance
+                                              .currentUser
+                                              ?.uid,
+                                        )
+                                        .get(),
+                                builder: (context, snapshot) {
+                                  // 2. Mientras carga o si hay error, mostramos algo temporal
+                                  if (snapshot.hasError)
+                                    return const Text("Error al cargar");
+                                  if (snapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Text(
+                                      "Cargando...",
+                                      style: TextStyle(fontSize: 14),
+                                    );
+                                  }
+
+                                  // 3. Extraemos el nombre del documento de Firestore
+                                  // Asegúrate de que en tu base de datos el campo se llame 'nombre'
+                                  Map<String, dynamic>? data =
+                                      snapshot.data?.data()
+                                          as Map<String, dynamic>?;
+                                  String nombreUsuario =
+                                      data?['nombre'] ?? 'Usuario';
+
+                                  return Text(
+                                    'Hola, $nombreUsuario',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey[800],
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),
@@ -145,16 +181,32 @@ class _WalletScreenState extends State<WalletScreen> {
                 borderRadius: BorderRadius.circular(15),
                 boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+              child: Column(
+                // ✅ Cambiamos a Column para poner el título arriba de la Row
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _buildSummaryItem("Pagados", "18", Colors.green),
-                  _buildSummaryItem("Pendientes", "7", Colors.orange),
-                  // Usamos un color sólido aquí para el texto en lugar de primaryColor (blanco)
-                  _buildSummaryItem(
-                    "Por Validar",
-                    "\$1,200",
-                    const Color.fromARGB(255, 41, 53, 119),
+                  Text(
+                    "$_sucursalSeleccionada", // ✅ Título dinámico
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color.fromARGB(255, 41, 53, 119),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const Divider(), // Una línea sutil divisoria
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildSummaryItem("Pagados", "18", Colors.green),
+                      _buildSummaryItem("Pendientes", "7", Colors.orange),
+                      _buildSummaryItem(
+                        "Por Validar",
+                        "\$1,200",
+                        const Color.fromARGB(255, 41, 53, 119),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -178,7 +230,8 @@ class _WalletScreenState extends State<WalletScreen> {
               subtitle: 'Control de mensualidades y becas',
               icon: Icons.people_alt_outlined,
               color: Colors.blue,
-              onTap: () => Navigator.pushNamed(context, '/student-status'),
+              onTap:
+                  () => Navigator.pushNamed(context, '/wallet-student-status'),
             ),
             const SizedBox(height: 15),
 
@@ -268,113 +321,118 @@ class _WalletScreenState extends State<WalletScreen> {
       ],
     );
   }
-}
 
-void _mostrarSelectorSucursales(BuildContext context) {
-  final FirebaseFirestore db = FirebaseFirestore.instance;
+  void _mostrarSelectorSucursales(BuildContext context) {
+    final FirebaseFirestore db = FirebaseFirestore.instance;
 
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true, // Permite que se ajuste si hay muchas sucursales
-    builder: (BuildContext context) {
-      return Container(
-        padding: const EdgeInsets.only(top: 15),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(30),
-            topRight: Radius.circular(30),
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled:
+          true, // Permite que se ajuste si hay muchas sucursales
+      builder: (BuildContext context) {
+        return Container(
+          padding: const EdgeInsets.only(top: 15),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(30),
+              topRight: Radius.circular(30),
+            ),
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Línea de agarre estéticamente minimalista
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Línea de agarre estéticamente minimalista
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20.0),
-              child: Text(
-                'Seleccionar Sucursal',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20.0),
+                child: Text(
+                  'Seleccionar Sucursal',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
 
-            // --- CONEXIÓN DINÁMICA ---
-            Flexible(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: db.collection('sucursales').orderBy('name').snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text('Error al cargar datos'),
-                    );
-                  }
-
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: CircularProgressIndicator(),
-                    );
-                  }
-
-                  final docs = snapshot.data!.docs;
-
-                  if (docs.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text('No hay sucursales registradas'),
-                    );
-                  }
-                  return ListView.builder(
-                    shrinkWrap: true, // Importante para BottomSheet
-                    itemCount: docs.length,
-                    itemBuilder: (context, index) {
-                      final data = docs[index].data() as Map<String, dynamic>;
-                      final String nombre = data['name'] ?? 'Sin nombre';
-
-                      return ListTile(
-                        leading: const Icon(
-                          Icons.location_on_outlined,
-                          color: Color.fromARGB(255, 41, 53, 119),
-                        ),
-                        title: Text(
-                          nombre,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        trailing: const Icon(Icons.chevron_right, size: 20),
-                        onTap: () {
-                          // TODO: Aquí guardarías la sucursal seleccionada en una variable global o Provider
-                          print("Sucursal elegida: $nombre");
-
-                          Navigator.pop(context); // Cierra el menú
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Viendo finanzas de: $nombre'),
-                              duration: const Duration(seconds: 1),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
+              // --- CONEXIÓN DINÁMICA ---
+              Flexible(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream:
+                      db.collection('sucursales').orderBy('name').snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text('Error al cargar datos'),
                       );
-                    },
-                  );
-                },
+                    }
+
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: CircularProgressIndicator(),
+                      );
+                    }
+
+                    final docs = snapshot.data!.docs;
+
+                    if (docs.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text('No hay sucursales registradas'),
+                      );
+                    }
+                    return ListView.builder(
+                      shrinkWrap: true, // Importante para BottomSheet
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        final String nombre = data['name'] ?? 'Sin nombre';
+
+                        return ListTile(
+                          leading: const Icon(
+                            Icons.location_on_outlined,
+                            color: Color.fromARGB(255, 41, 53, 119),
+                          ),
+                          title: Text(
+                            nombre,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () {
+                            setState(() {
+                              _sucursalSeleccionada = nombre;
+                            });
+                            // TODO: Aquí guardarías la sucursal seleccionada en una variable global o Provider
+                            print("Sucursal elegida: $nombre");
+
+                            Navigator.pop(context); // Cierra el menú
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Viendo finanzas de: $nombre'),
+                                duration: const Duration(seconds: 1),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      );
-    },
-  );
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }

@@ -13,6 +13,7 @@ te da acceso a componentes de diseño Material
 import '../modules/admin/pages/branch_selection_tab.dart';
 import '../modules/authentication/pages/forgot_password_page.dart';
 import '../modules/authentication/pages/type_register.dart';
+import 'package:tae_app/modules/student/home_page_student.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // Necesario antes de usar Firebase
@@ -29,13 +30,13 @@ class WelcomeTaeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      // (Opcional) Puedes añadir un título a la aplicación
-      title: 'TAE App', 
-      // La propiedad 'home' define el widget inicial (tu LoginPage)
-      home: LoginPage(), 
-      // Si quieres que el banner "DEBUG" desaparezca:
+    return MaterialApp(
+      title: 'TAE App',
       debugShowCheckedModeBanner: false,
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const LoginPage(),
+      },
     );
   }
 }
@@ -114,7 +115,7 @@ class _LoginPageState extends State<LoginPage> {
 
     // 🚨 Como no tenemos la página del alumno, usaremos MainBranches temporalmente
     // O si quieres que falle si no es admin, puedes lanzar un error o ir al login.
-    nextPage = MainBranches(); // Reemplázalo con HomePageAlumno() cuando esté lista.
+    nextPage = HomePageStudent(); // Reemplázalo con HomePageAlumno() cuando esté lista.
   }
   
   // 2. EJECUTAR NAVEGACIÓN REEMPLAZADA con la variable nextPage

@@ -5,8 +5,9 @@ import 'package:tae_app/modules/admin/widgets/search_bar.dart';
 
 class StudentsSectionScreen extends StatefulWidget {
   final String? groupName;
+  final String? groupDocId;
 
-  const StudentsSectionScreen({super.key, this.groupName});
+  const StudentsSectionScreen({super.key, this.groupName, this.groupDocId,});
 
   @override
   State<StudentsSectionScreen> createState() => _StudentsSectionScreenState();
@@ -23,7 +24,7 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
   // === ELIMINAR ALUMNOS SELECCIONADOS DE FIREBASE =============
   // ============================================================
   Future<void> _deleteSelectedStudents() async {
-    final String? groupId = widget.groupName;
+    final String? groupId = widget.groupName ?? widget.groupDocId;
     if (groupId == null || groupId.isEmpty) return;
 
     try {
@@ -146,7 +147,7 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String? groupId = widget.groupName;
+    final String? groupId = widget.groupDocId ?? widget.groupName;
     
     if (groupId == null || groupId.isEmpty) {
       return const Scaffold(

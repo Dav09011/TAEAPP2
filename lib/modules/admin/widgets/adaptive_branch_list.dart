@@ -18,12 +18,16 @@ class AdaptiveBranchList extends StatelessWidget {
 
 // 1. Declaración de la nueva función ONTAP
   final Function(String branchName)? onTap;
+  final Function(Map<String, dynamic> branch)? onRename;
+  final Function(Map<String, dynamic> branch)? onDelete;
 
   const AdaptiveBranchList({
     super.key,
     required this.branches,
     required this.icon, // <--- Nuevo parámetro para el ícono
     this.onTap,
+    this.onRename,
+    this.onDelete,
 
   });
 
@@ -64,10 +68,12 @@ class AdaptiveBranchList extends StatelessWidget {
             branches: branches, 
             maxCardWidth: maxCardWidth, 
             icon: icon,  // - 👈 se lo pasa al hijo
+            onTap: onTap,
+            onRename: onRename,
+            onDelete: onDelete,
             );
         },
       ),
     );
   }
 }
-

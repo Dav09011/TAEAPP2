@@ -20,6 +20,9 @@ class BranchListView extends StatelessWidget {
     // Esto significa: "para construir este widget 
     // necesito que me pases un IconData, y lo voy a guardar automáticamente en una variable interna llamada icon."
     required this.icon, // <--- Nuevo parámetro para el ícono
+    this.onTap,
+    this.onRename,
+    this.onDelete,
 
   });
 
@@ -28,6 +31,9 @@ class BranchListView extends StatelessWidget {
   // Aquí definimos la propiedad interna de la clase que guardará el valor pasado.
   // Como es final, no puede cambiar después de ser asignado (es inmutable).
   final IconData icon; // 👈 propiedad de la clase
+  final void Function(String branchName)? onTap;
+  final void Function(Map<String, dynamic> branch)? onRename;
+  final void Function(Map<String, dynamic> branch)? onDelete;
 
 
   @override
@@ -39,7 +45,11 @@ class BranchListView extends StatelessWidget {
         final branch = branches[index];
         return BranchCard(
           branch: branch,
-          maxCardWidth: maxCardWidth, icon: icon, // 👈 lo vuelve a pasar al nieto - Tampoco lo usa aquí, solo lo reenvía.
+          maxCardWidth: maxCardWidth,
+          icon: icon,
+          onTap: onTap == null ? null : () => onTap!(branch['name'] as String),
+          onRename: onRename == null ? null : () => onRename!(branch),
+          onDelete: onDelete == null ? null : () => onDelete!(branch),
         );
       },
     );

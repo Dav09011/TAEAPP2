@@ -11,7 +11,13 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 class BranchGroupsScreen extends StatefulWidget {
   final String branchName;
-  const BranchGroupsScreen({super.key, required this.branchName});
+  final String? successMessage;
+
+  const BranchGroupsScreen({
+    super.key,
+    required this.branchName,
+    this.successMessage,
+  });
 
   @override
   State<BranchGroupsScreen> createState() => _BranchGroupsScreenState();
@@ -23,6 +29,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   late Stream<QuerySnapshot> _groupsStream;
 
   String _searchQuery = '';
+  String? _visibleSuccessMessage;
 
   @override
   void initState() {
@@ -32,6 +39,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
         .collection('grupos')
         .where('id_sucursal', isEqualTo: widget.branchName)
         .snapshots();
+    _visibleSuccessMessage = widget.successMessage;
   }
 
   // =================================================================
@@ -46,8 +54,37 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     if (newGroupData == null) return;
 
     try {
+      final String groupName = (newGroupData['name'] as String?)?.trim() ?? '';
+      if (groupName.isEmpty) {
+        _showSnackBar(
+          'El grupo necesita un nombre.',
+          backgroundColor: Colors.orange,
+        );
+        return;
+      }
+
+      final existingGroups = await _db
+          .collection('grupos')
+          .where('id_sucursal', isEqualTo: widget.branchName)
+          .get();
+
+      final normalizedGroupName = groupName.toLowerCase();
+      final duplicateExists = existingGroups.docs.any((doc) {
+        final savedName =
+            (doc.data()['nombre_grupo'] as String?)?.trim().toLowerCase() ?? '';
+        return savedName == normalizedGroupName;
+      });
+
+      if (duplicateExists) {
+        _showSnackBar(
+          'Ya existe un grupo con ese nombre en esta sucursal.',
+          backgroundColor: Colors.orange,
+        );
+        return;
+      }
+
       final groupToSave = {
-        'nombre_grupo': newGroupData['name'],
+        'nombre_grupo': groupName,
         'tipo_cinta': newGroupData['beltType'],
         'horario': newGroupData['schedule'],
         'id_sucursal': widget.branchName,
@@ -55,14 +92,12 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
         'fecha_creacion': FieldValue.serverTimestamp(),
       };
 
-      await _db.collection('grupos')
-      .doc(newGroupData['name']) // 👈 usa el nombre como ID
-      .set(groupToSave);
+      await _db.collection('grupos').add(groupToSave);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Grupo ${newGroupData['name']} creado con éxito.'),
+            content: Text('Grupo $groupName creado con éxito.'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -79,6 +114,274 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
           ),
         );
       }
+    }
+  }
+
+  void _showSnackBar(String message, {Color? backgroundColor}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _showRenameGroupDialog(Map<String, dynamic> group) async {
+    final String currentName = (group['name'] as String?)?.trim() ?? '';
+    if (currentName.isEmpty) return;
+
+    final controller = TextEditingController(text: currentName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cambiar nombre del grupo'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nuevo nombre',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName == null || newName.isEmpty || newName == currentName) {
+      return;
+    }
+
+    await _renameGroup(group, newName);
+  }
+
+  Future<void> _renameGroup(
+    Map<String, dynamic> group,
+    String newName,
+  ) async {
+    final String docId = (group['docId'] as String?)?.trim() ?? '';
+    final String oldName = (group['name'] as String?)?.trim() ?? '';
+    if (docId.isEmpty || oldName.isEmpty) return;
+
+    try {
+      final duplicateGroupQuery = await _db
+          .collection('grupos')
+          .where('id_sucursal', isEqualTo: widget.branchName)
+          .get();
+
+      final normalizedNewName = newName.toLowerCase();
+      final nameTaken = duplicateGroupQuery.docs.any((doc) {
+        if (doc.id == docId) return false;
+        final savedName =
+            (doc.data()['nombre_grupo'] as String?)?.trim().toLowerCase() ?? '';
+        return savedName == normalizedNewName;
+      });
+      if (nameTaken) {
+        _showSnackBar(
+          'Ya existe un grupo con ese nombre en esta sucursal.',
+          backgroundColor: Colors.orange,
+        );
+        return;
+      }
+
+      await _db.collection('grupos').doc(docId).update({
+        'nombre_grupo': newName,
+      });
+
+      await _syncUsersAfterGroupRename(groupId: docId, newName: newName);
+
+      _showSnackBar(
+        'Grupo renombrado a "$newName".',
+        backgroundColor: Colors.green,
+      );
+    } catch (e) {
+      _showSnackBar(
+        'No pudimos cambiar el nombre del grupo: $e',
+        backgroundColor: Colors.red,
+      );
+    }
+  }
+
+  Future<void> _syncUsersAfterGroupRename({
+    required String groupId,
+    required String newName,
+  }) async {
+    final usersSnapshot = await _db.collection('usuarios').get();
+    final batch = _db.batch();
+    var hasWrites = false;
+
+    for (final userDoc in usersSnapshot.docs) {
+      final data = userDoc.data();
+      final updates = <String, dynamic>{};
+
+      final savedGroups = data['grupos'];
+      if (savedGroups is List) {
+        var groupsChanged = false;
+        final updatedGroups = savedGroups.map((group) {
+          if (group is! Map) return group;
+          final updatedGroup = Map<String, dynamic>.from(group);
+          if (updatedGroup['groupId'] == groupId) {
+            updatedGroup['groupName'] = newName;
+            groupsChanged = true;
+          }
+          return updatedGroup;
+        }).toList();
+
+        if (groupsChanged) {
+          updates['grupos'] = updatedGroups;
+        }
+      }
+
+      if (data['grupo_id'] == groupId) {
+        updates['grupo_nombre'] = newName;
+      }
+
+      if (updates.isNotEmpty) {
+        hasWrites = true;
+        batch.update(userDoc.reference, updates);
+      }
+    }
+
+    if (hasWrites) {
+      await batch.commit();
+    }
+  }
+
+  Future<void> _confirmDeleteGroup(Map<String, dynamic> group) async {
+    final String groupName = (group['name'] as String?)?.trim() ?? '';
+    if (groupName.isEmpty) return;
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Borrar grupo'),
+        content: Text(
+          'Se borrara "$groupName" y tambien sus alumnos, actividades y secciones. Esta accion no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Borrar'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete == true) {
+      await _deleteGroup(group);
+    }
+  }
+
+  Future<void> _deleteGroup(Map<String, dynamic> group) async {
+    final String docId = (group['docId'] as String?)?.trim() ?? '';
+    final String groupName = (group['name'] as String?)?.trim() ?? '';
+    if (docId.isEmpty) return;
+
+    try {
+      final groupRef = _db.collection('grupos').doc(docId);
+      await _deleteCollection(groupRef.collection('alumnos'));
+      await _deleteCollection(groupRef.collection('actividades'));
+      await _deleteCollection(groupRef.collection('secciones_cinta'));
+      await groupRef.delete();
+
+      await _syncUsersAfterGroupDelete(groupId: docId);
+
+      _showSnackBar(
+        'Grupo "${groupName.isEmpty ? docId : groupName}" eliminado correctamente.',
+        backgroundColor: Colors.green,
+      );
+    } catch (e) {
+      _showSnackBar(
+        'No pudimos borrar el grupo: $e',
+        backgroundColor: Colors.red,
+      );
+    }
+  }
+
+  Future<void> _deleteCollection(
+    CollectionReference<Map<String, dynamic>> collection,
+  ) async {
+    while (true) {
+      final snapshot = await collection.limit(100).get();
+      if (snapshot.docs.isEmpty) break;
+
+      final batch = _db.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      if (snapshot.docs.length < 100) {
+        break;
+      }
+    }
+  }
+
+  Future<void> _syncUsersAfterGroupDelete({required String groupId}) async {
+    final usersSnapshot = await _db.collection('usuarios').get();
+    final batch = _db.batch();
+    var hasWrites = false;
+
+    for (final userDoc in usersSnapshot.docs) {
+      final data = userDoc.data();
+      final updates = <String, dynamic>{};
+
+      final savedGroups = data['grupos'];
+      List<Map<String, dynamic>>? remainingGroups;
+      if (savedGroups is List) {
+        remainingGroups = savedGroups
+            .whereType<Map>()
+            .map((group) => Map<String, dynamic>.from(group))
+            .where((group) => group['groupId']?.toString() != groupId)
+            .toList();
+
+        if (remainingGroups.length != savedGroups.length) {
+          updates['grupos'] =
+              remainingGroups.isEmpty ? FieldValue.delete() : remainingGroups;
+        }
+      }
+
+      if (data['grupo_id'] == groupId) {
+        if (remainingGroups != null && remainingGroups.isNotEmpty) {
+          final firstGroup = remainingGroups.first;
+          updates['grupo_id'] = firstGroup['groupId'] ?? '';
+          updates['grupo_nombre'] = firstGroup['groupName'] ?? '';
+          updates['grupo_sucursal'] = firstGroup['branchName'] ?? '';
+          updates['grupo_cinta'] = firstGroup['beltType'] ?? '';
+          updates['grupo_horario'] = firstGroup['schedule'] ?? '';
+        } else {
+          updates['grupo_id'] = FieldValue.delete();
+          updates['grupo_nombre'] = FieldValue.delete();
+          updates['grupo_sucursal'] = FieldValue.delete();
+          updates['grupo_cinta'] = FieldValue.delete();
+          updates['grupo_horario'] = FieldValue.delete();
+        }
+      }
+
+      if (updates.isNotEmpty) {
+        hasWrites = true;
+        batch.update(userDoc.reference, updates);
+      }
+    }
+
+    if (hasWrites) {
+      await batch.commit();
     }
   }
 
@@ -101,6 +404,41 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                   });
                 },
               ),
+              if (_visibleSuccessMessage != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2E7D32),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline, color: Colors.white),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _visibleSuccessMessage!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _visibleSuccessMessage = null;
+                          });
+                        },
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        tooltip: 'Cerrar mensaje',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
 
               // Botón Agregar Grupo
@@ -209,26 +547,24 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             constraints.maxWidth > 800 ? 600 : constraints.maxWidth * 0.95;
 
         return Center(
-        child: Container(
-          width: maxCardWidth,
-          margin: const EdgeInsets.only(bottom: 26),
-          padding: const EdgeInsets.all(26),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              // === Info del grupo (toca para ir a actividades) ===
-              Expanded(
-                child: InkWell(
+          child: Container(
+            width: maxCardWidth,
+            margin: const EdgeInsets.only(bottom: 26),
+            padding: const EdgeInsets.all(26),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                InkWell(
                   onTap: () {
                     Navigator.push(
                       context,
@@ -240,62 +576,86 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                       ),
                     );
                   },
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        group['name'],
-                        style: const TextStyle(
-                          fontSize: 23,
-                          fontWeight: FontWeight.bold,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 56),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          group['name'],
+                          style: const TextStyle(
+                            fontSize: 23,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tipo de cinta(s): ${group["beltType"]}',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        Text(
+                          'Horario: ${group["schedule"]}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                        Text(
+                          'Alumnos: ${group["alumns"]}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: -10,
+                  right: -10,
+                  child: PopupMenuButton<String>(
+                    tooltip: 'Opciones del grupo',
+                    onSelected: (value) {
+                      if (value == 'rename') {
+                        _showRenameGroupDialog(group);
+                      } else if (value == 'delete') {
+                        _confirmDeleteGroup(group);
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem<String>(
+                        value: 'rename',
+                        child: Text('Cambiar nombre'),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tipo de cinta(s): ${group["beltType"]}',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                      Text(
-                        'Horario: ${group["schedule"]}',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                      Text(
-                        'Alumnos: ${group["alumns"]}',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[500],
-                        ),
+                      PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text('Borrar grupo'),
                       ),
                     ],
                   ),
                 ),
-              ),
-
-              // === Icono QR para moverlo ===
-              Positioned(
-                bottom: 0.1,
-                right: 1,
-                child: GestureDetector(
-                onTap: () => _showQRDialog(context, group),
-                child: const Icon(
-                Icons.qr_code,
-                size: 36,
-                color: Colors.black87,
-        ),
-      ),
-    ),
-            ],
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: () => _showQRDialog(context, group),
+                    child: const Icon(
+                      Icons.qr_code,
+                      size: 36,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      );
+        );
       },
     );
   }

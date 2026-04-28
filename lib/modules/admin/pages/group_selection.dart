@@ -10,12 +10,14 @@ import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class BranchGroupsScreen extends StatefulWidget {
+  final String branchDocId; // ✅ NUEVO: El ID inmutable de la sucursal
   final String branchName;
   final String? successMessage;
 
   const BranchGroupsScreen({
     super.key,
     required this.branchName,
+    required this.branchDocId, // ✅ NUEVO
     this.successMessage,
   });
 
@@ -35,10 +37,12 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   void initState() {
     super.initState();
     // Inicializamos el Stream para escuchar la colección 'grupos'
-    _groupsStream = _db
-        .collection('grupos')
-        .where('id_sucursal', isEqualTo: widget.branchName)
-        .snapshots();
+    _groupsStream =
+        _db
+            .collection('grupos')
+            .where('id_sucursal', isEqualTo: widget.branchDocId)
+            .orderBy('nombre_grupo')
+            .snapshots();
     _visibleSuccessMessage = widget.successMessage;
   }
 
@@ -63,10 +67,11 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
         return;
       }
 
-      final existingGroups = await _db
-          .collection('grupos')
-          .where('id_sucursal', isEqualTo: widget.branchName)
-          .get();
+      final existingGroups =
+          await _db
+              .collection('grupos')
+              .where('id_sucursal', isEqualTo: widget.branchDocId)
+              .get();
 
       final normalizedGroupName = groupName.toLowerCase();
       final duplicateExists = existingGroups.docs.any((doc) {
@@ -87,12 +92,15 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
         'nombre_grupo': groupName,
         'tipo_cinta': newGroupData['beltType'],
         'horario': newGroupData['schedule'],
-        'id_sucursal': widget.branchName,
+        'id_sucursal': widget.branchDocId,
         'total_alumnos': 0,
         'fecha_creacion': FieldValue.serverTimestamp(),
       };
 
       await _db.collection('grupos').add(groupToSave);
+      await _db.collection('sucursales').doc(widget.branchDocId).update({
+        'classes': FieldValue.increment(1),
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -135,28 +143,30 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     final controller = TextEditingController(text: currentName);
     final newName = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Cambiar nombre del grupo'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Nuevo nombre',
-            border: OutlineInputBorder(),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Cambiar nombre del grupo'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Nuevo nombre',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed:
+                    () =>
+                        Navigator.of(dialogContext).pop(controller.text.trim()),
+                child: const Text('Guardar'),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
     );
 
     if (newName == null || newName.isEmpty || newName == currentName) {
@@ -166,19 +176,17 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     await _renameGroup(group, newName);
   }
 
-  Future<void> _renameGroup(
-    Map<String, dynamic> group,
-    String newName,
-  ) async {
+  Future<void> _renameGroup(Map<String, dynamic> group, String newName) async {
     final String docId = (group['docId'] as String?)?.trim() ?? '';
     final String oldName = (group['name'] as String?)?.trim() ?? '';
     if (docId.isEmpty || oldName.isEmpty) return;
 
     try {
-      final duplicateGroupQuery = await _db
-          .collection('grupos')
-          .where('id_sucursal', isEqualTo: widget.branchName)
-          .get();
+      final duplicateGroupQuery =
+          await _db
+              .collection('grupos')
+              .where('id_sucursal', isEqualTo: widget.branchDocId)
+              .get();
 
       final normalizedNewName = newName.toLowerCase();
       final nameTaken = duplicateGroupQuery.docs.any((doc) {
@@ -228,15 +236,16 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
       final savedGroups = data['grupos'];
       if (savedGroups is List) {
         var groupsChanged = false;
-        final updatedGroups = savedGroups.map((group) {
-          if (group is! Map) return group;
-          final updatedGroup = Map<String, dynamic>.from(group);
-          if (updatedGroup['groupId'] == groupId) {
-            updatedGroup['groupName'] = newName;
-            groupsChanged = true;
-          }
-          return updatedGroup;
-        }).toList();
+        final updatedGroups =
+            savedGroups.map((group) {
+              if (group is! Map) return group;
+              final updatedGroup = Map<String, dynamic>.from(group);
+              if (updatedGroup['groupId'] == groupId) {
+                updatedGroup['groupName'] = newName;
+                groupsChanged = true;
+              }
+              return updatedGroup;
+            }).toList();
 
         if (groupsChanged) {
           updates['grupos'] = updatedGroups;
@@ -264,23 +273,24 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
 
     final shouldDelete = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Borrar grupo'),
-        content: Text(
-          'Se borrara "$groupName" y tambien sus alumnos, actividades y secciones. Esta accion no se puede deshacer.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancelar'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Borrar grupo'),
+            content: Text(
+              'Se borrara "$groupName" y tambien sus alumnos, actividades y secciones. Esta accion no se puede deshacer.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Borrar'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Borrar'),
-          ),
-        ],
-      ),
     );
 
     if (shouldDelete == true) {
@@ -295,12 +305,22 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
 
     try {
       final groupRef = _db.collection('grupos').doc(docId);
+      final groupSnapshot = await groupRef.get();
+      final totalAlumnos =
+          (groupSnapshot.data()?['total_alumnos'] as num?)?.toInt() ?? 0;
+
       await _deleteCollection(groupRef.collection('alumnos'));
       await _deleteCollection(groupRef.collection('actividades'));
       await _deleteCollection(groupRef.collection('secciones_cinta'));
       await groupRef.delete();
 
       await _syncUsersAfterGroupDelete(groupId: docId);
+
+      // ✅ UNA SOLA ACTUALIZACIÓN ATÓMICA
+      await _db.collection('sucursales').doc(widget.branchDocId).update({
+        'classes': FieldValue.increment(-1),
+        'participants': FieldValue.increment(-totalAlumnos),
+      });
 
       _showSnackBar(
         'Grupo "${groupName.isEmpty ? docId : groupName}" eliminado correctamente.',
@@ -345,11 +365,12 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
       final savedGroups = data['grupos'];
       List<Map<String, dynamic>>? remainingGroups;
       if (savedGroups is List) {
-        remainingGroups = savedGroups
-            .whereType<Map>()
-            .map((group) => Map<String, dynamic>.from(group))
-            .where((group) => group['groupId']?.toString() != groupId)
-            .toList();
+        remainingGroups =
+            savedGroups
+                .whereType<Map>()
+                .map((group) => Map<String, dynamic>.from(group))
+                .where((group) => group['groupId']?.toString() != groupId)
+                .toList();
 
         if (remainingGroups.length != savedGroups.length) {
           updates['grupos'] =
@@ -408,14 +429,20 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF2E7D32),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle_outline, color: Colors.white),
+                      const Icon(
+                        Icons.check_circle_outline,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -474,62 +501,79 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
 
               // === StreamBuilder mejorado con filtro local ===
               StreamBuilder<QuerySnapshot>(
-              stream: _groupsStream,
-              builder: (context, snapshot) {
-                try {
-                  if (snapshot.hasError) {
-                    return const Text('¡Oh no! Tuvimos un error al cargar los grupos.');
-                  }
-
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-                    // 1. Extraer todos los grupos desde Firebase
-                    final allGroups = snapshot.data!.docs.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>? ?? {};
-                      return {
-                        'docId': doc.id,
-                        'name': data['nombre_grupo'] ?? 'Sin Nombre',
-                        'beltType': data['tipo_cinta'] ?? 'N/A',
-                        'schedule': data['horario'] ?? 'Sin horario',
-                        'alumns': '${data['total_alumnos'] ?? 0} participantes',
-                      };
-                    }).toList();
-
-                    // 2. Filtrar localmente según _searchQuery
-                    List<Map<String, dynamic>> filteredGroups = allGroups;
-                    if (_searchQuery.isNotEmpty) {
-                      final query = _searchQuery.toLowerCase();
-                      filteredGroups = allGroups.where((group) {
-                        final name = (group['name'] as String).toLowerCase();
-                        final belt = (group['beltType'] as String).toLowerCase();
-                        final schedule = (group['schedule'] as String).toLowerCase();
-                        return name.contains(query) || belt.contains(query) || schedule.contains(query);
-                      }).toList();
+                stream: _groupsStream,
+                builder: (context, snapshot) {
+                  try {
+                    if (snapshot.hasError) {
+                      return const Text(
+                        '¡Oh no! Tuvimos un error al cargar los grupos.',
+                      );
                     }
 
-                    // 3. Mostrar resultados
-                    if (filteredGroups.isEmpty) {
-                      return const Center(child: Text('No se encontraron grupos.'));
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
                     }
 
-                    return Column(
-                      children: filteredGroups.map((group) => _buildGroupCard(group)).toList(),
+                    if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                      // 1. Extraer todos los grupos desde Firebase
+                      final allGroups =
+                          snapshot.data!.docs.map((doc) {
+                            final data =
+                                doc.data() as Map<String, dynamic>? ?? {};
+                            return {
+                              'docId': doc.id,
+                              'name': data['nombre_grupo'] ?? 'Sin Nombre',
+                              'beltType': data['tipo_cinta'] ?? 'N/A',
+                              'schedule': data['horario'] ?? 'Sin horario',
+                              'alumns':
+                                  '${data['total_alumnos'] ?? 0} participantes',
+                            };
+                          }).toList();
+
+                      // 2. Filtrar localmente según _searchQuery
+                      List<Map<String, dynamic>> filteredGroups = allGroups;
+                      if (_searchQuery.isNotEmpty) {
+                        final query = _searchQuery.toLowerCase();
+                        filteredGroups =
+                            allGroups.where((group) {
+                              final name =
+                                  (group['name'] as String).toLowerCase();
+                              final belt =
+                                  (group['beltType'] as String).toLowerCase();
+                              final schedule =
+                                  (group['schedule'] as String).toLowerCase();
+                              return name.contains(query) ||
+                                  belt.contains(query) ||
+                                  schedule.contains(query);
+                            }).toList();
+                      }
+
+                      // 3. Mostrar resultados
+                      if (filteredGroups.isEmpty) {
+                        return const Center(
+                          child: Text('No se encontraron grupos.'),
+                        );
+                      }
+
+                      return Column(
+                        children:
+                            filteredGroups
+                                .map((group) => _buildGroupCard(group))
+                                .toList(),
+                      );
+                    }
+
+                    return Center(
+                      child: Text(
+                        'Aún no hay grupos para ${widget.branchName}. ¡Agrega uno!',
+                      ),
                     );
+                  } catch (e, stack) {
+                    print("⚠️ Error en StreamBuilder: $e\n$stack");
+                    return const Text('Error al renderizar grupos.');
                   }
-
-                  return Center(
-                    child: Text('Aún no hay grupos para ${widget.branchName}. ¡Agrega uno!'),
-                  );
-                } catch (e, stack) {
-                  print("⚠️ Error en StreamBuilder: $e\n$stack");
-                  return const Text('Error al renderizar grupos.');
-                }
-              },
-            ),
-            
+                },
+              ),
             ],
           ),
         ),
@@ -569,10 +613,11 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => ActivitiesSection(
-                          groupName: group['name'],
-                          groupDocId: group['docId'],
-                        ),
+                        builder:
+                            (context) => ActivitiesSection(
+                              groupName: group['name'],
+                              groupDocId: group['docId'],
+                            ),
                       ),
                     );
                   },
@@ -628,16 +673,17 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                         _confirmDeleteGroup(group);
                       }
                     },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem<String>(
-                        value: 'rename',
-                        child: Text('Cambiar nombre'),
-                      ),
-                      PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Text('Borrar grupo'),
-                      ),
-                    ],
+                    itemBuilder:
+                        (context) => const [
+                          PopupMenuItem<String>(
+                            value: 'rename',
+                            child: Text('Cambiar nombre'),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Text('Borrar grupo'),
+                          ),
+                        ],
                   ),
                 ),
                 Positioned(
@@ -689,196 +735,221 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   }
 
   void _showQRDialog(BuildContext context, Map<String, dynamic> group) {
-  
-  showDialog(
-    context: context,
-    builder: (context) => Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              group['name'],
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+    showDialog(
+      context: context,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(height: 4),
-            Text(
-              widget.branchName,
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-             const SizedBox(height: 24),
-            const Text(
-              '¿Para quién es el QR?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 20),
-            // === Opción: Alumno ===
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _showQRCode(context, group, tipo: 'alumno');
-                },
-                icon: const Icon(Icons.school_outlined),
-                label: const Text('QR para Alumno'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // === Opción: Usuario Privilegiado ===
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _showQRCode(context, group, tipo: 'privilegiado');
-                },
-                icon: const Icon(Icons.admin_panel_settings_outlined),
-                label: const Text('QR para Usuario Privilegiado'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-            ),
-            
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-void _showQRCode(BuildContext context, Map<String, dynamic> group, {required String tipo}) {
-  final bool esPrivilegiado = tipo == 'privilegiado';
-
-  final String qrData = esPrivilegiado
-    ? 'PRIVILEGIADO|GrupoId:${group['docId']}|Grupo:${group['name']}|Sucursal:${widget.branchName}'
-    : 'ALUMNO|GrupoId:${group['docId']}|Grupo:${group['name']}|Sucursal:${widget.branchName}';
-
-  // === GENERACIÓN DEL CÓDIGO NUMÉRICO ===
-  // Tomamos los datos del QR, los convertimos a un número único (hashCode), 
-  // aseguramos que sea positivo (abs) y tomamos los primeros 6 dígitos.
-  final String codigoCorto = qrData.hashCode.abs().toString().padRight(6, '0').substring(0, 6);
-
-  showDialog(
-    context: context,
-    builder: (context) => Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // === Badge tipo ===
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: esPrivilegiado ? Colors.amber[700] : Colors.black,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    esPrivilegiado
-                        ? Icons.admin_panel_settings_outlined
-                        : Icons.school_outlined,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
                   Text(
-                    esPrivilegiado ? 'Usuario Privilegiado' : 'Alumno',
+                    group['name'],
                     style: const TextStyle(
-                      color: Colors.white,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.branchName,
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    '¿Para quién es el QR?',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 20),
+                  // === Opción: Alumno ===
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showQRCode(context, group, tipo: 'alumno');
+                      },
+                      icon: const Icon(Icons.school_outlined),
+                      label: const Text('QR para Alumno'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // === Opción: Usuario Privilegiado ===
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showQRCode(context, group, tipo: 'privilegiado');
+                      },
+                      icon: const Icon(Icons.admin_panel_settings_outlined),
+                      label: const Text('QR para Usuario Privilegiado'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(color: Colors.grey),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+          ),
+    );
+  }
 
-            Text(
-              group['name'],
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              widget.branchName,
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 20),
+  void _showQRCode(
+    BuildContext context,
+    Map<String, dynamic> group, {
+    required String tipo,
+  }) {
+    final bool esPrivilegiado = tipo == 'privilegiado';
 
-            // === QR ===
-            QrImageView(
-              data: qrData,
-              version: QrVersions.auto,
-              size: 220,
-              backgroundColor: Colors.white,
-            ),
-            const SizedBox(height: 12),
+    final String qrData =
+        esPrivilegiado
+            ? 'PRIVILEGIADO|GrupoId:${group['docId']}|Grupo:${group['name']}|Sucursal:${widget.branchName}'
+            : 'ALUMNO|GrupoId:${group['docId']}|Grupo:${group['name']}|Sucursal:${widget.branchName}';
 
-            // === CÓDIGO NUMÉRICO DE RESPALDO (NUEVO) ===
-            Text(
-              'O ingresa el código:',
-              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+    // === GENERACIÓN DEL CÓDIGO NUMÉRICO ===
+    // Tomamos los datos del QR, los convertimos a un número único (hashCode),
+    // aseguramos que sea positivo (abs) y tomamos los primeros 6 dígitos.
+    final String codigoCorto = qrData.hashCode
+        .abs()
+        .toString()
+        .padRight(6, '0')
+        .substring(0, 6);
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(height: 4),
-            Text(
-              // Separamos el código visualmente (ej. "123 456") para que sea más fácil de leer
-              '${codigoCorto.substring(0,3)} ${codigoCorto.substring(3,6)}', 
-              style: const TextStyle(
-                fontSize: 24, 
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2.0, // Espacio entre los números
-                color: Colors.black87,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // === Badge tipo ===
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: esPrivilegiado ? Colors.amber[700] : Colors.black,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          esPrivilegiado
+                              ? Icons.admin_panel_settings_outlined
+                              : Icons.school_outlined,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          esPrivilegiado ? 'Usuario Privilegiado' : 'Alumno',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Text(
+                    group['name'],
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    widget.branchName,
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // === QR ===
+                  QrImageView(
+                    data: qrData,
+                    version: QrVersions.auto,
+                    size: 220,
+                    backgroundColor: Colors.white,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // === CÓDIGO NUMÉRICO DE RESPALDO (NUEVO) ===
+                  Text(
+                    'O ingresa el código:',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    // Separamos el código visualmente (ej. "123 456") para que sea más fácil de leer
+                    '${codigoCorto.substring(0, 3)} ${codigoCorto.substring(3, 6)}',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2.0, // Espacio entre los números
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ===========================================
+                  Text(
+                    'Escanea para registrar acceso',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                  ),
+                  const SizedBox(height: 16),
+
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Cerrar',
+                      style: TextStyle(color: Colors.black, fontSize: 16),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            // ===========================================
-
-            Text(
-              'Escanea para registrar acceso',
-              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-            ),
-            const SizedBox(height: 16),
-
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cerrar', style: TextStyle(color: Colors.black, fontSize: 16)),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
+          ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -17,12 +17,11 @@ import 'package:tae_app/modules/admin/pages/group_selection.dart';
  */
 class BranchCard extends StatelessWidget {
   final Map<String, dynamic> branch; // Info de la sucursal
-  final double maxCardWidth;  // Tamaño máximo de la tarjeta
+  final double maxCardWidth; // Tamaño máximo de la tarjeta
   final IconData icon; // <--- Nuevo parámetro para el ícono
   final VoidCallback? onTap;
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
-
 
   const BranchCard({
     super.key,
@@ -37,16 +36,19 @@ class BranchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-
       // InkWell le da un efecto visual al tocar (ripple effect) y ejecuta el onTap.
       child: InkWell(
-        onTap: onTap ??
+        onTap:
+            onTap ??
             () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder:
-                      (context) => BranchGroupsScreen(branchName: branch['name']),
+                      (context) => BranchGroupsScreen(
+                        branchName: branch['name'],
+                        branchDocId: branch['docId'].toString(),
+                      ),
                 ),
               );
             },
@@ -109,7 +111,10 @@ class BranchCard extends StatelessWidget {
                         ),
                         Text(
                           '${branch["participants"]} participantes',
-                          style: TextStyle(fontSize: 18, color: Colors.grey[500]),
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey[500],
+                          ),
                         ),
                       ],
                     ),
@@ -134,16 +139,17 @@ class BranchCard extends StatelessWidget {
                       onDelete?.call();
                     }
                   },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem<String>(
-                      value: 'rename',
-                      child: Text('Cambiar nombre'),
-                    ),
-                    PopupMenuItem<String>(
-                      value: 'delete',
-                      child: Text('Borrar sucursal'),
-                    ),
-                  ],
+                  itemBuilder:
+                      (context) => const [
+                        PopupMenuItem<String>(
+                          value: 'rename',
+                          child: Text('Cambiar nombre'),
+                        ),
+                        PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('Borrar sucursal'),
+                        ),
+                      ],
                 ),
               ),
             ],

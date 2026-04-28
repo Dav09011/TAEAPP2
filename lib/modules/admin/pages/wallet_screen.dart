@@ -324,6 +324,7 @@ class _WalletScreenState extends State<WalletScreen> {
 
   void _mostrarSelectorSucursales(BuildContext context) {
     final FirebaseFirestore db = FirebaseFirestore.instance;
+    final User? currentUser = FirebaseAuth.instance.currentUser;
 
     showModalBottomSheet(
       context: context,
@@ -364,7 +365,11 @@ class _WalletScreenState extends State<WalletScreen> {
               Flexible(
                 child: StreamBuilder<QuerySnapshot>(
                   stream:
-                      db.collection('sucursales').orderBy('name').snapshots(),
+                      db
+                          .collection('sucursales')
+                          .where('id_usuario', isEqualTo: currentUser!.uid)
+                          .orderBy('name')
+                          .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return const Padding(

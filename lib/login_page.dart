@@ -13,6 +13,16 @@ import 'package:tae_app/modules/authentication/pages/register_teacher_student.da
 import 'package:tae_app/modules/admin/pages/wallet_screen.dart';
 import 'package:tae_app/modules/admin/pages/wallet_fees.dart';
 import 'package:tae_app/modules/admin/pages/wallet_student_status.dart';
+/*
+Este importa el paquete material.dart, 
+que es parte del framework de Flutter y 
+te da acceso a componentes de diseño Material 
+(como botones, cajas de texto, AppBar, etc.).
+*/
+import '../modules/admin/pages/branch_selection_tab.dart';
+import '../modules/authentication/pages/forgot_password_page.dart';
+import '../modules/authentication/pages/type_register.dart';
+import 'package:tae_app/modules/student/home_page_student.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -102,6 +112,29 @@ class _LoginPageState extends State<LoginPage> {
               (userType == 'admin') ? '/main-admin' : '/main-admin';
           Navigator.pushReplacementNamed(context, routeName);
         }
+  Widget nextPage;
+  
+  // 1. LÓGICA DE DECISIÓN: Asignar la página correcta
+  if (userType == 'admin') {
+    // Si es administrador, va a la pantalla principal de pestañas (MainBranches)
+    nextPage = MainBranches(); 
+  } else {
+    // Si no es admin (es alumno u otro rol), va a la página del alumno
+    // Asumiendo que esta clase existe:
+    // next_page = const HomePageAlumno(); 
+
+    // 🚨 Como no tenemos la página del alumno, usaremos MainBranches temporalmente
+    // O si quieres que falle si no es admin, puedes lanzar un error o ir al login.
+    nextPage = HomePageStudent(); // Reemplázalo con HomePageAlumno() cuando esté lista.
+  }
+  
+  // 2. EJECUTAR NAVEGACIÓN REEMPLAZADA con la variable nextPage
+  // Usamos pushReplacement para que el Login se elimine de la pila de navegación.
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(builder: (context) => nextPage), // << ¡USAR nextPage AQUÍ!
+  );
+}
       } else {
         await FirebaseAuth.instance.signOut();
         if (mounted) {

@@ -1,32 +1,23 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tae_app/firebase_options.dart';
-
 import 'package:tae_app/modules/admin/pages/branch_selection_tab.dart';
+import 'package:tae_app/modules/admin/pages/wallet_fees.dart';
+import 'package:tae_app/modules/admin/pages/wallet_screen.dart';
+import 'package:tae_app/modules/admin/pages/wallet_student_status.dart';
 import 'package:tae_app/modules/authentication/pages/forgot_password_page.dart';
-import 'package:tae_app/modules/authentication/pages/type_register.dart';
 import 'package:tae_app/modules/authentication/pages/register_admin.dart';
 import 'package:tae_app/modules/authentication/pages/register_teacher_student.dart';
-import 'package:tae_app/modules/admin/pages/wallet_screen.dart';
-import 'package:tae_app/modules/admin/pages/wallet_fees.dart';
-import 'package:tae_app/modules/admin/pages/wallet_student_status.dart';
-/*
-Este importa el paquete material.dart, 
-que es parte del framework de Flutter y 
-te da acceso a componentes de diseño Material 
-(como botones, cajas de texto, AppBar, etc.).
-*/
-import '../modules/admin/pages/branch_selection_tab.dart';
-import '../modules/authentication/pages/forgot_password_page.dart';
-import '../modules/authentication/pages/type_register.dart';
+import 'package:tae_app/modules/authentication/pages/type_register.dart';
 import 'package:tae_app/modules/student/home_page_student.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const WelcomeTaeApp());
 }
 
@@ -38,11 +29,7 @@ class WelcomeTaeApp extends StatelessWidget {
     return MaterialApp(
       title: 'TAE App',
       debugShowCheckedModeBanner: false,
-
-      // ✅ Definimos el punto de entrada mediante el nombre de la ruta
       initialRoute: '/',
-
-      // ✅ Mapa Central de Navegación
       routes: {
         '/': (context) => const LoginPage(),
         '/main-admin': (context) => const MainBranches(),
@@ -50,9 +37,8 @@ class WelcomeTaeApp extends StatelessWidget {
         '/type-register': (context) => const TypeRegister(),
         '/register-admin': (context) => const RegisterAdmin(),
         '/register-user': (context) => const RegisterTeacherStudent(),
-        '/wallet': (context) => const WalletScreen(), // La principal
-        '/wallet-fees':
-            (context) => const WalletFeesPage(), // La de configuración
+        '/wallet': (context) => const WalletScreen(),
+        '/wallet-fees': (context) => const WalletFeesPage(),
         '/wallet-student-status': (context) => const WalletStudentStatusPage(),
       },
     );
@@ -61,6 +47,7 @@ class WelcomeTaeApp extends StatelessWidget {
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
+
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
@@ -82,7 +69,7 @@ class _LoginPageState extends State<LoginPage> {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Por favor, ingresa tu email y contraseña.'),
+          content: Text('Por favor, ingresa tu email y contrasena.'),
         ),
       );
       return;
@@ -103,59 +90,45 @@ class _LoginPageState extends State<LoginPage> {
               .doc(userCredential.user!.uid)
               .get();
 
-      if (userDoc.exists) {
-        final userType = userDoc.data()?['tipo'] ?? 'alumno';
-
-        if (mounted) {
-          // ✅ USANDO RUTAS NOMBRADAS
-          String routeName =
-              (userType == 'admin') ? '/main-admin' : '/main-admin';
-          Navigator.pushReplacementNamed(context, routeName);
-        }
-  Widget nextPage;
-  
-  // 1. LÓGICA DE DECISIÓN: Asignar la página correcta
-  if (userType == 'admin') {
-    // Si es administrador, va a la pantalla principal de pestañas (MainBranches)
-    nextPage = MainBranches(); 
-  } else {
-    // Si no es admin (es alumno u otro rol), va a la página del alumno
-    // Asumiendo que esta clase existe:
-    // next_page = const HomePageAlumno(); 
-
-    // 🚨 Como no tenemos la página del alumno, usaremos MainBranches temporalmente
-    // O si quieres que falle si no es admin, puedes lanzar un error o ir al login.
-    nextPage = HomePageStudent(); // Reemplázalo con HomePageAlumno() cuando esté lista.
-  }
-  
-  // 2. EJECUTAR NAVEGACIÓN REEMPLAZADA con la variable nextPage
-  // Usamos pushReplacement para que el Login se elimine de la pila de navegación.
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(builder: (context) => nextPage), // << ¡USAR nextPage AQUÍ!
-  );
-}
-      } else {
+      if (!userDoc.exists) {
         await FirebaseAuth.instance.signOut();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Error: Usuario sin perfil asignado.'),
+              content: Text('Error: usuario sin perfil asignado.'),
             ),
           );
         }
+        return;
       }
+
+      final userType = userDoc.data()?['tipo'] ?? 'alumno';
+
+      if (!mounted) return;
+
+      final Widget nextPage =
+          userType == 'admin'
+              ? const MainBranches()
+              : const HomePageStudent();
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => nextPage),
+      );
     } on FirebaseAuthException catch (e) {
-      String message = 'Error de autenticación';
+      var message = 'Error de autenticacion.';
       if (e.code == 'user-not-found' || e.code == 'wrong-password') {
-        message = 'Email o contraseña incorrectos.';
+        message = 'Email o contrasena incorrectos.';
       }
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(message)));
+      }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -212,7 +185,7 @@ class _LoginPageState extends State<LoginPage> {
             controller: _passwordController,
             obscureText: _obscureText,
             decoration: InputDecoration(
-              labelText: 'Contraseña',
+              labelText: 'Contrasena',
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscureText ? Icons.visibility_off : Icons.visibility,
@@ -234,14 +207,14 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 child: const Text(
-                  'Iniciar Sesión',
+                  'Iniciar Sesion',
                   style: TextStyle(color: Colors.white),
                 ),
               ),
           TextButton(
             onPressed: () => Navigator.pushNamed(context, '/forgot-password'),
             child: const Text(
-              "¿Olvidaste tu contraseña?",
+              'Olvidaste tu contrasena?',
               style: TextStyle(
                 decoration: TextDecoration.underline,
                 color: Colors.black,
@@ -257,7 +230,7 @@ class _LoginPageState extends State<LoginPage> {
     return Column(
       children: [
         const Text(
-          "¿No tienes una cuenta?",
+          'No tienes una cuenta?',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
@@ -265,7 +238,7 @@ class _LoginPageState extends State<LoginPage> {
           onPressed: () => Navigator.pushNamed(context, '/type-register'),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.black),
           child: const Text(
-            'Regístrate',
+            'Registrate',
             style: TextStyle(color: Colors.white),
           ),
         ),

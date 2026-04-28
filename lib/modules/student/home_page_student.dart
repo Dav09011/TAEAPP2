@@ -58,9 +58,7 @@ class _StudentHomeScreen extends StatelessWidget {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => const QRScannerPage(),
-            ),
+            MaterialPageRoute(builder: (context) => const QRScannerPage()),
           );
         },
         tooltip: 'Escanear QR',
@@ -79,13 +77,15 @@ class _StudentGroupView extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      return const Center(
-        child: Text('No hay una sesion activa.'),
-      );
+      return const Center(child: Text('No hay una sesion activa.'));
     }
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('usuarios').doc(user.uid).snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(user.uid)
+              .snapshots(),
       builder: (context, userSnapshot) {
         if (userSnapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -93,7 +93,8 @@ class _StudentGroupView extends StatelessWidget {
 
         if (userSnapshot.hasError) {
           return const _NoGroupAssignedState(
-            message: 'No se pudo cargar tu grupo. Si ya escaneaste tu QR, intenta entrar de nuevo.',
+            message:
+                'No se pudo cargar tu grupo. Si ya escaneaste tu QR, intenta entrar de nuevo.',
           );
         }
 
@@ -106,11 +107,13 @@ class _StudentGroupView extends StatelessWidget {
 
             if (groupSnapshot.hasError) {
               return const _NoGroupAssignedState(
-                message: 'No se pudo cargar tu grupo. Si ya escaneaste tu QR, intenta entrar de nuevo.',
+                message:
+                    'No se pudo cargar tu grupo. Si ya escaneaste tu QR, intenta entrar de nuevo.',
               );
             }
 
-            final resolvedGroups = groupSnapshot.data ?? const <_StudentGroupData>[];
+            final resolvedGroups =
+                groupSnapshot.data ?? const <_StudentGroupData>[];
             if (resolvedGroups.isEmpty) {
               return const _NoGroupAssignedState();
             }
@@ -151,18 +154,16 @@ class _StudentGroupCard extends StatelessWidget {
   final String uid;
   final _StudentGroupData group;
 
-  const _StudentGroupCard({
-    required this.uid,
-    required this.group,
-  });
+  const _StudentGroupCard({required this.uid, required this.group});
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('grupos')
-          .doc(group.groupId)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('grupos')
+              .doc(group.groupId)
+              .snapshots(),
       builder: (context, liveGroupSnapshot) {
         if (liveGroupSnapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -186,12 +187,16 @@ class _StudentGroupCard extends StatelessWidget {
         }
 
         final groupData = liveGroupSnapshot.data?.data() ?? group.cachedData;
-        final groupName = (groupData['nombre_grupo'] as String?)?.trim().isNotEmpty == true
-            ? groupData['nombre_grupo'] as String
-            : group.groupName;
-        final branchName = (groupData['id_sucursal'] as String?) ?? 'Sucursal no disponible';
-        final beltType = (groupData['tipo_cinta'] as String?) ?? 'Sin cinta asignada';
-        final schedule = (groupData['horario'] as String?) ?? 'Horario pendiente';
+        final groupName =
+            (groupData['nombre_grupo'] as String?)?.trim().isNotEmpty == true
+                ? groupData['nombre_grupo'] as String
+                : group.groupName;
+        final branchName =
+            (groupData['id_sucursal'] as String?) ?? 'Sucursal no disponible';
+        final beltType =
+            (groupData['tipo_cinta'] as String?) ?? 'Sin cinta asignada';
+        final schedule =
+            (groupData['horario'] as String?) ?? 'Horario pendiente';
         final totalStudents = groupData['total_alumnos'] ?? 0;
 
         return Container(
@@ -227,7 +232,9 @@ class _StudentGroupCard extends StatelessWidget {
                     icon: const Icon(Icons.more_vert, color: Colors.black87),
                     onSelected: (value) async {
                       if (value == 'leave_group') {
-                        final shouldLeave = await _showLeaveGroupDialog(context);
+                        final shouldLeave = await _showLeaveGroupDialog(
+                          context,
+                        );
                         if (!context.mounted) return;
                         if (shouldLeave == true) {
                           await _leaveGroup(
@@ -238,12 +245,13 @@ class _StudentGroupCard extends StatelessWidget {
                         }
                       }
                     },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem<String>(
-                        value: 'leave_group',
-                        child: Text('Quitar de mi pantalla'),
-                      ),
-                    ],
+                    itemBuilder:
+                        (context) => const [
+                          PopupMenuItem<String>(
+                            value: 'leave_group',
+                            child: Text('Quitar de mi pantalla'),
+                          ),
+                        ],
                   ),
                 ],
               ),
@@ -268,11 +276,12 @@ class _StudentGroupCard extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => ActivitiesSection(
-                          groupName: groupName,
-                          groupDocId: group.groupId,
-                          isReadOnly: true,
-                        ),
+                        builder:
+                            (context) => ActivitiesSection(
+                              groupName: groupName,
+                              groupDocId: group.groupId,
+                              isReadOnly: true,
+                            ),
                       ),
                     );
                   },
@@ -303,24 +312,24 @@ Future<List<_StudentGroupData>> _loadStudentGroups(
   if (savedGroupId != null && savedGroupId.isNotEmpty) {
     return [
       _StudentGroupData(
-      groupId: savedGroupId,
-      groupName: (safeUserData['grupo_nombre'] as String?)?.trim().isNotEmpty == true
-          ? safeUserData['grupo_nombre'] as String
-          : savedGroupId,
-      cachedData: {
-        'nombre_grupo': safeUserData['grupo_nombre'],
-        'id_sucursal': safeUserData['grupo_sucursal'],
-        'tipo_cinta': safeUserData['grupo_cinta'],
-        'horario': safeUserData['grupo_horario'],
-      },
-    )];
+        groupId: savedGroupId,
+        groupName:
+            (safeUserData['grupo_nombre'] as String?)?.trim().isNotEmpty == true
+                ? safeUserData['grupo_nombre'] as String
+                : savedGroupId,
+        cachedData: {
+          'nombre_grupo': safeUserData['grupo_nombre'],
+          'id_sucursal': safeUserData['grupo_sucursal'],
+          'tipo_cinta': safeUserData['grupo_cinta'],
+          'horario': safeUserData['grupo_horario'],
+        },
+      ),
+    ];
   }
 
   try {
-    final studentQuery = await db
-        .collectionGroup('alumnos')
-        .where('uid', isEqualTo: uid)
-        .get();
+    final studentQuery =
+        await db.collectionGroup('alumnos').where('uid', isEqualTo: uid).get();
 
     if (studentQuery.docs.isEmpty) {
       return const [];
@@ -335,9 +344,10 @@ Future<List<_StudentGroupData>> _loadStudentGroups(
 
       final groupDoc = await groupRef.get();
       final groupData = groupDoc.data() ?? {};
-      final groupName = (groupData['nombre_grupo'] as String?)?.trim().isNotEmpty == true
-          ? groupData['nombre_grupo'] as String
-          : groupRef.id;
+      final groupName =
+          (groupData['nombre_grupo'] as String?)?.trim().isNotEmpty == true
+              ? groupData['nombre_grupo'] as String
+              : groupRef.id;
 
       resolvedGroups.add(
         _StudentGroupData(
@@ -359,7 +369,9 @@ Future<List<_StudentGroupData>> _loadStudentGroups(
   }
 }
 
-List<_StudentGroupData> _parseGroupsFromUserData(Map<String, dynamic> userData) {
+List<_StudentGroupData> _parseGroupsFromUserData(
+  Map<String, dynamic> userData,
+) {
   final rawGroups = userData['grupos'];
   if (rawGroups is! List) {
     return const [];
@@ -374,9 +386,10 @@ List<_StudentGroupData> _parseGroupsFromUserData(Map<String, dynamic> userData) 
           return null;
         }
 
-        final groupName = (groupMap['groupName'] as String?)?.trim().isNotEmpty == true
-            ? groupMap['groupName'] as String
-            : groupId;
+        final groupName =
+            (groupMap['groupName'] as String?)?.trim().isNotEmpty == true
+                ? groupMap['groupName'] as String
+                : groupId;
 
         return _StudentGroupData(
           groupId: groupId,
@@ -394,17 +407,18 @@ List<_StudentGroupData> _parseGroupsFromUserData(Map<String, dynamic> userData) 
 }
 
 Future<void> _saveGroupsToProfile(String uid, List<_StudentGroupData> groups) {
-  final payload = groups
-      .map(
-        (group) => {
-          'groupId': group.groupId,
-          'groupName': group.groupName,
-          'branchName': group.cachedData['id_sucursal'] ?? '',
-          'beltType': group.cachedData['tipo_cinta'] ?? '',
-          'schedule': group.cachedData['horario'] ?? '',
-        },
-      )
-      .toList();
+  final payload =
+      groups
+          .map(
+            (group) => {
+              'groupId': group.groupId,
+              'groupName': group.groupName,
+              'branchName': group.cachedData['id_sucursal'] ?? '',
+              'beltType': group.cachedData['tipo_cinta'] ?? '',
+              'schedule': group.cachedData['horario'] ?? '',
+            },
+          )
+          .toList();
 
   return FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
     'grupos': payload,
@@ -422,7 +436,8 @@ Future<void> _removeGroupFromProfile(String uid, String groupId) async {
   final db = FirebaseFirestore.instance;
   final userDoc = await db.collection('usuarios').doc(uid).get();
   final currentGroups = _parseGroupsFromUserData(userDoc.data() ?? {});
-  final remainingGroups = currentGroups.where((group) => group.groupId != groupId).toList();
+  final remainingGroups =
+      currentGroups.where((group) => group.groupId != groupId).toList();
 
   if (remainingGroups.isEmpty) {
     await _clearSavedGroups(uid);
@@ -446,26 +461,27 @@ Future<void> _clearSavedGroups(String uid) {
 Future<bool?> _showLeaveGroupDialog(BuildContext context) {
   return showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Quitar grupo'),
-      content: const Text(
-        'Este grupo dejara de aparecer en tu pantalla. Podras volver a entrar escaneando el QR otra vez.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
+    builder:
+        (context) => AlertDialog(
+          title: const Text('Quitar grupo'),
+          content: const Text(
+            'Este grupo dejara de aparecer en tu pantalla. Podras volver a entrar escaneando el QR otra vez.',
           ),
-          child: const Text('Quitar'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Quitar'),
+            ),
+          ],
         ),
-      ],
-    ),
   );
 }
 
@@ -477,30 +493,42 @@ Future<void> _leaveGroup({
   final db = FirebaseFirestore.instance;
 
   try {
-    final studentDocs = await db
-        .collection('grupos')
-        .doc(groupId)
-        .collection('alumnos')
-        .where('uid', isEqualTo: uid)
-        .get();
+    final studentDocs =
+        await db
+            .collection('grupos')
+            .doc(groupId)
+            .collection('alumnos')
+            .where('uid', isEqualTo: uid)
+            .get();
 
     for (final doc in studentDocs.docs) {
       await doc.reference.delete();
     }
 
     if (studentDocs.docs.isNotEmpty) {
+      // ✅ 1. Consultar a qué sucursal pertenece este grupo
+      final grupoSnap = await db.collection('grupos').doc(groupId).get();
+      final idSucursal = grupoSnap.data()?['id_sucursal'] as String?;
+      final alumnosBorrados = studentDocs.docs.length;
+
+      // ✅ 2. Restar alumnos del GRUPO
       await db.collection('grupos').doc(groupId).update({
-        'total_alumnos': FieldValue.increment(-studentDocs.docs.length),
+        'total_alumnos': FieldValue.increment(-alumnosBorrados),
       });
+
+      // ✅ 3. Restar participantes de la SUCURSAL
+      if (idSucursal != null && idSucursal.isNotEmpty) {
+        await db.collection('sucursales').doc(idSucursal).update({
+          'participants': FieldValue.increment(-alumnosBorrados),
+        });
+      }
     }
 
     await _removeGroupFromProfile(uid, groupId);
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tu grupo ya no aparece en tu pantalla.'),
-        ),
+        const SnackBar(content: Text('Tu grupo ya no aparece en tu pantalla.')),
       );
     }
   } catch (_) {
@@ -508,9 +536,7 @@ Future<void> _leaveGroup({
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Se quito el grupo de tu pantalla.'),
-        ),
+        const SnackBar(content: Text('Se quito el grupo de tu pantalla.')),
       );
     }
   }
@@ -531,9 +557,7 @@ class _StudentGroupData {
 class _InlineGroupMessage extends StatelessWidget {
   final String message;
 
-  const _InlineGroupMessage({
-    required this.message,
-  });
+  const _InlineGroupMessage({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -544,10 +568,7 @@ class _InlineGroupMessage extends StatelessWidget {
         color: const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text(
-        message,
-        style: const TextStyle(color: Colors.black54),
-      ),
+      child: Text(message, style: const TextStyle(color: Colors.black54)),
     );
   }
 }
@@ -556,10 +577,7 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _InfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _InfoRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -585,7 +603,8 @@ class _NoGroupAssignedState extends StatelessWidget {
   final String message;
 
   const _NoGroupAssignedState({
-    this.message = 'Aun no estas inscrito en un grupo. Escanea el QR que te comparta tu administrador.',
+    this.message =
+        'Aun no estas inscrito en un grupo. Escanea el QR que te comparta tu administrador.',
   });
 
   @override

@@ -75,43 +75,45 @@ class BranchesScreen extends StatefulWidget {
 
 class _BranchesScreenState extends State<BranchesScreen> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance; // ✅ Instancia de Auth añadida
+  final FirebaseAuth _auth =
+      FirebaseAuth.instance; // ✅ Instancia de Auth añadida
 
-  late final Stream<QuerySnapshot> _branchesStream;
+  Stream<QuerySnapshot>? _branchesStream;
   String _searchQuery = '';
-
-  // ✅ Nuevas variables para controlar el acceso
-  List<String> _sucursalesPermitidas = [];
   bool _cargandoPermisos = true;
 
   @override
   void initState() {
     super.initState();
-    _branchesStream = _db.collection('sucursales').orderBy('name').snapshots();
-    _cargarPermisosAdmin(); // ✅ Cargar permisos antes de mostrar los datos
+    _cargarPermisosAdmin();
   }
 
   // ✅ Función para leer las sucursales asignadas al admin actual
   Future<void> _cargarPermisosAdmin() async {
     try {
       final uid = _auth.currentUser?.uid;
+
       if (uid != null) {
-        final userDoc = await _db.collection('usuarios').doc(uid).get();
-        if (userDoc.exists && userDoc.data()!.containsKey('sucursales')) {
-          final List<dynamic> sucursales = userDoc['sucursales'];
-          setState(() {
-            _sucursalesPermitidas = sucursales.map((e) => e.toString()).toList();
-            _cargandoPermisos = false;
-          });
-          return;
-        }
+        // ✅ FILTRO DE SEGURIDAD ABSOLUTO: Solo pedimos a Firebase las que creó este usuario.
+        setState(() {
+          _branchesStream =
+              _db
+                  .collection('sucursales')
+                  .where(
+                    'id_usuario',
+                    isEqualTo: uid,
+                  ) // Asegúrate de tener este campo en tus documentos
+                  .orderBy('name')
+                  .snapshots();
+          _cargandoPermisos = false;
+        });
+      } else {
+        setState(() => _cargandoPermisos = false);
       }
     } catch (e) {
-      print("Error obteniendo permisos de sucursales: $e");
+      print("Error obteniendo sucursales: $e");
+      setState(() => _cargandoPermisos = false);
     }
-    
-    // Si falla o no tiene sucursales, quitamos el loading de todos modos
-    setState(() => _cargandoPermisos = false);
   }
 
   void _showSnackBar(String message, {Color? backgroundColor}) {
@@ -132,28 +134,30 @@ class _BranchesScreenState extends State<BranchesScreen> {
     final controller = TextEditingController(text: currentName);
     final newName = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Cambiar nombre de sucursal'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Nuevo nombre',
-            border: OutlineInputBorder(),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Cambiar nombre de sucursal'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Nuevo nombre',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed:
+                    () =>
+                        Navigator.of(dialogContext).pop(controller.text.trim()),
+                child: const Text('Guardar'),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
     );
 
     if (newName == null || newName.isEmpty || newName == currentName) {
@@ -176,7 +180,8 @@ class _BranchesScreenState extends State<BranchesScreen> {
       final normalizedNewName = newName.toLowerCase();
       final nameTaken = duplicateBranchDocs.docs.any((doc) {
         if (doc.id == docId) return false;
-        final savedName = (doc.data()['name'] as String?)?.trim().toLowerCase() ?? '';
+        final savedName =
+            (doc.data()['name'] as String?)?.trim().toLowerCase() ?? '';
         return savedName == normalizedNewName;
       });
       if (nameTaken) {
@@ -189,10 +194,11 @@ class _BranchesScreenState extends State<BranchesScreen> {
 
       await _db.collection('sucursales').doc(docId).update({'name': newName});
 
-      final groupsSnapshot = await _db
-          .collection('grupos')
-          .where('id_sucursal', isEqualTo: oldName)
-          .get();
+      final groupsSnapshot =
+          await _db
+              .collection('grupos')
+              .where('id_sucursal', isEqualTo: oldName)
+              .get();
 
       if (groupsSnapshot.docs.isNotEmpty) {
         final batch = _db.batch();
@@ -203,14 +209,6 @@ class _BranchesScreenState extends State<BranchesScreen> {
       }
 
       await _syncUsersAfterBranchRename(oldName: oldName, newName: newName);
-
-      if (!mounted) return;
-      setState(() {
-        final index = _sucursalesPermitidas.indexOf(oldName);
-        if (index != -1) {
-          _sucursalesPermitidas[index] = newName;
-        }
-      });
 
       _showSnackBar(
         'Sucursal renombrada a "$newName".',
@@ -238,9 +236,13 @@ class _BranchesScreenState extends State<BranchesScreen> {
 
       final branchPermissions = data['sucursales'];
       if (branchPermissions is List) {
-        final updatedPermissions = branchPermissions
-            .map((value) => value.toString() == oldName ? newName : value.toString())
-            .toList();
+        final updatedPermissions =
+            branchPermissions
+                .map(
+                  (value) =>
+                      value.toString() == oldName ? newName : value.toString(),
+                )
+                .toList();
 
         if (!_listsAreEqual(branchPermissions, updatedPermissions)) {
           updates['sucursales'] = updatedPermissions;
@@ -250,15 +252,16 @@ class _BranchesScreenState extends State<BranchesScreen> {
       final savedGroups = data['grupos'];
       if (savedGroups is List) {
         var groupsChanged = false;
-        final updatedGroups = savedGroups.map((group) {
-          if (group is! Map) return group;
-          final updatedGroup = Map<String, dynamic>.from(group);
-          if (updatedGroup['branchName'] == oldName) {
-            updatedGroup['branchName'] = newName;
-            groupsChanged = true;
-          }
-          return updatedGroup;
-        }).toList();
+        final updatedGroups =
+            savedGroups.map((group) {
+              if (group is! Map) return group;
+              final updatedGroup = Map<String, dynamic>.from(group);
+              if (updatedGroup['branchName'] == oldName) {
+                updatedGroup['branchName'] = newName;
+                groupsChanged = true;
+              }
+              return updatedGroup;
+            }).toList();
 
         if (groupsChanged) {
           updates['grupos'] = updatedGroups;
@@ -286,23 +289,24 @@ class _BranchesScreenState extends State<BranchesScreen> {
 
     final shouldDelete = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Borrar sucursal'),
-        content: Text(
-          'Se borrara "$branchName" y tambien todos sus grupos y registros ligados. Esta accion no se puede deshacer.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancelar'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Borrar sucursal'),
+            content: Text(
+              'Se borrara "$branchName" y tambien todos sus grupos y registros ligados. Esta accion no se puede deshacer.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Borrar'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Borrar'),
-          ),
-        ],
-      ),
     );
 
     if (shouldDelete == true) {
@@ -316,10 +320,11 @@ class _BranchesScreenState extends State<BranchesScreen> {
     if (branchName.isEmpty || docId.isEmpty) return;
 
     try {
-      final groupsSnapshot = await _db
-          .collection('grupos')
-          .where('id_sucursal', isEqualTo: branchName)
-          .get();
+      final groupsSnapshot =
+          await _db
+              .collection('grupos')
+              .where('id_sucursal', isEqualTo: branchName)
+              .get();
 
       final deletedGroupIds = <String>{};
       for (final groupDoc in groupsSnapshot.docs) {
@@ -332,11 +337,6 @@ class _BranchesScreenState extends State<BranchesScreen> {
         branchName: branchName,
         deletedGroupIds: deletedGroupIds,
       );
-
-      if (!mounted) return;
-      setState(() {
-        _sucursalesPermitidas.remove(branchName);
-      });
 
       _showSnackBar(
         'Sucursal "$branchName" eliminada correctamente.',
@@ -392,10 +392,11 @@ class _BranchesScreenState extends State<BranchesScreen> {
 
       final branchPermissions = data['sucursales'];
       if (branchPermissions is List) {
-        final updatedPermissions = branchPermissions
-            .where((value) => value.toString() != branchName)
-            .map((value) => value.toString())
-            .toList();
+        final updatedPermissions =
+            branchPermissions
+                .where((value) => value.toString() != branchName)
+                .map((value) => value.toString())
+                .toList();
 
         if (!_listsAreEqual(branchPermissions, updatedPermissions)) {
           updates['sucursales'] = updatedPermissions;
@@ -405,15 +406,17 @@ class _BranchesScreenState extends State<BranchesScreen> {
       final savedGroups = data['grupos'];
       List<Map<String, dynamic>>? remainingGroups;
       if (savedGroups is List) {
-        remainingGroups = savedGroups
-            .whereType<Map>()
-            .map((group) => Map<String, dynamic>.from(group))
-            .where((group) {
-              final groupId = group['groupId']?.toString() ?? '';
-              final groupBranch = group['branchName']?.toString() ?? '';
-              return !deletedGroupIds.contains(groupId) && groupBranch != branchName;
-            })
-            .toList();
+        remainingGroups =
+            savedGroups
+                .whereType<Map>()
+                .map((group) => Map<String, dynamic>.from(group))
+                .where((group) {
+                  final groupId = group['groupId']?.toString() ?? '';
+                  final groupBranch = group['branchName']?.toString() ?? '';
+                  return !deletedGroupIds.contains(groupId) &&
+                      groupBranch != branchName;
+                })
+                .toList();
 
         if (remainingGroups.length != savedGroups.length) {
           updates['grupos'] =
@@ -423,7 +426,8 @@ class _BranchesScreenState extends State<BranchesScreen> {
 
       final currentGroupId = data['grupo_id']?.toString() ?? '';
       final currentBranchName = data['grupo_sucursal']?.toString() ?? '';
-      final shouldClearCurrentGroup = deletedGroupIds.contains(currentGroupId) ||
+      final shouldClearCurrentGroup =
+          deletedGroupIds.contains(currentGroupId) ||
           currentBranchName == branchName;
 
       if (shouldClearCurrentGroup) {
@@ -482,7 +486,8 @@ class _BranchesScreenState extends State<BranchesScreen> {
       final existingBranches = await _db.collection('sucursales').get();
       final normalizedBranchName = branchName.toLowerCase();
       final duplicateExists = existingBranches.docs.any((doc) {
-        final savedName = (doc.data()['name'] as String?)?.trim().toLowerCase() ?? '';
+        final savedName =
+            (doc.data()['name'] as String?)?.trim().toLowerCase() ?? '';
         return savedName == normalizedBranchName;
       });
 
@@ -494,29 +499,35 @@ class _BranchesScreenState extends State<BranchesScreen> {
         return;
       }
 
-      await _db.collection('sucursales').add({
-        'name': branchName,
-        'fecha_creacion': FieldValue.serverTimestamp(),
-      });
-
       final uid = _auth.currentUser?.uid;
-      if (uid != null) {
-        await _db.collection('usuarios').doc(uid).update({
-          'sucursales': FieldValue.arrayUnion([branchName])
-        });
-        setState(() {
-          if (!_sucursalesPermitidas.contains(branchName)) {
-            _sucursalesPermitidas.add(branchName);
-          }
-        });
+
+      // 1. Verificamos que haya usuario
+      if (uid == null) {
+        _showSnackBar(
+          'Error: No se pudo verificar la sesión del usuario.',
+          backgroundColor: Colors.red,
+        );
+        return;
       }
 
+      // 2. HACEMOS UNA ÚNICA INSERCIÓN y atrapamos el ID al mismo tiempo
+      final nuevaSucursalRef = await _db.collection('sucursales').add({
+        'name': branchName,
+        'fecha_creacion': FieldValue.serverTimestamp(),
+        'id_usuario': uid,
+        'classes': 0,
+        'participants': 0,
+      });
+
+      // 3. Navegamos a la siguiente pantalla usando el ID que acabamos de atrapar
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => BranchGroupsScreen(
-            branchName: branchName,
-            successMessage: 'Sucursal "$branchName" creada exitosamente',
-          ),
+          builder:
+              (context) => BranchGroupsScreen(
+                branchName: branchName,
+                branchDocId: nuevaSucursalRef.id, // 🔥 El ID correcto
+                successMessage: 'Sucursal "$branchName" creada exitosamente',
+              ),
         ),
       );
     } catch (e) {
@@ -532,15 +543,11 @@ class _BranchesScreenState extends State<BranchesScreen> {
     List<Map<String, dynamic>> sucursales,
     String query,
   ) {
-    // 1. Filtrar SOLO las que están en el arreglo del administrador
-    var sucursalesDelAdmin = sucursales.where((s) {
-      return _sucursalesPermitidas.contains(s['name']);
-    }).toList();
+    // Si no hay texto en el buscador, regresamos todas (que ya son solo las del usuario)
+    if (query.isEmpty) return sucursales;
 
-    // 2. Aplicar el filtro de la barra de búsqueda
-    if (query.isEmpty) return sucursalesDelAdmin;
-    
-    return sucursalesDelAdmin.where((sucursal) {
+    // Si hay texto, filtramos por nombre
+    return sucursales.where((sucursal) {
       final nombre = (sucursal['name'] as String?)?.toLowerCase() ?? '';
       return nombre.contains(query.toLowerCase());
     }).toList();
@@ -604,99 +611,73 @@ class _BranchesScreenState extends State<BranchesScreen> {
               const SizedBox(height: 20),
 
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: _branchesStream,
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return const Center(
-                          child: Text('Error al cargar las sucursales.'));
-                    }
+                child:
+                    _branchesStream == null
+                        ? const Center(child: CircularProgressIndicator())
+                        : StreamBuilder<QuerySnapshot>(
+                          stream: _branchesStream,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError)
+                              return const Center(
+                                child: Text('Error al cargar sucursales.'),
+                              );
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting)
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            if (!snapshot.hasData ||
+                                snapshot.data!.docs.isEmpty)
+                              return const Center(
+                                child: Text('No hay sucursales registradas.'),
+                              );
 
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+                            // ✅ LECTURA DIRECTA: Ya no bajamos los grupos, leemos los campos de la sucursal
+                            final branchesFromFirebase =
+                                snapshot.data!.docs.map((doc) {
+                                  final data =
+                                      doc.data() as Map<String, dynamic>;
+                                  return {
+                                    'docId': doc.id,
+                                    'name': data['name'] ?? 'Sin nombre',
+                                    'classes':
+                                        data['classes'] ??
+                                        0, // Leemos el campo estático
+                                    'participants':
+                                        data['participants'] ??
+                                        0, // Leemos el campo estático
+                                  };
+                                }).toList();
 
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return const Center(
-                          child: Text('No hay sucursales registradas.'));
-                    }
+                            final branchesFiltradas = _filtrarSucursales(
+                              branchesFromFirebase,
+                              _searchQuery,
+                            );
 
-                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: _db.collection('grupos').snapshots(),
-                      builder: (context, groupsSnapshot) {
-                        if (groupsSnapshot.hasError) {
-                          return const Center(
-                            child: Text('Error al cargar el resumen de sucursales.'),
-                          );
-                        }
-
-                        if (groupsSnapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-
-                        final branchStats = <String, Map<String, int>>{};
-                        for (final groupDoc in groupsSnapshot.data?.docs ?? const []) {
-                          final groupData = groupDoc.data();
-                          final branchName =
-                              (groupData['id_sucursal'] as String?)?.trim() ?? '';
-                          if (branchName.isEmpty) continue;
-
-                          final currentStats = branchStats.putIfAbsent(
-                            branchName,
-                            () => {'classes': 0, 'participants': 0},
-                          );
-                          currentStats['classes'] = (currentStats['classes'] ?? 0) + 1;
-                          currentStats['participants'] =
-                              (currentStats['participants'] ?? 0) +
-                                  ((groupData['total_alumnos'] as num?)?.toInt() ?? 0);
-                        }
-
-                        final branchesFromFirebase =
-                            snapshot.data!.docs.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final branchName = (data['name'] as String?)?.trim() ?? 'Sin nombre';
-                          final stats = branchStats[branchName];
-
-                          return {
-                            'docId': doc.id,
-                            'name': branchName,
-                            'classes': stats?['classes'] ?? 0,
-                            'participants': stats?['participants'] ?? 0,
-                          };
-                        }).toList();
-
-                        final branchesFiltradas = _filtrarSucursales(
-                          branchesFromFirebase,
-                          _searchQuery,
-                        );
-
-                        if (branchesFiltradas.isEmpty) {
-                          if (_sucursalesPermitidas.isEmpty && _searchQuery.isEmpty) {
-                            return const Center(child: Text('No tienes sucursales asignadas.'));
-                          }
-                          return const Center(child: Text('No hay resultados.'));
-                        }
-
-                        return AdaptiveBranchList(
-                          branches: branchesFiltradas,
-                          icon: Icons.location_on_outlined,
-                          onTap: (branchName) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => BranchGroupsScreen(
-                                  branchName: branchName.toString(),
-                                ),
-                              ),
+                            return AdaptiveBranchList(
+                              branches: branchesFiltradas,
+                              icon: Icons.location_on_outlined,
+                              onTap: (branchName) {
+                                final sucursalTocada = branchesFiltradas
+                                    .firstWhere((b) => b['name'] == branchName);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => BranchGroupsScreen(
+                                          branchName: branchName.toString(),
+                                          branchDocId:
+                                              sucursalTocada['docId']
+                                                  .toString(),
+                                        ),
+                                  ),
+                                );
+                              },
+                              onRename: _showRenameBranchDialog,
+                              onDelete: _confirmDeleteBranch,
                             );
                           },
-                          onRename: _showRenameBranchDialog,
-                          onDelete: _confirmDeleteBranch,
-                        );
-                      },
-                    );
-                  },
-                ),
+                        ),
               ),
             ],
           ),

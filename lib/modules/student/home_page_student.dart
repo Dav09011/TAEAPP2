@@ -192,7 +192,15 @@ class _StudentGroupCard extends StatelessWidget {
                 ? groupData['nombre_grupo'] as String
                 : group.groupName;
         final branchName =
-            (groupData['id_sucursal'] as String?) ?? 'Sucursal no disponible';
+            (groupData['nombre_sucursal'] as String?)?.trim().isNotEmpty == true
+                ? groupData['nombre_sucursal'] as String
+                : (group.cachedData['nombre_sucursal'] as String?)
+                        ?.trim()
+                        .isNotEmpty ==
+                    true
+                ? group.cachedData['nombre_sucursal'] as String
+                : (groupData['id_sucursal'] as String?) ??
+                    'Sucursal no disponible';
         final beltType =
             (groupData['tipo_cinta'] as String?) ?? 'Sin cinta asignada';
         final schedule =
@@ -319,6 +327,7 @@ Future<List<_StudentGroupData>> _loadStudentGroups(
                 : savedGroupId,
         cachedData: {
           'nombre_grupo': safeUserData['grupo_nombre'],
+          'nombre_sucursal': safeUserData['grupo_sucursal'],
           'id_sucursal': safeUserData['grupo_sucursal'],
           'tipo_cinta': safeUserData['grupo_cinta'],
           'horario': safeUserData['grupo_horario'],
@@ -396,6 +405,7 @@ List<_StudentGroupData> _parseGroupsFromUserData(
           groupName: groupName,
           cachedData: {
             'nombre_grupo': groupMap['groupName'],
+            'nombre_sucursal': groupMap['branchName'],
             'id_sucursal': groupMap['branchName'],
             'tipo_cinta': groupMap['beltType'],
             'horario': groupMap['schedule'],
@@ -413,7 +423,10 @@ Future<void> _saveGroupsToProfile(String uid, List<_StudentGroupData> groups) {
             (group) => {
               'groupId': group.groupId,
               'groupName': group.groupName,
-              'branchName': group.cachedData['id_sucursal'] ?? '',
+              'branchName':
+                  group.cachedData['nombre_sucursal'] ??
+                  group.cachedData['id_sucursal'] ??
+                  '',
               'beltType': group.cachedData['tipo_cinta'] ?? '',
               'schedule': group.cachedData['horario'] ?? '',
             },
@@ -425,7 +438,10 @@ Future<void> _saveGroupsToProfile(String uid, List<_StudentGroupData> groups) {
     if (groups.isNotEmpty) ...{
       'grupo_id': groups.first.groupId,
       'grupo_nombre': groups.first.groupName,
-      'grupo_sucursal': groups.first.cachedData['id_sucursal'] ?? '',
+      'grupo_sucursal':
+          groups.first.cachedData['nombre_sucursal'] ??
+          groups.first.cachedData['id_sucursal'] ??
+          '',
       'grupo_cinta': groups.first.cachedData['tipo_cinta'] ?? '',
       'grupo_horario': groups.first.cachedData['horario'] ?? '',
     },
@@ -465,7 +481,7 @@ Future<bool?> _showLeaveGroupDialog(BuildContext context) {
         (context) => AlertDialog(
           title: const Text('Quitar grupo'),
           content: const Text(
-            'Este grupo dejara de aparecer en tu pantalla. Podras volver a entrar escaneando el QR otra vez.',
+            'Este grupo dejara de aparecer en tu pantalla. Podras volver a entrar escaneando el QR o escribiendo el codigo otra vez.',
           ),
           actions: [
             TextButton(
@@ -604,7 +620,7 @@ class _NoGroupAssignedState extends StatelessWidget {
 
   const _NoGroupAssignedState({
     this.message =
-        'Aun no estas inscrito en un grupo. Escanea el QR que te comparta tu administrador.',
+        'Aun no estas inscrito en un grupo. Escanea el QR o escribe el codigo que te comparta tu administrador.',
   });
 
   @override

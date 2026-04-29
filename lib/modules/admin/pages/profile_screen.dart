@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tae_app/app/router/app_routes.dart';
+import 'package:tae_app/core/errors/app_exception.dart';
+import 'package:tae_app/features/admin/domain/entities/admin_profile.dart';
+import 'package:tae_app/features/admin/domain/entities/update_admin_profile_request.dart';
+import 'package:tae_app/features/admin/presentation/controllers/profile_controller.dart';
 
-class ProfileScreen extends StatelessWidget {
-  // Mantenemos los parámetros por compatibilidad con quien ya lo usa
-  // pero ahora los datos reales vienen de Firebase
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
-    // Estos parámetros ya no se usan pero los dejamos para no romper
-    // las pantallas que ya llaman a ProfileScreen con estos argumentos
     String? fullName,
     String? email,
     String? phone,
@@ -16,148 +15,213 @@ class ProfileScreen extends StatelessWidget {
     String? imageUrl,
   });
 
-// === FUNCIÓN PARA MOSTRAR EL DIÁLOGO DE EDICIÓN ===
-  void _mostrarDialogoEdicion(BuildContext context, Map<String, dynamic> data, String uid) {
-    final nombreCtrl = TextEditingController(text: data['nombre'] ?? '');
-    final apCtrl = TextEditingController(text: data['ap'] ?? '');
-    final amCtrl = TextEditingController(text: data['am'] ?? '');
-    final telefonoCtrl = TextEditingController(text: data['telefono'] ?? '');
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final ProfileController _controller = ProfileController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_handleControllerChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_handleControllerChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _handleControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _showEditDialog(AdminProfile profile) async {
+    final nombreCtrl = TextEditingController(text: profile.firstName);
+    final apCtrl = TextEditingController(text: profile.lastName);
+    final amCtrl = TextEditingController(text: profile.middleName);
+    final telefonoCtrl = TextEditingController(text: profile.phone);
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Editar Perfil', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nombreCtrl, decoration: const InputDecoration(labelText: 'Nombre(s)')),
-              TextField(controller: apCtrl, decoration: const InputDecoration(labelText: 'Apellido Paterno')),
-              TextField(controller: amCtrl, decoration: const InputDecoration(labelText: 'Apellido Materno')),
-              TextField(controller: telefonoCtrl, decoration: const InputDecoration(labelText: 'Teléfono'), keyboardType: TextInputType.phone),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Editar Perfil',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nombreCtrl,
+                    decoration: const InputDecoration(labelText: 'Nombre(s)'),
+                  ),
+                  TextField(
+                    controller: apCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Apellido Paterno',
+                    ),
+                  ),
+                  TextField(
+                    controller: amCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Apellido Materno',
+                    ),
+                  ),
+                  TextField(
+                    controller: telefonoCtrl,
+                    decoration: const InputDecoration(labelText: 'Telefono'),
+                    keyboardType: TextInputType.phone,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await _controller.updateProfile(
+                      UpdateAdminProfileRequest(
+                        userId: profile.userId,
+                        firstName: nombreCtrl.text,
+                        lastName: apCtrl.text,
+                        middleName: amCtrl.text,
+                        phone: telefonoCtrl.text,
+                      ),
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  } catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error al guardar: $error')),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Guardar'),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () async {
-              await FirebaseFirestore.instance.collection('usuarios').doc(uid).update({
-                'nombre': nombreCtrl.text.trim(),
-                'ap': apCtrl.text.trim(),
-                'am': amCtrl.text.trim(),
-                'telefono': telefonoCtrl.text.trim(),
-              });
-              if (context.mounted) Navigator.pop(context);
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
     );
   }
 
-  // === FUNCIÓN EXCLUSIVA PARA CAMBIAR EL CORREO ===
-  void _mostrarDialogoCorreo(BuildContext context, String correoActual, String uid) {
-    final correoCtrl = TextEditingController(text: correoActual);
+  Future<void> _showEmailDialog(AdminProfile profile) async {
+    final correoCtrl = TextEditingController(text: profile.email);
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Cambiar Correo', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Nota: Tu correo es tu credencial de acceso. Si el sistema detecta que iniciaste sesión hace mucho tiempo, te pedirá que vuelvas a entrar por seguridad.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: correoCtrl,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Nuevo Correo Electrónico',
-                prefixIcon: Icon(Icons.email_outlined),
+            title: const Text(
+              'Cambiar Correo',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Nota: Tu correo es tu credencial de acceso. Si el sistema detecta que iniciaste sesion hace mucho tiempo, te pedira que vuelvas a entrar por seguridad.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: correoCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Nuevo Correo Electronico',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () async {
-              final nuevoCorreo = correoCtrl.text.trim();
-              
-              // Evitamos procesar si está vacío o es el mismo correo
-              if (nuevoCorreo.isEmpty || nuevoCorreo == correoActual) return;
-
-              try {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user != null) {
-                  // 1. Usamos el NUEVO método de seguridad obligatorio de Firebase
-                  await user.verifyBeforeUpdateEmail(nuevoCorreo);
-
-                  // 2. Actualizamos el texto en la base de datos (Firestore)
-                  await FirebaseFirestore.instance.collection('usuarios').doc(uid).update({
-                    'correo': nuevoCorreo,
-                  });
-
-                  if (context.mounted) {
-                    Navigator.pop(context); // Cerramos el cuadro
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Revisa la bandeja de tu NUEVO correo para confirmar el cambio.'),
-                        backgroundColor: Colors.green,
-                        duration: Duration(seconds: 5), // Le damos más tiempo para leerlo
-                      ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () async {
+                  try {
+                    await _controller.requestEmailChange(
+                      userId: profile.userId,
+                      currentEmail: profile.email,
+                      newEmail: correoCtrl.text,
                     );
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Revisa la bandeja de tu nuevo correo para confirmar el cambio.',
+                          ),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 5),
+                        ),
+                      );
+                    }
+                  } on AppException catch (error) {
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(error.message),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
                   }
-                }
-              } on FirebaseAuthException catch (e) {
-                if (context.mounted) {
-                  Navigator.pop(context); // Cerramos el cuadro para mostrar el error
-                  String mensaje = 'Error al actualizar el correo.';
-                  
-                  // Manejo de errores específicos de Firebase
-                  if (e.code == 'requires-recent-login') {
-                    mensaje = 'Por seguridad, debes cerrar sesión y volver a entrar para hacer este cambio.';
-                  } else if (e.code == 'email-already-in-use') {
-                    mensaje = 'Este correo ya está registrado en otra cuenta.';
-                  } else if (e.code == 'invalid-email') {
-                    mensaje = 'El formato del correo es inválido.';
-                  }
-                  
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(mensaje), backgroundColor: Colors.redAccent),
-                  );
-                }
-              }
-            },
-            child: const Text('Actualizar'),
+                },
+                child: const Text('Actualizar'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
+  }
+
+  Future<void> _signOut() async {
+    await _controller.signOut();
+    if (mounted) {
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final userId = _controller.currentUserId;
 
-    if (user == null) {
+    if (userId == null) {
       return const Scaffold(
-        body: Center(child: Text('No hay sesión activa.')),
+        body: Center(child: Text('No hay sesion activa.')),
       );
     }
 
@@ -170,75 +234,69 @@ class ProfileScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit, color: Colors.black),
             onPressed: () async {
-              final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
-              if (doc.exists && context.mounted) {
-                _mostrarDialogoEdicion(context, doc.data() as Map<String, dynamic>, user.uid);
+              try {
+                final profile = await _controller.getCurrentProfile();
+                if (context.mounted) {
+                  _showEditDialog(profile);
+                }
+              } catch (error) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $error')),
+                  );
+                }
               }
             },
           ),
         ],
       ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('usuarios')
-            .doc(user.uid)
-            .snapshots(),
+      body: StreamBuilder<AdminProfile>(
+        stream: _controller.watchCurrentProfile(),
         builder: (context, snapshot) {
-          // === Cargando ===
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // === Error ===
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
 
-          // === Sin datos ===
-          if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(child: Text('No se encontró el perfil.'));
+          if (!snapshot.hasData) {
+            return const Center(child: Text('No se encontro el perfil.'));
           }
 
-          // === Datos reales de Firestore ===
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-          final fullName =
-              '${data['nombre'] ?? ''} ${data['ap'] ?? ''} ${data['am'] ?? ''}'
-                  .trim();
-          final email = data['correo'] ?? 'Sin correo';
-          final phone = data['telefono'] ?? 'Sin teléfono';
-          final role = data['tipo'] ?? 'Sin rol';
-          final imageUrl = data['imagen'] ?? '';
+          final profile = snapshot.data!;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
                 const SizedBox(height: 40),
-
-                // === Foto de perfil ===
                 CircleAvatar(
                   radius: 60,
                   backgroundColor: Colors.grey[300],
-                  backgroundImage: imageUrl.isNotEmpty
-                      ? NetworkImage(imageUrl)
-                      : null,
-                  child: imageUrl.isEmpty
-                      ? const Icon(Icons.person, size: 60, color: Colors.grey)
-                      : null,
+                  backgroundImage:
+                      profile.imageUrl.isNotEmpty
+                          ? NetworkImage(profile.imageUrl)
+                          : null,
+                  child:
+                      profile.imageUrl.isEmpty
+                          ? const Icon(
+                            Icons.person,
+                            size: 60,
+                            color: Colors.grey,
+                          )
+                          : null,
                 ),
                 const SizedBox(height: 20),
-
-                // === Nombre ===
                 Text(
-                  fullName.isNotEmpty ? fullName : 'Sin nombre',
+                  profile.fullName.isNotEmpty ? profile.fullName : 'Sin nombre',
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 10),
-
-                // === Rol ===
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -249,7 +307,7 @@ class ProfileScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    role.toUpperCase(),
+                    profile.role.toUpperCase(),
                     style: const TextStyle(
                       fontSize: 13,
                       color: Colors.white,
@@ -258,8 +316,6 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // === Card con info ===
                 Card(
                   color: Colors.white,
                   elevation: 2,
@@ -275,29 +331,36 @@ class ProfileScreen extends StatelessWidget {
                       children: [
                         ListTile(
                           leading: const Icon(Icons.email_outlined),
-                          title: const Text('Correo', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          subtitle: Text(
-                            email,
-                            style: const TextStyle(fontSize: 16, color: Colors.black, fontWeight: FontWeight.w500),
+                          title: const Text(
+                            'Correo',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
                           ),
-                          // === BOTÓN EXCLUSIVO PARA EDITAR CORREO ===
+                          subtitle: Text(
+                            profile.email,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.black,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                           trailing: IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blueAccent),
-                            onPressed: () => _mostrarDialogoCorreo(context, email, user.uid),
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              size: 20,
+                              color: Colors.blueAccent,
+                            ),
+                            onPressed: () => _showEmailDialog(profile),
                           ),
                         ),
                         const Divider(),
                         ListTile(
                           leading: const Icon(Icons.phone_outlined),
                           title: const Text(
-                            'Teléfono',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
+                            'Telefono',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
                           ),
                           subtitle: Text(
-                            phone,
+                            profile.phone,
                             style: const TextStyle(
                               fontSize: 16,
                               color: Colors.black,
@@ -310,13 +373,11 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 30),
-
-                // === Botón cerrar sesión ===
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.logout),
-                    label: const Text('Cerrar Sesión'),
+                    label: const Text('Cerrar Sesion'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color.fromARGB(255, 199, 0, 0),
                       foregroundColor: Colors.white,
@@ -326,16 +387,7 @@ class ProfileScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: () async {
-                      await FirebaseAuth.instance.signOut();
-                      if (context.mounted) {
-                        // Regresa al login y limpia toda la pila
-                        Navigator.of(context).pushNamedAndRemoveUntil(
-                          '/',
-                          (route) => false,
-                        );
-                      }
-                    },
+                    onPressed: _controller.isMutating ? null : _signOut,
                   ),
                 ),
               ],

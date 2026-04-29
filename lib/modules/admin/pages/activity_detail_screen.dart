@@ -1,342 +1,311 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
-import 'package:video_player/video_player.dart';
-import 'package:flutter/foundation.dart'; // ← para usar kIsWeb
-import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tae_app/core/errors/app_exception.dart';
+import 'package:tae_app/features/admin/presentation/controllers/activity_detail_controller.dart';
+import 'package:video_player/video_player.dart';
 
-
-// ====================================================================
-// === ACTIVITY DETAIL SCREEN (CON LÓGICA FIREBASE) ===================
-// ====================================================================
-
+/// Detail screen for a single activity.
+///
+/// This cut only migrates the Firebase-backed exercise CRUD.
+/// Local multimedia still lives in the widget state until we decide how it
+/// should be persisted.
 class ActivityDetailScreen extends StatefulWidget {
-  final String groupId; // Necesario para construir la ruta: grupos/{groupId}
-  final String activityId; // ID del documento a actualizar
-  final String activityName;
-  final List<String> exercises;
-
   const ActivityDetailScreen({
     super.key,
-    required this.activityId, // Nuevo
-    required this.groupId, // Nuevo
+    required this.activityId,
+    required this.groupId,
     required this.activityName,
     required this.exercises,
   });
+
+  final String groupId;
+  final String activityId;
+  final String activityName;
+  final List<String> exercises;
 
   @override
   State<ActivityDetailScreen> createState() => _ActivityDetailScreenState();
 }
 
 class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
-  late List<String> _exercises;
+  late final ActivityDetailController _controller;
   final Map<int, List<Map<String, dynamic>>> _mediaPerExercise = {};
-  // Referencia a Firestore para facilitar las llamadas
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   @override
   void initState() {
     super.initState();
-    _exercises = List<String>.from(widget.exercises);
+    _controller = ActivityDetailController(
+      groupId: widget.groupId,
+      activityId: widget.activityId,
+      initialExercises: widget.exercises,
+    )..addListener(_handleControllerChanged);
   }
 
-  // ================================================================
-  // === MÉTODOS DE FIREBASE PARA CRUD EN ARRAYS ====================
-  // ================================================================
-  
-  // 📌 1. AÑADIR EJERCICIO (Array Union)
-  void _addExerciseToFirebase(String newExerciseName) async {
-    // 1. Añadir el ejercicio a Firestore usando arrayUnion
-    try {
-      await _db
-          .collection('grupos')
-          .doc(widget.groupId)
-          .collection('actividades')
-          .doc(widget.activityId)
-          .update({
-            'ejercicios': FieldValue.arrayUnion([newExerciseName]),
-          });
-      
-      // 2. Si la actualización en Firebase es exitosa, actualizamos el estado local
-      setState(() {
-        _exercises.add(newExerciseName);
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('✅ Ejercicio agregado con éxito.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al guardar el ejercicio: $e')),
-        );
-      }
-    }
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_handleControllerChanged)
+      ..dispose();
+    super.dispose();
   }
-  // 📌 2. ELIMINAR EJERCICIO (Array Remove)
-  void _deleteExerciseFromFirebase(int index) async {
-    final exerciseToRemove = _exercises[index];
-    
-    try {
-      // 1. Eliminar el ejercicio de Firestore usando arrayRemove
-      await _db
-          .collection('grupos')
-          .doc(widget.groupId)
-          .collection('actividades')
-          .doc(widget.activityId)
-          .update({
-            'ejercicios': FieldValue.arrayRemove([exerciseToRemove]),
-          });
-      
-      // 2. Si la actualización en Firebase es exitosa, eliminamos el estado local
-      setState(() {
-        _exercises.removeAt(index);
-        _mediaPerExercise.remove(index); // Eliminar media local asociada
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('🗑️ Ejercicio eliminado con éxito.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al eliminar el ejercicio: $e')),
-        );
-      }
+
+  void _handleControllerChanged() {
+    if (mounted) {
+      setState(() {});
     }
   }
 
-  // 📌 3. EDITAR EJERCICIO (Requiere transacciones: Eliminar + Añadir)
-  void _editExerciseInFirebase(int index, String newName) async {
-    final oldName = _exercises[index];
-
-    if (oldName == newName) return; // No hacer nada si no hay cambio
-    
-    // Para editar un elemento en un array sin conocer su índice de antemano
-    // se debe hacer en dos pasos: 1. Remover el viejo. 2. Añadir el nuevo.
-    try {
-      // 1. Remover el nombre antiguo
-      await _db
-          .collection('grupos')
-          .doc(widget.groupId)
-          .collection('actividades')
-          .doc(widget.activityId)
-          .update({
-            'ejercicios': FieldValue.arrayRemove([oldName]),
-          });
-
-      // 2. Añadir el nuevo nombre
-      await _db
-          .collection('grupos')
-          .doc(widget.groupId)
-          .collection('actividades')
-          .doc(widget.activityId)
-          .update({
-            'ejercicios': FieldValue.arrayUnion([newName]),
-          });
-
-      // 3. Actualizar el estado local
-      setState(() {
-        _exercises[index] = newName;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('✅ Nombre del ejercicio actualizado.')),
-        );
-      }
-    } catch (e) {
-      // Si falla, revertimos o notificamos el error
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al editar el ejercicio: $e')),
-        );
-      }
-    }
-  }
-
-
-  //  Agregar ejercicio
-  void _addExercise() async {
+  Future<void> _addExercise() async {
     final controller = TextEditingController();
 
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color.fromARGB(255, 241, 241, 241),
-        title: const Text('Agregar ejercicio'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Nombre del ejercicio',            
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                  // LLAMADA A FIREBASE
-                _addExerciseToFirebase(controller.text.trim());
-                
-              }
-              Navigator.pop(ctx);
-            },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 0, 156, 196) ,
-                foregroundColor: const Color.fromARGB(251, 248, 248, 248),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: const Color.fromARGB(255, 241, 241, 241),
+            title: const Text('Agregar ejercicio'),
+            content: TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'Nombre del ejercicio',
+                border: OutlineInputBorder(),
               ),
-            child: const Text('Guardar'),
-
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await _controller.addExercise(controller.text.trim());
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Ejercicio agregado con exito.'),
+                        ),
+                      );
+                    }
+                  } on AppException catch (error) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(error.message)),
+                      );
+                    }
+                  } catch (error) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error al guardar el ejercicio: $error'),
+                        ),
+                      );
+                    }
+                  }
+                  if (mounted) {
+                    Navigator.pop(ctx);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 0, 156, 196),
+                  foregroundColor: const Color.fromARGB(251, 248, 248, 248),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Guardar'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
-  //  Editar ejercicio
-  void _editExercise(int index) async {
-    final controller = TextEditingController(text: _exercises[index]);
+  Future<void> _editExercise(int index) async {
+    final currentExercises = _controller.exercises;
+    if (index >= currentExercises.length) return;
+
+    final controller = TextEditingController(text: currentExercises[index]);
 
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color.fromARGB(255, 241, 241, 241),
-        title: const Text('Editar ejercicio'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Nuevo nombre',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                // LLAMADA A FIREBASE
-                _editExerciseInFirebase(index, controller.text.trim());
-              }
-              Navigator.pop(ctx);
-            },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 0, 156, 196) ,
-                foregroundColor: const Color.fromARGB(251, 248, 248, 248),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: const Color.fromARGB(255, 241, 241, 241),
+            title: const Text('Editar ejercicio'),
+            content: TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'Nuevo nombre',
+                border: OutlineInputBorder(),
               ),
-            child: const Text('Guardar'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await _controller.renameExerciseAt(
+                      index,
+                      controller.text.trim(),
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Nombre del ejercicio actualizado.'),
+                        ),
+                      );
+                    }
+                  } on AppException catch (error) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(error.message)),
+                      );
+                    }
+                  } catch (error) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error al editar el ejercicio: $error'),
+                        ),
+                      );
+                    }
+                  }
+                  if (mounted) {
+                    Navigator.pop(ctx);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 0, 156, 196),
+                  foregroundColor: const Color.fromARGB(251, 248, 248, 248),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Guardar'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
-  //  Eliminar ejercicio con confirmación
   void _deleteExercise(int index) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmar eliminación'),
-        content: Text('¿Seguro que quieres eliminar este ejercicio?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-            // style: TextStyle(color: colors.white),
-            
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Confirmar eliminacion'),
+            content: const Text('Seguro que quieres eliminar este ejercicio?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  try {
+                    await _controller.deleteExerciseAt(index);
+                    setState(() {
+                      _mediaPerExercise.remove(index);
+                    });
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Ejercicio eliminado con exito.'),
+                        ),
+                      );
+                    }
+                  } catch (error) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error al eliminar el ejercicio: $error'),
+                        ),
+                      );
+                    }
+                  }
+                  if (mounted) {
+                    Navigator.pop(ctx);
+                  }
+                },
+                child: const Text('Eliminar'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red,     foregroundColor: Colors.white),
-            onPressed: () {
-              // LLAMADA A FIREBASE
-              _deleteExerciseFromFirebase(index);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
     );
   }
 
-  //  Agregar imagen o video
   Future<void> _addMedia(int index) async {
     final picker = ImagePicker();
 
     await showModalBottomSheet(
-      backgroundColor: Color.fromARGB(251, 248, 248, 248),
-                  
+      backgroundColor: const Color.fromARGB(251, 248, 248, 248),
       context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.image, color: Colors.blue),
-              title: const Text('Agregar imagen'),
-              onTap: () async {
-                Navigator.pop(context);
-                final picked = await picker.pickImage(source: ImageSource.gallery);
-                if (picked != null) {
-                  final bytes = await picked.readAsBytes();
-                  setState(() {
-                    _mediaPerExercise.putIfAbsent(index, () => []).add({
-                      'type': 'image',
-                      'bytes': bytes,
-                    });
-                  });
-                }
-              },
+      builder:
+          (context) => SafeArea(
+            child: Wrap(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.image, color: Colors.blue),
+                  title: const Text('Agregar imagen'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final picked = await picker.pickImage(
+                      source: ImageSource.gallery,
+                    );
+                    if (picked != null) {
+                      final bytes = await picked.readAsBytes();
+                      setState(() {
+                        _mediaPerExercise.putIfAbsent(index, () => []).add({
+                          'type': 'image',
+                          'bytes': bytes,
+                        });
+                      });
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.videocam, color: Colors.red),
+                  title: const Text('Agregar video'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final picked = await picker.pickVideo(
+                      source: ImageSource.gallery,
+                    );
+                    if (picked != null) {
+                      final bytes = await picked.readAsBytes();
+                      setState(() {
+                        _mediaPerExercise.putIfAbsent(index, () => []).add({
+                          'type': 'video',
+                          'bytes': bytes,
+                        });
+                      });
+                    }
+                  },
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.videocam, color: Colors.red),
-              title: const Text('Agregar video'),
-              onTap: () async {
-                Navigator.pop(context);
-                final picked = await picker.pickVideo(source: ImageSource.gallery);
-                if (picked != null) {
-                  final bytes = await picked.readAsBytes();
-                  setState(() {
-                    _mediaPerExercise.putIfAbsent(index, () => []).add({
-                      'type': 'video',
-                      'bytes': bytes,
-                    });
-                  });
-                }
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
-  //  Eliminar media
   void _deleteMedia(int exerciseIndex, int mediaIndex) {
     setState(() {
       _mediaPerExercise[exerciseIndex]?.removeAt(mediaIndex);
     });
   }
 
-  // Ver en grande (imagen o video)
   void _viewMedia(Map<String, dynamic> mediaItem) {
     showDialog(
       context: context,
@@ -348,10 +317,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
             child: GestureDetector(
               onTap: () => Navigator.pop(ctx),
               child: InteractiveViewer(
-                child: Image.memory(
-                  mediaItem['bytes'],
-                  fit: BoxFit.contain,
-                ),
+                child: Image.memory(mediaItem['bytes'], fit: BoxFit.contain),
               ),
             ),
           );
@@ -368,6 +334,8 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final exercises = _controller.exercises;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -376,9 +344,8 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
         foregroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addExercise,
+        onPressed: _controller.isMutating ? null : _addExercise,
         backgroundColor: const Color.fromARGB(255, 3, 84, 150),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
@@ -394,29 +361,32 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            if (_exercises.isEmpty)
-              const Text('No hay ejercicios aún.', style: TextStyle(color: Colors.grey))
+            if (exercises.isEmpty)
+              const Text(
+                'No hay ejercicios aun.',
+                style: TextStyle(color: Colors.grey),
+              )
             else
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: _exercises.length,
+                itemCount: exercises.length,
                 itemBuilder: (context, index) {
-                  final exercise = _exercises[index];
+                  final exercise = exercises[index];
                   final media = _mediaPerExercise[index] ?? [];
 
                   return Card(
-                    
                     elevation: 3,
                     margin: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(10),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           ListTile(
-                            
                             leading: const Icon(Icons.fitness_center),
                             title: Text(exercise),
                             trailing: PopupMenuButton<String>(
@@ -424,28 +394,29 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                                 if (value == 'edit') _editExercise(index);
                                 if (value == 'delete') _deleteExercise(index);
                               },
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(                        
-                                  value: 'edit',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.edit, color: Colors.blue),
-                                      SizedBox(width: 8),
-                                      Text('Editar'),
-                                    ],
-                                  ),
-                                ),
-                                const PopupMenuItem(
-                                  value: 'delete',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.delete, color: Colors.red),
-                                      SizedBox(width: 8),
-                                      Text('Eliminar'),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                              itemBuilder:
+                                  (context) => const [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.edit, color: Colors.blue),
+                                          SizedBox(width: 8),
+                                          Text('Editar'),
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.delete, color: Colors.red),
+                                          SizedBox(width: 8),
+                                          Text('Eliminar'),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                             ),
                           ),
                           Row(
@@ -453,28 +424,38 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                             children: [
                               const Text(
                                 'Contenido multimedia:',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.add_a_photo, color: Colors.blue),
+                                icon: const Icon(
+                                  Icons.add_a_photo,
+                                  color: Colors.blue,
+                                ),
                                 onPressed: () => _addMedia(index),
                               ),
                             ],
                           ),
                           if (media.isEmpty)
-                            const Text('Sin contenido aún.', style: TextStyle(color: Colors.grey))
+                            const Text(
+                              'Sin contenido aun.',
+                              style: TextStyle(color: Colors.grey),
+                            )
                           else
                             GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                crossAxisSpacing: 8,
-                                mainAxisSpacing: 8,
-                              ),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    crossAxisSpacing: 8,
+                                    mainAxisSpacing: 8,
+                                  ),
                               itemCount: media.length,
-                              itemBuilder: (context, mIndex) {
-                                final item = media[mIndex];
+                              itemBuilder: (context, mediaIndex) {
+                                final item = media[mediaIndex];
                                 final isVideo = item['type'] == 'video';
                                 return GestureDetector(
                                   onTap: () => _viewMedia(item),
@@ -482,30 +463,44 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                                     children: [
                                       ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
-                                        child: isVideo
-                                            ? Container(
-                                                color: Colors.black26,
-                                                child: const Center(
-                                                  child: Icon(Icons.play_circle_fill,
-                                                      color: Colors.redAccent, size: 40),
+                                        child:
+                                            isVideo
+                                                ? Container(
+                                                  color: Colors.black26,
+                                                  child: const Center(
+                                                    child: Icon(
+                                                      Icons.play_circle_fill,
+                                                      color: Colors.redAccent,
+                                                      size: 40,
+                                                    ),
+                                                  ),
+                                                )
+                                                : Image.memory(
+                                                  item['bytes'],
+                                                  fit: BoxFit.cover,
+                                                  width: double.infinity,
                                                 ),
-                                              )
-                                            : Image.memory(item['bytes'],
-                                                fit: BoxFit.cover, width: double.infinity),
                                       ),
                                       Positioned(
                                         top: 4,
                                         right: 4,
                                         child: GestureDetector(
-                                          onTap: () => _deleteMedia(index, mIndex),
+                                          onTap:
+                                              () => _deleteMedia(
+                                                index,
+                                                mediaIndex,
+                                              ),
                                           child: Container(
                                             decoration: const BoxDecoration(
                                               shape: BoxShape.circle,
                                               color: Colors.black54,
                                             ),
                                             padding: const EdgeInsets.all(4),
-                                            child: const Icon(Icons.close,
-                                                color: Colors.white, size: 18),
+                                            child: const Icon(
+                                              Icons.close,
+                                              color: Colors.white,
+                                              size: 18,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -527,10 +522,10 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
   }
 }
 
-//  Widget para reproducir video dentro del modal
 class VideoViewer extends StatefulWidget {
-  final Uint8List videoBytes;
   const VideoViewer({super.key, required this.videoBytes});
+
+  final Uint8List videoBytes;
 
   @override
   State<VideoViewer> createState() => _VideoViewerState();
@@ -540,39 +535,38 @@ class _VideoViewerState extends State<VideoViewer> {
   VideoPlayerController? _controller;
 
   @override
-void initState() {
-  super.initState();
-  final videoBytes = widget.videoBytes;
+  void initState() {
+    super.initState();
+    final videoBytes = widget.videoBytes;
 
-  if (kIsWeb) {
-    // Web: se puede usar base64 en network
-    final videoUrl = Uri.dataFromBytes(
-      videoBytes,
-      mimeType: 'video/mp4',
-    ).toString();
+    if (kIsWeb) {
+      final videoUrl = Uri.dataFromBytes(
+        videoBytes,
+        mimeType: 'video/mp4',
+      ).toString();
 
-    _controller = VideoPlayerController.network(videoUrl)
-      ..initialize().then((_) {
-        setState(() {});
-        _controller!.play();
-      });
-  } else {
-    // Móvil / Desktop: escribir bytes en archivo temporal
-    _loadVideoFile(videoBytes);
+      _controller =
+          VideoPlayerController.network(videoUrl)
+            ..initialize().then((_) {
+              setState(() {});
+              _controller!.play();
+            });
+    } else {
+      _loadVideoFile(videoBytes);
+    }
   }
-}
 
-Future<void> _loadVideoFile(Uint8List bytes) async {
-  final tempDir = await getTemporaryDirectory();
-  final tempFile = File('${tempDir.path}/temp_video.mp4');
-  await tempFile.writeAsBytes(bytes);
-  _controller = VideoPlayerController.file(tempFile)
-    ..initialize().then((_) {
-      setState(() {});
-      _controller!.play();
-    });
-}
-
+  Future<void> _loadVideoFile(Uint8List bytes) async {
+    final tempDir = await getTemporaryDirectory();
+    final tempFile = File('${tempDir.path}/temp_video.mp4');
+    await tempFile.writeAsBytes(bytes);
+    _controller =
+        VideoPlayerController.file(tempFile)
+          ..initialize().then((_) {
+            setState(() {});
+            _controller!.play();
+          });
+  }
 
   @override
   void dispose() {
@@ -584,12 +578,13 @@ Future<void> _loadVideoFile(Uint8List bytes) async {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => Navigator.pop(context),
-      child: _controller != null && _controller!.value.isInitialized
-          ? AspectRatio(
-              aspectRatio: _controller!.value.aspectRatio,
-              child: VideoPlayer(_controller!),
-            )
-          : const Center(child: CircularProgressIndicator()),
+      child:
+          _controller != null && _controller!.value.isInitialized
+              ? AspectRatio(
+                aspectRatio: _controller!.value.aspectRatio,
+                child: VideoPlayer(_controller!),
+              )
+              : const Center(child: CircularProgressIndicator()),
     );
   }
 }

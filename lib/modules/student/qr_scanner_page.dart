@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class QRScannerPage extends StatefulWidget {
   const QRScannerPage({super.key});
@@ -12,208 +13,405 @@ class QRScannerPage extends StatefulWidget {
 
 class _QRScannerPageState extends State<QRScannerPage> {
   final MobileScannerController _cameraController = MobileScannerController();
+  final TextEditingController _manualCodeController = TextEditingController();
   bool _isProcessing = false;
 
   @override
   void dispose() {
+    _manualCodeController.dispose();
     _cameraController.dispose();
     super.dispose();
   }
 
-  // =================================================================
-  // === PROCESAR QR ESCANEADO =======================================
-  // =================================================================
   Future<void> _processQR(String rawValue) async {
-  if (_isProcessing) return;
-  setState(() => _isProcessing = true);
-  await _cameraController.stop();
-
-  try {
-    // 1. Parsear QR
-    final parts = rawValue.split('|');
-    if (parts.length < 2) {
-      _showError('QR inválido. Escanea el código correcto.');
+    final payload = _parseQrPayload(rawValue);
+    if (payload == null) {
+      _showError('QR invalido. Escanea el codigo correcto.');
       return;
     }
 
-    final tipo = parts[0];
-    if (tipo != 'ALUMNO') {
+    if (payload.type != 'ALUMNO') {
       _showError('Este QR no es para alumnos.');
       return;
     }
 
-    // 2. Extraer GrupoId y nombre del grupo
-    final grupoIdEntry = parts.firstWhere(
-      (p) => p.startsWith('GrupoId:'),
-      orElse: () => '',
+    await _joinGroupById(
+      payload.groupId,
+      fallbackGroupName: payload.groupName,
     );
-    final grupoNameEntry = parts.firstWhere(
-      (p) => p.startsWith('Grupo:'),
-      orElse: () => '',
+  }
+
+  _ParsedQrPayload? _parseQrPayload(String rawValue) {
+    final parts = rawValue.split('|');
+    if (parts.length < 2) {
+      return null;
+    }
+
+    final type = parts.first.trim();
+    final groupIdEntry = parts.where((part) => part.startsWith('GrupoId:'));
+    final groupNameEntry = parts.where((part) => part.startsWith('Grupo:'));
+    if (groupIdEntry.isEmpty) {
+      return null;
+    }
+
+    final groupId = groupIdEntry.first.replaceFirst('GrupoId:', '').trim();
+    if (groupId.isEmpty) {
+      return null;
+    }
+
+    final groupName =
+        groupNameEntry.isNotEmpty
+            ? groupNameEntry.first.replaceFirst('Grupo:', '').trim()
+            : '';
+
+    return _ParsedQrPayload(
+      type: type,
+      groupId: groupId,
+      groupName: groupName,
+    );
+  }
+
+  Future<void> _openManualCodeDialog() async {
+    _manualCodeController.clear();
+    final manualCode = await showDialog<String>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Ingresar codigo'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Si no puedes escanear el QR, escribe el codigo que te comparta tu administrador.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _manualCodeController,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  maxLength: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Codigo de acceso',
+                    hintText: 'Ej. 123456',
+                    border: OutlineInputBorder(),
+                    counterText: '',
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed:
+                    () => Navigator.of(
+                      dialogContext,
+                    ).pop(_manualCodeController.text),
+                child: const Text('Unirme'),
+              ),
+            ],
+          ),
     );
 
-    if (grupoIdEntry.isEmpty) {
-      _showError('QR sin ID de grupo. Regenera el QR.');
+    if (manualCode == null) {
       return;
     }
 
-    final grupoId = grupoIdEntry.replaceFirst('GrupoId:', '');
-    final nombreGrupo = grupoNameEntry.replaceFirst('Grupo:', '');
+    await _joinGroupByCode(manualCode);
+  }
 
-    // 3. Obtener alumno logueado
+  Future<void> _joinGroupByCode(String rawCode) async {
+    final accessCode = _normalizeAccessCode(rawCode);
+    if (accessCode.isEmpty) {
+      _showError('Ingresa un codigo de 6 digitos.');
+      return;
+    }
+
+    if (!await _startProcessing()) {
+      return;
+    }
+
+    try {
+      final groupQuery =
+          await FirebaseFirestore.instance
+              .collection('grupos')
+              .where('codigo_alumno', isEqualTo: accessCode)
+              .limit(1)
+              .get();
+
+      if (groupQuery.docs.isEmpty) {
+        _showError('No encontramos un grupo con ese codigo.');
+        return;
+      }
+
+      await _joinGroupFromSnapshot(groupQuery.docs.first);
+    } catch (error) {
+      _showError('Error inesperado: $error');
+    }
+  }
+
+  Future<void> _joinGroupById(
+    String groupId, {
+    String? fallbackGroupName,
+  }) async {
+    if (!await _startProcessing()) {
+      return;
+    }
+
+    try {
+      final groupSnapshot =
+          await FirebaseFirestore.instance.collection('grupos').doc(groupId).get();
+
+      if (!groupSnapshot.exists) {
+        _showError('El grupo ya no esta disponible. Pide un QR actualizado.');
+        return;
+      }
+
+      await _joinGroupFromSnapshot(
+        groupSnapshot,
+        fallbackGroupName: fallbackGroupName,
+      );
+    } catch (error) {
+      _showError('Error inesperado: $error');
+    }
+  }
+
+  Future<void> _joinGroupFromSnapshot(
+    DocumentSnapshot<Map<String, dynamic>> groupSnapshot, {
+    String? fallbackGroupName,
+  }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      _showError('No hay sesión activa.');
+      _showError('No hay sesion activa.');
       return;
     }
 
     final db = FirebaseFirestore.instance;
+    final groupId = groupSnapshot.id;
+    final groupData = groupSnapshot.data() ?? const <String, dynamic>{};
+    final groupName =
+        (groupData['nombre_grupo'] as String?)?.trim().isNotEmpty == true
+            ? (groupData['nombre_grupo'] as String).trim()
+            : (fallbackGroupName?.trim().isNotEmpty == true
+                ? fallbackGroupName!.trim()
+                : groupId);
 
-    // 4. Verificar si el alumno ya está en el grupo (busca por campo, no por ID)
-final alumnoQuery = await db
-    .collection('grupos')
-    .doc(grupoId)
-    .collection('alumnos')
-    .where('uid', isEqualTo: user.uid) // 👈 busca por campo
-    .limit(1)
-    .get();
+    final enrolledStudent =
+        await db
+            .collection('grupos')
+            .doc(groupId)
+            .collection('alumnos')
+            .where('uid', isEqualTo: user.uid)
+            .limit(1)
+            .get();
 
-if (alumnoQuery.docs.isNotEmpty) {
-  _showError('Ya estás inscrito en el grupo "$nombreGrupo".');
-  return;
-}
+    if (enrolledStudent.docs.isNotEmpty) {
+      _showError('Ya estas inscrito en el grupo "$groupName".');
+      return;
+    }
 
-// 5. Obtener datos del alumno desde 'usuarios'
-final usuarioSnap = await db.collection('usuarios').doc(user.uid).get();
-final usuarioData = usuarioSnap.data() ?? {};
-final nombre =
-    '${usuarioData['nombre'] ?? ''} ${usuarioData['ap'] ?? ''}'.trim();
+    final userSnapshot = await db.collection('usuarios').doc(user.uid).get();
+    final userData = userSnapshot.data() ?? const <String, dynamic>{};
+    final studentName =
+        '${userData['nombre'] ?? ''} ${userData['ap'] ?? ''}'.trim();
+    final beltType = groupData['tipo_cinta']?.toString() ?? '';
+    final branchId = groupData['id_sucursal']?.toString() ?? '';
+    final schedule = groupData['horario']?.toString() ?? '';
+    final branchName = await _resolveBranchName(
+      db: db,
+      groupId: groupId,
+      groupData: groupData,
+    );
 
-    // 6. Obtener informacion del grupo para guardar la relacion en el perfil
-final grupoSnap = await db.collection('grupos').doc(grupoId).get();
-final grupoData = grupoSnap.data() ?? {};
-final cinta = grupoData['tipo_cinta'] ?? '';
-final sucursal = grupoData['id_sucursal'] ?? '';
-final horario = grupoData['horario'] ?? '';
-
-// 7. Agregar alumno con ID autogenerado (igual que los existentes)
-await db
-    .collection('grupos')
-    .doc(grupoId)
-    .collection('alumnos')
-    .add({                                    // 👈 .add() en lugar de .doc().set()
-      'uid': user.uid,                        // 👈 guarda el UID como campo
-      'nombre': nombre,
-      'cinta': cinta,
-      'imagen': usuarioData['imagen'] ?? '',
+    await db.collection('grupos').doc(groupId).collection('alumnos').add({
+      'uid': user.uid,
+      'nombre': studentName,
+      'cinta': beltType,
+      'imagen': userData['imagen'] ?? '',
       'fecha_ingreso': FieldValue.serverTimestamp(),
     });
 
-// 8. Incrementar total_alumnos
-await db.collection('grupos').doc(grupoId).update({
-  'total_alumnos': FieldValue.increment(1),
-});
+    await db.collection('grupos').doc(groupId).update({
+      'total_alumnos': FieldValue.increment(1),
+    });
 
-// 8.1 Guardar acceso rapido al grupo en el documento del usuario
-await db.collection('usuarios').doc(user.uid).set({
-  'grupos': FieldValue.arrayUnion([
-    {
-      'groupId': grupoId,
-      'groupName': nombreGrupo,
-      'branchName': sucursal,
-      'beltType': cinta,
-      'schedule': horario,
+    if (branchId.isNotEmpty) {
+      await db.collection('sucursales').doc(branchId).update({
+        'participants': FieldValue.increment(1),
+      });
     }
-  ]),
-  'grupo_id': grupoId,
-  'grupo_nombre': nombreGrupo,
-  'grupo_sucursal': sucursal,
-  'grupo_cinta': cinta,
-  'grupo_horario': horario,
-}, SetOptions(merge: true));
 
-// 9. Éxito
-if (mounted) _showSuccess(nombreGrupo);
+    await db.collection('usuarios').doc(user.uid).set({
+      'grupos': FieldValue.arrayUnion([
+        {
+          'groupId': groupId,
+          'groupName': groupName,
+          'branchName': branchName,
+          'beltType': beltType,
+          'schedule': schedule,
+        },
+      ]),
+      'grupo_id': groupId,
+      'grupo_nombre': groupName,
+      'grupo_sucursal': branchName,
+      'grupo_cinta': beltType,
+      'grupo_horario': schedule,
+    }, SetOptions(merge: true));
 
-  } catch (e) {
-    _showError('Error inesperado: $e');
+    if (mounted) {
+      _showSuccess(groupName);
+    }
   }
-}
+
+  Future<String> _resolveBranchName({
+    required FirebaseFirestore db,
+    required String groupId,
+    required Map<String, dynamic> groupData,
+  }) async {
+    final savedBranchName = groupData['nombre_sucursal']?.toString().trim();
+    if (savedBranchName != null && savedBranchName.isNotEmpty) {
+      return savedBranchName;
+    }
+
+    final branchId = groupData['id_sucursal']?.toString().trim() ?? '';
+    if (branchId.isEmpty) {
+      return 'Sucursal no disponible';
+    }
+
+    final branchSnapshot = await db.collection('sucursales').doc(branchId).get();
+    final branchName = branchSnapshot.data()?['name']?.toString().trim() ?? '';
+
+    if (branchName.isNotEmpty) {
+      await db.collection('grupos').doc(groupId).set({
+        'nombre_sucursal': branchName,
+      }, SetOptions(merge: true));
+      return branchName;
+    }
+
+    return branchId;
+  }
+
+  String _normalizeAccessCode(String rawCode) {
+    return rawCode.replaceAll(RegExp(r'[^0-9]'), '').trim();
+  }
+
+  Future<bool> _startProcessing() async {
+    if (_isProcessing) {
+      return false;
+    }
+
+    setState(() => _isProcessing = true);
+    await _cameraController.stop();
+    return true;
+  }
+
+  void _restartScanner() {
+    _cameraController.start();
+    if (mounted) {
+      setState(() => _isProcessing = false);
+    }
+  }
 
   void _showError(String message) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
+
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Error'),
-          ],
-        ),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Reactivar escáner para intentar de nuevo
-              _cameraController.start();
-              setState(() => _isProcessing = false);
-            },
-            child: const Text('Intentar de nuevo',
-                style: TextStyle(color: Colors.black)),
+      builder:
+          (_) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Error'),
+              ],
+            ),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _restartScanner();
+                },
+                child: const Text(
+                  'Intentar de nuevo',
+                  style: TextStyle(color: Colors.black),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
-  void _showSuccess(String nombreGrupo) {
+  void _showSuccess(String groupName) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_outline, color: Colors.green),
-            SizedBox(width: 8),
-            Text('¡Listo!'),
-          ],
-        ),
-        content: Text('Te has unido al grupo "$nombreGrupo" exitosamente.'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Cierra dialog
-              Navigator.pop(context); // Regresa a HomePageStudent
-            },
-            child: const Text('Aceptar',
-                style: TextStyle(color: Colors.black)),
+      builder:
+          (_) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle_outline, color: Colors.green),
+                SizedBox(width: 8),
+                Text('Listo'),
+              ],
+            ),
+            content: Text('Te has unido al grupo "$groupName" exitosamente.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+                child: const Text(
+                  'Aceptar',
+                  style: TextStyle(color: Colors.black),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
-  // =================================================================
-  // === UI ==========================================================
-  // =================================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        title: const Text('Escanear QR',
-            style: TextStyle(color: Colors.white)),
+        title: const Text('Escanear QR', style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          TextButton.icon(
+            onPressed: _openManualCodeDialog,
+            icon: const Icon(Icons.pin_outlined, color: Colors.white),
+            label: const Text(
+              'Codigo',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
       ),
       body: Stack(
         children: [
-          // Cámara
           MobileScanner(
             controller: _cameraController,
             onDetect: (capture) {
@@ -223,8 +421,6 @@ if (mounted) _showSuccess(nombreGrupo);
               }
             },
           ),
-
-          // Marco de escaneo
           Center(
             child: Container(
               width: 250,
@@ -235,29 +431,47 @@ if (mounted) _showSuccess(nombreGrupo);
               ),
             ),
           ),
-
-          // Texto guía
           Positioned(
-            bottom: 60,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(20),
+            left: 20,
+            right: 20,
+            bottom: 48,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Apunta al codigo QR del grupo',
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                child: const Text(
-                  'Apunta al código QR del grupo',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: _openManualCodeDialog,
+                    icon: const Icon(Icons.keyboard_alt_outlined),
+                    label: const Text('No puedo escanear, ingresar codigo'),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
-
-          // Indicador de procesando
           if (_isProcessing)
             Container(
               color: Colors.black54,
@@ -269,4 +483,16 @@ if (mounted) _showSuccess(nombreGrupo);
       ),
     );
   }
+}
+
+class _ParsedQrPayload {
+  const _ParsedQrPayload({
+    required this.type,
+    required this.groupId,
+    required this.groupName,
+  });
+
+  final String type;
+  final String groupId;
+  final String groupName;
 }

@@ -1,26 +1,24 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:tae_app/firebase_options.dart';
+import 'package:tae_app/app/router/app_router.dart';
+import 'package:tae_app/app/router/app_routes.dart';
+import 'package:tae_app/core/errors/app_exception.dart';
+import 'package:tae_app/core/models/app_user_role.dart';
+import 'package:tae_app/features/auth/presentation/controllers/login_controller.dart';
 import 'package:tae_app/modules/admin/pages/branch_selection_tab.dart';
-import 'package:tae_app/modules/admin/pages/wallet_fees.dart';
-import 'package:tae_app/modules/admin/pages/wallet_screen.dart';
-import 'package:tae_app/modules/admin/pages/wallet_student_status.dart';
-import 'package:tae_app/modules/authentication/pages/forgot_password_page.dart';
-import 'package:tae_app/modules/authentication/pages/register_admin.dart';
-import 'package:tae_app/modules/authentication/pages/register_teacher_student.dart';
-import 'package:tae_app/modules/authentication/pages/type_register.dart';
 import 'package:tae_app/modules/student/home_page_student.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+/// Legacy entrypoint kept temporarily for compatibility while the project
+/// migrates to `lib/main.dart`.
+///
+/// New work should use the centralized bootstrap and router under `app/`.
+void main() {
   runApp(const WelcomeTaeApp());
 }
 
+/// Transitional app shell.
+///
+/// This wrapper now delegates route creation to the new centralized router
+/// so we do not maintain route definitions in two places.
 class WelcomeTaeApp extends StatelessWidget {
   const WelcomeTaeApp({super.key});
 
@@ -29,18 +27,8 @@ class WelcomeTaeApp extends StatelessWidget {
     return MaterialApp(
       title: 'TAE App',
       debugShowCheckedModeBanner: false,
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const LoginPage(),
-        '/main-admin': (context) => const MainBranches(),
-        '/forgot-password': (context) => const ForgotPasswordPage(),
-        '/type-register': (context) => const TypeRegister(),
-        '/register-admin': (context) => const RegisterAdmin(),
-        '/register-user': (context) => const RegisterTeacherStudent(),
-        '/wallet': (context) => const WalletScreen(),
-        '/wallet-fees': (context) => const WalletFeesPage(),
-        '/wallet-student-status': (context) => const WalletStudentStatusPage(),
-      },
+      initialRoute: AppRoutes.login,
+      onGenerateRoute: AppRouter.onGenerateRoute,
     );
   }
 }
@@ -55,59 +43,42 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
+  final LoginController _loginController = LoginController();
   bool _obscureText = true;
 
   @override
+  void initState() {
+    super.initState();
+    _loginController.addListener(_handleControllerChanged);
+  }
+
+  @override
   void dispose() {
+    _loginController
+      ..removeListener(_handleControllerChanged)
+      ..dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _signIn() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor, ingresa tu email y contrasena.'),
-        ),
-      );
-      return;
+  void _handleControllerChanged() {
+    if (mounted) {
+      setState(() {});
     }
+  }
 
-    setState(() => _isLoading = true);
-
+  Future<void> _signIn() async {
     try {
-      final userCredential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
-
-      final userDoc =
-          await FirebaseFirestore.instance
-              .collection('usuarios')
-              .doc(userCredential.user!.uid)
-              .get();
-
-      if (!userDoc.exists) {
-        await FirebaseAuth.instance.signOut();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error: usuario sin perfil asignado.'),
-            ),
-          );
-        }
-        return;
-      }
-
-      final userType = userDoc.data()?['tipo'] ?? 'alumno';
+      final user = await _loginController.signIn(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
 
       if (!mounted) return;
 
       final Widget nextPage =
-          userType == 'admin'
+          user.role == AppUserRole.admin
               ? const MainBranches()
               : const HomePageStudent();
 
@@ -115,19 +86,11 @@ class _LoginPageState extends State<LoginPage> {
         context,
         MaterialPageRoute(builder: (context) => nextPage),
       );
-    } on FirebaseAuthException catch (e) {
-      var message = 'Error de autenticacion.';
-      if (e.code == 'user-not-found' || e.code == 'wrong-password') {
-        message = 'Email o contrasena incorrectos.';
-      }
+    } on AppException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(message)));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
@@ -195,7 +158,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
           const SizedBox(height: 30),
-          _isLoading
+          _loginController.isLoading
               ? const CircularProgressIndicator()
               : ElevatedButton(
                 onPressed: _signIn,
@@ -212,7 +175,8 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
           TextButton(
-            onPressed: () => Navigator.pushNamed(context, '/forgot-password'),
+            onPressed:
+                () => Navigator.pushNamed(context, AppRoutes.forgotPassword),
             child: const Text(
               'Olvidaste tu contrasena?',
               style: TextStyle(
@@ -235,7 +199,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 10),
         ElevatedButton(
-          onPressed: () => Navigator.pushNamed(context, '/type-register'),
+          onPressed: () => Navigator.pushNamed(context, AppRoutes.typeRegister),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.black),
           child: const Text(
             'Registrate',

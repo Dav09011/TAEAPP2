@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tae_app/core/errors/app_exception.dart';
+import 'package:tae_app/features/auth/domain/entities/registration_request.dart';
+import 'package:tae_app/features/auth/presentation/controllers/register_account_controller.dart';
 
+/// Student registration screen still rendered from the legacy module tree.
+///
+/// The Firebase work now lives in the shared auth controller/repository path,
+/// which lets us migrate admin and student registration under the same rules.
 class RegisterTeacherStudent extends StatefulWidget {
   const RegisterTeacherStudent({super.key});
+
   @override
   State<RegisterTeacherStudent> createState() => _RegisterTeacherStudent();
 }
 
 class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
   final _formKey = GlobalKey<FormState>();
+  final RegisterAccountController _controller = RegisterAccountController();
   bool _obscureText = true;
 
-  // === 1. CONTROLADORES (igual que en RegisterAdmin) ===
   final _nombreController = TextEditingController();
   final _apController = TextEditingController();
   final _amController = TextEditingController();
@@ -23,7 +29,16 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
   final _passwordController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_handleControllerChanged);
+  }
+
+  @override
   void dispose() {
+    _controller
+      ..removeListener(_handleControllerChanged)
+      ..dispose();
     _nombreController.dispose();
     _apController.dispose();
     _amController.dispose();
@@ -33,73 +48,42 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
     super.dispose();
   }
 
-  // === 2. LÓGICA DE REGISTRO EN FIREBASE ===
+  void _handleControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   Future<void> _registerStudent() async {
     if (!_formKey.currentState!.validate()) return;
 
     try {
-      // Crear cuenta en Firebase Auth
-      final userCredential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      await _controller.register(
+        RegistrationRequest(
+          firstName: _nombreController.text.trim(),
+          lastName: _apController.text.trim(),
+          middleName: _amController.text.trim(),
+          email: _emailController.text.trim(),
+          phone: _telefonoController.text.trim(),
+          password: _passwordController.text.trim(),
+          role: 'alumno',
+          profileCategory: 'alumno',
+        ),
       );
 
-      final uid = userCredential.user!.uid;
+      if (!mounted) return;
 
-      // Guardar datos en Firestore con tipo 'alumno'
-      await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
-        'id_usuario': uid,
-        'nombre': _nombreController.text.trim(),
-        'ap': _apController.text.trim(),
-        'am': _amController.text.trim(),
-        'correo': _emailController.text.trim(),
-        'telefono': _telefonoController.text.trim(),
-        'tipo': 'alumno', // 👈 Diferencia clave vs admin
-        'fecha_registro': Timestamp.now(),
-        'perfil': {
-          'categoria': 'alumno',
-        }
-      });
-
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Registro exitoso.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context);
+    } on AppException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Registro exitoso!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // 👇 Aquí navegarás a HomePageAlumno cuando la crees
-        // Por ahorita solo muestra el snackbar y regresa
-        Navigator.pop(context);
-      }
-    } on FirebaseAuthException catch (e) {
-      String message;
-      if (e.code == 'email-already-in-use') {
-        message = 'El correo ya está registrado.';
-      } else if (e.code == 'weak-password') {
-        message = 'La contraseña es demasiado débil.';
-      } else {
-        message = 'Error de registro: ${e.message}';
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
-        );
-      }
-    } on FirebaseException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error en base de datos: ${e.message}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error inesperado: $e')),
+          SnackBar(content: Text(error.message), backgroundColor: Colors.red),
         );
       }
     }
@@ -153,45 +137,41 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
                     margin: const EdgeInsets.symmetric(horizontal: 30),
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xffd3d3d3), width: 1.5),
+                      border: Border.all(
+                        color: const Color(0xffd3d3d3),
+                        width: 1.5,
+                      ),
                       borderRadius: BorderRadius.circular(15),
                       color: Colors.white,
                     ),
-                    // === 3. FORMULARIO CON CONTROLADORES ===
                     child: Form(
                       key: _formKey,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-
-                          // --- Nombre ---
                           _buildLabel('Nombre'),
                           _buildTextField(
                             controller: _nombreController,
                             hint: 'Ingrese Nombre(s)',
                             formatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[a-zA-Z\s]'),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 26),
-
-                          // --- Apellido Paterno ---
                           _buildLabel('Apellido Paterno'),
                           _buildTextField(
                             controller: _apController,
                             hint: 'Ingrese su primer apellido',
                           ),
                           const SizedBox(height: 26),
-
-                          // --- Apellido Materno ---
                           _buildLabel('Apellido Materno'),
                           _buildTextField(
                             controller: _amController,
                             hint: 'Ingrese su segundo apellido',
                           ),
                           const SizedBox(height: 26),
-
-                          // --- Email ---
                           _buildLabel('Email'),
                           _buildTextField(
                             controller: _emailController,
@@ -199,19 +179,17 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
                             keyboardType: TextInputType.emailAddress,
                           ),
                           const SizedBox(height: 26),
-
-                          // --- Teléfono ---
-                          _buildLabel('Número de teléfono'),
+                          _buildLabel('Numero de telefono'),
                           _buildTextField(
                             controller: _telefonoController,
                             hint: '+52',
                             keyboardType: TextInputType.phone,
-                            formatters: [LengthLimitingTextInputFormatter(10)],
+                            formatters: [
+                              LengthLimitingTextInputFormatter(10),
+                            ],
                           ),
                           const SizedBox(height: 26),
-
-                          // --- Contraseña ---
-                          _buildLabel('Contraseña'),
+                          _buildLabel('Contrasena'),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 30),
                             child: Container(
@@ -226,7 +204,7 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
                                 controller: _passwordController,
                                 obscureText: _obscureText,
                                 decoration: InputDecoration(
-                                  hintText: 'mínimo 8 caracteres',
+                                  hintText: 'minimo 8 caracteres',
                                   border: InputBorder.none,
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 20,
@@ -240,7 +218,9 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
                                       color: Colors.grey,
                                     ),
                                     onPressed: () {
-                                      setState(() => _obscureText = !_obscureText);
+                                      setState(() {
+                                        _obscureText = !_obscureText;
+                                      });
                                     },
                                   ),
                                 ),
@@ -252,7 +232,7 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
                                     r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[\W_]).{8,}$',
                                   );
                                   if (!regex.hasMatch(value)) {
-                                    return 'Debe tener al menos 8 caracteres,\nuna mayúscula, una minúscula,\nun número y un símbolo';
+                                    return 'Debe tener al menos 8 caracteres,\nuna mayuscula, una minuscula,\nun numero y un simbolo';
                                   }
                                   return null;
                                 },
@@ -260,14 +240,15 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
                             ),
                           ),
                           const SizedBox(height: 30),
-
-                          // --- Botón Confirmar ---
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 30),
                             child: MouseRegion(
                               cursor: SystemMouseCursors.click,
                               child: GestureDetector(
-                                onTap: _registerStudent, // 👈 Llama a Firebase
+                                onTap:
+                                    _controller.isLoading
+                                        ? null
+                                        : _registerStudent,
                                 child: Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(20),
@@ -275,15 +256,25 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
                                     color: Colors.black,
                                     borderRadius: BorderRadius.circular(20),
                                   ),
-                                  child: const Center(
-                                    child: Text(
-                                      'Confirmar',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 20,
-                                      ),
-                                    ),
+                                  child: Center(
+                                    child:
+                                        _controller.isLoading
+                                            ? const SizedBox(
+                                              height: 24,
+                                              width: 24,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                            : const Text(
+                                              'Confirmar',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 20,
+                                              ),
+                                            ),
                                   ),
                                 ),
                               ),
@@ -304,14 +295,16 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
     );
   }
 
-  // === HELPERS para no repetir código ===
   Widget _buildLabel(String text) {
     return Container(
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.only(left: 30),
       child: Text(
         text,
-        style: GoogleFonts.bebasNeue(fontSize: 20, color: const Color(0xFF344e41)),
+        style: GoogleFonts.bebasNeue(
+          fontSize: 20,
+          color: const Color(0xFF344e41),
+        ),
       ),
     );
   }

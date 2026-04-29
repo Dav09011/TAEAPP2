@@ -1,127 +1,58 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:tae_app/core/errors/app_exception.dart';
+import 'package:tae_app/features/admin/domain/entities/branch_group.dart';
+import 'package:tae_app/features/admin/domain/entities/create_group_request.dart';
+import 'package:tae_app/features/admin/presentation/controllers/branch_groups_controller.dart';
 import 'package:tae_app/modules/admin/pages/activities_section.dart';
+import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 import 'package:tae_app/modules/admin/widgets/custom_navigation_bar_admin.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
-import 'wallet_screen.dart';
+
 import 'profile_screen.dart';
-import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'wallet_screen.dart';
 
 class BranchGroupsScreen extends StatefulWidget {
-  final String branchDocId; // ✅ NUEVO: El ID inmutable de la sucursal
-  final String branchName;
-  final String? successMessage;
-
   const BranchGroupsScreen({
     super.key,
     required this.branchName,
-    required this.branchDocId, // ✅ NUEVO
+    required this.branchDocId,
     this.successMessage,
   });
+
+  final String branchDocId;
+  final String branchName;
+  final String? successMessage;
 
   @override
   State<BranchGroupsScreen> createState() => _BranchGroupsScreenState();
 }
 
 class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final BranchGroupsController _controller = BranchGroupsController();
   int _selectedIndex = 0;
-  late Stream<QuerySnapshot> _groupsStream;
-
-  String _searchQuery = '';
   String? _visibleSuccessMessage;
 
   @override
   void initState() {
     super.initState();
-    // Inicializamos el Stream para escuchar la colección 'grupos'
-    _groupsStream =
-        _db
-            .collection('grupos')
-            .where('id_sucursal', isEqualTo: widget.branchDocId)
-            .orderBy('nombre_grupo')
-            .snapshots();
+    _controller.addListener(_handleControllerChanged);
+    _controller.initialize(widget.branchDocId);
     _visibleSuccessMessage = widget.successMessage;
   }
 
-  // =================================================================
-  // === AGREGAR GRUPO ===
-  // =================================================================
-  void _openAddGroupDialog(BuildContext context) async {
-    final newGroupData = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => AddGroupDialog(onSave: (_) {}),
-    );
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_handleControllerChanged)
+      ..dispose();
+    super.dispose();
+  }
 
-    if (newGroupData == null) return;
-
-    try {
-      final String groupName = (newGroupData['name'] as String?)?.trim() ?? '';
-      if (groupName.isEmpty) {
-        _showSnackBar(
-          'El grupo necesita un nombre.',
-          backgroundColor: Colors.orange,
-        );
-        return;
-      }
-
-      final existingGroups =
-          await _db
-              .collection('grupos')
-              .where('id_sucursal', isEqualTo: widget.branchDocId)
-              .get();
-
-      final normalizedGroupName = groupName.toLowerCase();
-      final duplicateExists = existingGroups.docs.any((doc) {
-        final savedName =
-            (doc.data()['nombre_grupo'] as String?)?.trim().toLowerCase() ?? '';
-        return savedName == normalizedGroupName;
-      });
-
-      if (duplicateExists) {
-        _showSnackBar(
-          'Ya existe un grupo con ese nombre en esta sucursal.',
-          backgroundColor: Colors.orange,
-        );
-        return;
-      }
-
-      final groupToSave = {
-        'nombre_grupo': groupName,
-        'tipo_cinta': newGroupData['beltType'],
-        'horario': newGroupData['schedule'],
-        'id_sucursal': widget.branchDocId,
-        'total_alumnos': 0,
-        'fecha_creacion': FieldValue.serverTimestamp(),
-      };
-
-      await _db.collection('grupos').add(groupToSave);
-      await _db.collection('sucursales').doc(widget.branchDocId).update({
-        'classes': FieldValue.increment(1),
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Grupo $groupName creado con éxito.'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      print("Error al guardar grupo en Firebase: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al crear grupo. Revisa conexión y permisos.'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+  void _handleControllerChanged() {
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -136,11 +67,51 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     );
   }
 
-  Future<void> _showRenameGroupDialog(Map<String, dynamic> group) async {
-    final String currentName = (group['name'] as String?)?.trim() ?? '';
-    if (currentName.isEmpty) return;
+  Future<void> _openAddGroupDialog(BuildContext context) async {
+    final newGroupData = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => AddGroupDialog(onSave: (_) {}),
+    );
 
-    final controller = TextEditingController(text: currentName);
+    if (newGroupData == null) return;
+
+    final groupName = (newGroupData['name'] as String?)?.trim() ?? '';
+    final beltType = (newGroupData['beltType'] as String?)?.trim() ?? '';
+    final schedule = (newGroupData['schedule'] as String?)?.trim() ?? '';
+
+    if (groupName.isEmpty || beltType.isEmpty || schedule.isEmpty) {
+      _showSnackBar(
+        'El grupo necesita nombre, cintas y horario.',
+        backgroundColor: Colors.orange,
+      );
+      return;
+    }
+
+    try {
+      await _controller.createGroup(
+        CreateGroupRequest(
+          branchId: widget.branchDocId,
+          name: groupName,
+          beltType: beltType,
+          schedule: schedule,
+        ),
+      );
+      _showSnackBar(
+        'Grupo $groupName creado con exito.',
+        backgroundColor: Colors.green,
+      );
+    } on AppException catch (error) {
+      _showSnackBar(error.message, backgroundColor: Colors.orange);
+    } catch (_) {
+      _showSnackBar(
+        'Error al crear grupo. Revisa conexion y permisos.',
+        backgroundColor: Colors.red,
+      );
+    }
+  }
+
+  Future<void> _showRenameGroupDialog(BranchGroup group) async {
+    final controller = TextEditingController(text: group.name);
     final newName = await showDialog<String>(
       context: context,
       builder:
@@ -161,123 +132,39 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
               ),
               ElevatedButton(
                 onPressed:
-                    () =>
-                        Navigator.of(dialogContext).pop(controller.text.trim()),
+                    () => Navigator.of(dialogContext).pop(controller.text.trim()),
                 child: const Text('Guardar'),
               ),
             ],
           ),
     );
 
-    if (newName == null || newName.isEmpty || newName == currentName) {
-      return;
-    }
-
-    await _renameGroup(group, newName);
-  }
-
-  Future<void> _renameGroup(Map<String, dynamic> group, String newName) async {
-    final String docId = (group['docId'] as String?)?.trim() ?? '';
-    final String oldName = (group['name'] as String?)?.trim() ?? '';
-    if (docId.isEmpty || oldName.isEmpty) return;
+    if (newName == null || newName.isEmpty || newName == group.name) return;
 
     try {
-      final duplicateGroupQuery =
-          await _db
-              .collection('grupos')
-              .where('id_sucursal', isEqualTo: widget.branchDocId)
-              .get();
-
-      final normalizedNewName = newName.toLowerCase();
-      final nameTaken = duplicateGroupQuery.docs.any((doc) {
-        if (doc.id == docId) return false;
-        final savedName =
-            (doc.data()['nombre_grupo'] as String?)?.trim().toLowerCase() ?? '';
-        return savedName == normalizedNewName;
-      });
-      if (nameTaken) {
-        _showSnackBar(
-          'Ya existe un grupo con ese nombre en esta sucursal.',
-          backgroundColor: Colors.orange,
-        );
-        return;
-      }
-
-      await _db.collection('grupos').doc(docId).update({
-        'nombre_grupo': newName,
-      });
-
-      await _syncUsersAfterGroupRename(groupId: docId, newName: newName);
-
+      await _controller.renameGroup(group, newName);
       _showSnackBar(
         'Grupo renombrado a "$newName".',
         backgroundColor: Colors.green,
       );
-    } catch (e) {
+    } on AppException catch (error) {
+      _showSnackBar(error.message, backgroundColor: Colors.orange);
+    } catch (error) {
       _showSnackBar(
-        'No pudimos cambiar el nombre del grupo: $e',
+        'No pudimos cambiar el nombre del grupo: $error',
         backgroundColor: Colors.red,
       );
     }
   }
 
-  Future<void> _syncUsersAfterGroupRename({
-    required String groupId,
-    required String newName,
-  }) async {
-    final usersSnapshot = await _db.collection('usuarios').get();
-    final batch = _db.batch();
-    var hasWrites = false;
-
-    for (final userDoc in usersSnapshot.docs) {
-      final data = userDoc.data();
-      final updates = <String, dynamic>{};
-
-      final savedGroups = data['grupos'];
-      if (savedGroups is List) {
-        var groupsChanged = false;
-        final updatedGroups =
-            savedGroups.map((group) {
-              if (group is! Map) return group;
-              final updatedGroup = Map<String, dynamic>.from(group);
-              if (updatedGroup['groupId'] == groupId) {
-                updatedGroup['groupName'] = newName;
-                groupsChanged = true;
-              }
-              return updatedGroup;
-            }).toList();
-
-        if (groupsChanged) {
-          updates['grupos'] = updatedGroups;
-        }
-      }
-
-      if (data['grupo_id'] == groupId) {
-        updates['grupo_nombre'] = newName;
-      }
-
-      if (updates.isNotEmpty) {
-        hasWrites = true;
-        batch.update(userDoc.reference, updates);
-      }
-    }
-
-    if (hasWrites) {
-      await batch.commit();
-    }
-  }
-
-  Future<void> _confirmDeleteGroup(Map<String, dynamic> group) async {
-    final String groupName = (group['name'] as String?)?.trim() ?? '';
-    if (groupName.isEmpty) return;
-
+  Future<void> _confirmDeleteGroup(BranchGroup group) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder:
           (dialogContext) => AlertDialog(
             title: const Text('Borrar grupo'),
             content: Text(
-              'Se borrara "$groupName" y tambien sus alumnos, actividades y secciones. Esta accion no se puede deshacer.',
+              'Se borrara "${group.name}" y tambien sus alumnos, actividades y secciones. Esta accion no se puede deshacer.',
             ),
             actions: [
               TextButton(
@@ -293,122 +180,22 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
           ),
     );
 
-    if (shouldDelete == true) {
-      await _deleteGroup(group);
-    }
-  }
-
-  Future<void> _deleteGroup(Map<String, dynamic> group) async {
-    final String docId = (group['docId'] as String?)?.trim() ?? '';
-    final String groupName = (group['name'] as String?)?.trim() ?? '';
-    if (docId.isEmpty) return;
+    if (shouldDelete != true) return;
 
     try {
-      final groupRef = _db.collection('grupos').doc(docId);
-      final groupSnapshot = await groupRef.get();
-      final totalAlumnos =
-          (groupSnapshot.data()?['total_alumnos'] as num?)?.toInt() ?? 0;
-
-      await _deleteCollection(groupRef.collection('alumnos'));
-      await _deleteCollection(groupRef.collection('actividades'));
-      await _deleteCollection(groupRef.collection('secciones_cinta'));
-      await groupRef.delete();
-
-      await _syncUsersAfterGroupDelete(groupId: docId);
-
-      // ✅ UNA SOLA ACTUALIZACIÓN ATÓMICA
-      await _db.collection('sucursales').doc(widget.branchDocId).update({
-        'classes': FieldValue.increment(-1),
-        'participants': FieldValue.increment(-totalAlumnos),
-      });
-
+      await _controller.deleteGroup(group);
       _showSnackBar(
-        'Grupo "${groupName.isEmpty ? docId : groupName}" eliminado correctamente.',
+        'Grupo "${group.name}" eliminado correctamente.',
         backgroundColor: Colors.green,
       );
-    } catch (e) {
+    } catch (error) {
       _showSnackBar(
-        'No pudimos borrar el grupo: $e',
+        'No pudimos borrar el grupo: $error',
         backgroundColor: Colors.red,
       );
     }
   }
 
-  Future<void> _deleteCollection(
-    CollectionReference<Map<String, dynamic>> collection,
-  ) async {
-    while (true) {
-      final snapshot = await collection.limit(100).get();
-      if (snapshot.docs.isEmpty) break;
-
-      final batch = _db.batch();
-      for (final doc in snapshot.docs) {
-        batch.delete(doc.reference);
-      }
-      await batch.commit();
-
-      if (snapshot.docs.length < 100) {
-        break;
-      }
-    }
-  }
-
-  Future<void> _syncUsersAfterGroupDelete({required String groupId}) async {
-    final usersSnapshot = await _db.collection('usuarios').get();
-    final batch = _db.batch();
-    var hasWrites = false;
-
-    for (final userDoc in usersSnapshot.docs) {
-      final data = userDoc.data();
-      final updates = <String, dynamic>{};
-
-      final savedGroups = data['grupos'];
-      List<Map<String, dynamic>>? remainingGroups;
-      if (savedGroups is List) {
-        remainingGroups =
-            savedGroups
-                .whereType<Map>()
-                .map((group) => Map<String, dynamic>.from(group))
-                .where((group) => group['groupId']?.toString() != groupId)
-                .toList();
-
-        if (remainingGroups.length != savedGroups.length) {
-          updates['grupos'] =
-              remainingGroups.isEmpty ? FieldValue.delete() : remainingGroups;
-        }
-      }
-
-      if (data['grupo_id'] == groupId) {
-        if (remainingGroups != null && remainingGroups.isNotEmpty) {
-          final firstGroup = remainingGroups.first;
-          updates['grupo_id'] = firstGroup['groupId'] ?? '';
-          updates['grupo_nombre'] = firstGroup['groupName'] ?? '';
-          updates['grupo_sucursal'] = firstGroup['branchName'] ?? '';
-          updates['grupo_cinta'] = firstGroup['beltType'] ?? '';
-          updates['grupo_horario'] = firstGroup['schedule'] ?? '';
-        } else {
-          updates['grupo_id'] = FieldValue.delete();
-          updates['grupo_nombre'] = FieldValue.delete();
-          updates['grupo_sucursal'] = FieldValue.delete();
-          updates['grupo_cinta'] = FieldValue.delete();
-          updates['grupo_horario'] = FieldValue.delete();
-        }
-      }
-
-      if (updates.isNotEmpty) {
-        hasWrites = true;
-        batch.update(userDoc.reference, updates);
-      }
-    }
-
-    if (hasWrites) {
-      await batch.commit();
-    }
-  }
-
-  // =================================================================
-  // === VISTA DE GRUPOS (DINÁMICA) ===
-  // =================================================================
   Widget _buildGroupsContent() {
     return SafeArea(
       child: SingleChildScrollView(
@@ -419,11 +206,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             children: [
               BarSearch(
                 hintText: 'Buscar grupo, cinta o horario',
-                onSearch: (query) {
-                  setState(() {
-                    _searchQuery = query;
-                  });
-                },
+                onSearch: _controller.updateSearchQuery,
               ),
               if (_visibleSuccessMessage != null) ...[
                 const SizedBox(height: 12),
@@ -439,10 +222,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.check_circle_outline,
-                        color: Colors.white,
-                      ),
+                      const Icon(Icons.check_circle_outline, color: Colors.white),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -467,14 +247,15 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                 ),
               ],
               const SizedBox(height: 10),
-
-              // Botón Agregar Grupo
               Align(
                 alignment: Alignment.centerRight,
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: () => _openAddGroupDialog(context),
+                    onTap:
+                        _controller.isMutating
+                            ? null
+                            : () => _openAddGroupDialog(context),
                     child: const Padding(
                       padding: EdgeInsets.all(8.0),
                       child: Row(
@@ -496,82 +277,41 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // === StreamBuilder: Escucha cambios en 'grupos' ===
-
-              // === StreamBuilder mejorado con filtro local ===
-              StreamBuilder<QuerySnapshot>(
-                stream: _groupsStream,
+              StreamBuilder<List<BranchGroup>>(
+                stream: _controller.groupsStream,
                 builder: (context, snapshot) {
-                  try {
-                    if (snapshot.hasError) {
-                      return const Text(
-                        '¡Oh no! Tuvimos un error al cargar los grupos.',
-                      );
-                    }
+                  if (snapshot.hasError) {
+                    return const Center(
+                      child: Text('Tuvimos un error al cargar los grupos.'),
+                    );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+                  final groups = snapshot.data ?? const <BranchGroup>[];
+                  final filteredGroups = _controller.filterGroups(groups);
 
-                    if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-                      // 1. Extraer todos los grupos desde Firebase
-                      final allGroups =
-                          snapshot.data!.docs.map((doc) {
-                            final data =
-                                doc.data() as Map<String, dynamic>? ?? {};
-                            return {
-                              'docId': doc.id,
-                              'name': data['nombre_grupo'] ?? 'Sin Nombre',
-                              'beltType': data['tipo_cinta'] ?? 'N/A',
-                              'schedule': data['horario'] ?? 'Sin horario',
-                              'alumns':
-                                  '${data['total_alumnos'] ?? 0} participantes',
-                            };
-                          }).toList();
-
-                      // 2. Filtrar localmente según _searchQuery
-                      List<Map<String, dynamic>> filteredGroups = allGroups;
-                      if (_searchQuery.isNotEmpty) {
-                        final query = _searchQuery.toLowerCase();
-                        filteredGroups =
-                            allGroups.where((group) {
-                              final name =
-                                  (group['name'] as String).toLowerCase();
-                              final belt =
-                                  (group['beltType'] as String).toLowerCase();
-                              final schedule =
-                                  (group['schedule'] as String).toLowerCase();
-                              return name.contains(query) ||
-                                  belt.contains(query) ||
-                                  schedule.contains(query);
-                            }).toList();
-                      }
-
-                      // 3. Mostrar resultados
-                      if (filteredGroups.isEmpty) {
-                        return const Center(
-                          child: Text('No se encontraron grupos.'),
-                        );
-                      }
-
-                      return Column(
-                        children:
-                            filteredGroups
-                                .map((group) => _buildGroupCard(group))
-                                .toList(),
-                      );
-                    }
-
+                  if (groups.isEmpty) {
                     return Center(
                       child: Text(
-                        'Aún no hay grupos para ${widget.branchName}. ¡Agrega uno!',
+                        'Aun no hay grupos para ${widget.branchName}. Agrega uno.',
                       ),
                     );
-                  } catch (e, stack) {
-                    print("⚠️ Error en StreamBuilder: $e\n$stack");
-                    return const Text('Error al renderizar grupos.');
                   }
+
+                  if (filteredGroups.isEmpty) {
+                    return const Center(
+                      child: Text('No se encontraron grupos.'),
+                    );
+                  }
+
+                  return Column(
+                    children:
+                        filteredGroups
+                            .map((group) => _buildGroupCard(group))
+                            .toList(),
+                  );
                 },
               ),
             ],
@@ -581,14 +321,11 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     );
   }
 
-  // =================================================================
-  // === TARJETA DE GRUPO ===
-  // =================================================================
-  Widget _buildGroupCard(Map<String, dynamic> group) {
+  Widget _buildGroupCard(BranchGroup group) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final double maxCardWidth =
-            constraints.maxWidth > 800 ? 600 : constraints.maxWidth * 0.95;
+        final maxCardWidth =
+            constraints.maxWidth > 800 ? 600.0 : constraints.maxWidth * 0.95;
 
         return Center(
           child: Container(
@@ -615,8 +352,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                       MaterialPageRoute(
                         builder:
                             (context) => ActivitiesSection(
-                              groupName: group['name'],
-                              groupDocId: group['docId'],
+                              groupName: group.name,
+                              groupDocId: group.id,
                             ),
                       ),
                     );
@@ -628,7 +365,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          group['name'],
+                          group.name,
                           style: const TextStyle(
                             fontSize: 23,
                             fontWeight: FontWeight.bold,
@@ -636,7 +373,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Tipo de cinta(s): ${group["beltType"]}',
+                          'Tipo de cinta(s): ${group.beltType}',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
@@ -644,14 +381,14 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                           ),
                         ),
                         Text(
-                          'Horario: ${group["schedule"]}',
+                          'Horario: ${group.schedule}',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[500],
                           ),
                         ),
                         Text(
-                          'Alumnos: ${group["alumns"]}',
+                          'Alumnos: ${group.totalStudents} participantes',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[500],
@@ -706,17 +443,14 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     );
   }
 
-  // =================================================================
-  // === OBTENER PANTALLA ACTUAL ===
-  // =================================================================
   Widget _getCurrentScreen() {
     switch (_selectedIndex) {
       case 0:
         return _buildGroupsContent();
       case 1:
-        return WalletScreen();
+        return const WalletScreen();
       case 2:
-        return ProfileScreen(
+        return const ProfileScreen(
           fullName: 'Josepe',
           email: 'Josepe13186',
           phone: '34234234',
@@ -734,7 +468,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     });
   }
 
-  void _showQRDialog(BuildContext context, Map<String, dynamic> group) {
+  void _showQRDialog(BuildContext context, BranchGroup group) {
     showDialog(
       context: context,
       builder:
@@ -748,7 +482,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    group['name'],
+                    group.name,
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -761,11 +495,10 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    '¿Para quién es el QR?',
+                    'Para quien es el QR?',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 20),
-                  // === Opción: Alumno ===
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -786,8 +519,6 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // === Opción: Usuario Privilegiado ===
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -808,7 +539,6 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text(
@@ -825,20 +555,17 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
 
   void _showQRCode(
     BuildContext context,
-    Map<String, dynamic> group, {
+    BranchGroup group, {
     required String tipo,
   }) {
-    final bool esPrivilegiado = tipo == 'privilegiado';
+    final esPrivilegiado = tipo == 'privilegiado';
 
-    final String qrData =
+    final qrData =
         esPrivilegiado
-            ? 'PRIVILEGIADO|GrupoId:${group['docId']}|Grupo:${group['name']}|Sucursal:${widget.branchName}'
-            : 'ALUMNO|GrupoId:${group['docId']}|Grupo:${group['name']}|Sucursal:${widget.branchName}';
+            ? 'PRIVILEGIADO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}'
+            : 'ALUMNO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}';
 
-    // === GENERACIÓN DEL CÓDIGO NUMÉRICO ===
-    // Tomamos los datos del QR, los convertimos a un número único (hashCode),
-    // aseguramos que sea positivo (abs) y tomamos los primeros 6 dígitos.
-    final String codigoCorto = qrData.hashCode
+    final codigoCorto = qrData.hashCode
         .abs()
         .toString()
         .padRight(6, '0')
@@ -856,7 +583,6 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // === Badge tipo ===
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -889,9 +615,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-
                   Text(
-                    group['name'],
+                    group.name,
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -902,8 +627,6 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 20),
-
-                  // === QR ===
                   QrImageView(
                     data: qrData,
                     version: QrVersions.auto,
@@ -911,32 +634,26 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                     backgroundColor: Colors.white,
                   ),
                   const SizedBox(height: 12),
-
-                  // === CÓDIGO NUMÉRICO DE RESPALDO (NUEVO) ===
                   Text(
-                    'O ingresa el código:',
+                    'O ingresa el codigo:',
                     style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    // Separamos el código visualmente (ej. "123 456") para que sea más fácil de leer
                     '${codigoCorto.substring(0, 3)} ${codigoCorto.substring(3, 6)}',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 2.0, // Espacio entre los números
+                      letterSpacing: 2.0,
                       color: Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // ===========================================
                   Text(
                     'Escanea para registrar acceso',
                     style: TextStyle(fontSize: 13, color: Colors.grey[500]),
                   ),
                   const SizedBox(height: 16),
-
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text(

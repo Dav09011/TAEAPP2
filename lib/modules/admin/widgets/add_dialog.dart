@@ -1,29 +1,14 @@
 import 'package:flutter/material.dart';
 
 class AddDialog extends StatefulWidget {
-  final Function(Map<String,dynamic>)onSave;
-
-  const AddDialog({
-    super.key,
-    required this.onSave,
-    });
-
-
+  const AddDialog({super.key});
 
   @override
   State<AddDialog> createState() => _AddDialogState();
 }
 
 class _AddDialogState extends State<AddDialog> {
-
   final TextEditingController nameController = TextEditingController();
-  // final TextEditingController participantsController = TextEditingController();
-  // 🔹 Simulamos el valor que luego vendrá de Firebase
-  // Por ahora lo dejamos fijo en 0 o lo puedes dejar vacío
-
-   // Controladores para capturar texto del formulario
-  int? availableClasses; 
-  int? availableParticipants; 
 
   @override
   Widget build(BuildContext context) {
@@ -53,30 +38,20 @@ class _AddDialogState extends State<AddDialog> {
               ),
               const SizedBox(height: 12),
 
-              // Clases disponibles (automático / sin edición)
-              TextField(
-                readOnly: true,
-                decoration: InputDecoration(
-                  labelText: 'Clases Disponibles',
-                  border: const OutlineInputBorder(),
-                  hintText: availableClasses != null
-                      ? '$availableClasses'
-                      : 'Por defecto tendra 0 clases disponibles',
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4F7FB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFD7E1EE)),
                 ),
-              ),
-              const SizedBox(height: 12),
-
-              // Participantes
-              TextField(
-                readOnly: true,
-                //controller: participantsController,
-                //keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Participantes',
-                  border: const OutlineInputBorder(),
-                  hintText: availableParticipants != null
-                      ? '$availableParticipants'
-                      : 'Por defecto tendra 0 actividades disponibles)',
+                child: const Text(
+                  'Las clases y participantes se detectan automaticamente segun los grupos y alumnos registrados en la sucursal.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF4B5B70),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -102,11 +77,8 @@ class _AddDialogState extends State<AddDialog> {
 
             ),
             onPressed: () {
-              // Capturamos los valores ingresados
               String name = nameController.text.trim();
-              //int? participants = int.tryParse(availableParticipants.text.trim());
 
-              // 🔹 Validamos solo los campos necesarios
               if (name.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -116,25 +88,9 @@ class _AddDialogState extends State<AddDialog> {
                 return;
               }
 
-              // 🔹 Aquí simulamos el valor automático de clases desde Firebase
-              // (cuando integres Firebase, lo reemplazas con el valor real)
-              // int classes = await FirebaseService.getAvailableClasses(branchName);
-              int classes = availableClasses ?? 0;
-
-              int participants = availableParticipants ?? 0;
-
-
-            // 🔹 Retornamos los datos al padre mediante el callback
-              widget.onSave({
-              "name": name,
-              "classes": classes,
-              "participants": participants,
-            });
-
-              // 🔹 Mostrar en consola para verificar
-              print("Sucursal agregada: $name ($classes clases)");
-
-              Navigator.of(context).pop(); // Cerrar el diálogo
+              Navigator.of(context).pop({
+                "name": name,
+              });
             },
             child: const Text('Guardar'),
           ),
@@ -142,4 +98,3 @@ class _AddDialogState extends State<AddDialog> {
       );
     }
 }
-

@@ -43,6 +43,8 @@ dependencies:
   cloud_firestore: ^6.0.2
   image_picker: ^1.2.0
   video_player: ^2.10.0
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^5.2.3
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   purchases_flutter: ^10.0.1 

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
@@ -91,6 +92,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
       await _controller.createGroup(
         CreateGroupRequest(
           branchId: widget.branchDocId,
+          branchName: widget.branchName,
           name: groupName,
           beltType: beltType,
           schedule: schedule,
@@ -553,23 +555,22 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     );
   }
 
-  void _showQRCode(
+  Future<void> _showQRCode(
     BuildContext context,
     BranchGroup group, {
     required String tipo,
-  }) {
+  }) async {
     final esPrivilegiado = tipo == 'privilegiado';
+    final accessCodes = await _ensureGroupAccessCodes(group);
+    if (!mounted) return;
+    if (!context.mounted) return;
+    final accessCode =
+        esPrivilegiado ? accessCodes.privilegedCode : accessCodes.studentCode;
 
     final qrData =
         esPrivilegiado
-            ? 'PRIVILEGIADO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}'
-            : 'ALUMNO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}';
-
-    final codigoCorto = qrData.hashCode
-        .abs()
-        .toString()
-        .padRight(6, '0')
-        .substring(0, 6);
+            ? 'PRIVILEGIADO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}|Codigo:$accessCode'
+            : 'ALUMNO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}|Codigo:$accessCode';
 
     showDialog(
       context: context,
@@ -640,7 +641,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${codigoCorto.substring(0, 3)} ${codigoCorto.substring(3, 6)}',
+                    _formatAccessCode(accessCode),
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -650,7 +651,9 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Escanea para registrar acceso',
+                    esPrivilegiado
+                        ? 'Escanea para registrar acceso privilegiado'
+                        : 'Si el alumno no puede escanear, puede escribir este codigo',
                     style: TextStyle(fontSize: 13, color: Colors.grey[500]),
                   ),
                   const SizedBox(height: 16),
@@ -666,6 +669,53 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             ),
           ),
     );
+  }
+
+  Future<_GroupAccessCodes> _ensureGroupAccessCodes(BranchGroup group) async {
+    final groupRef = FirebaseFirestore.instance.collection('grupos').doc(
+      group.id,
+    );
+    final snapshot = await groupRef.get();
+    final data = snapshot.data() ?? const <String, dynamic>{};
+
+    final studentCode = _normalizeAccessCode(data['codigo_alumno']);
+    final privilegedCode = _normalizeAccessCode(data['codigo_privilegiado']);
+    final resolvedStudentCode =
+        studentCode.isNotEmpty ? studentCode : _generateFallbackAccessCode();
+    final resolvedPrivilegedCode =
+        privilegedCode.isNotEmpty
+            ? privilegedCode
+            : _generateFallbackAccessCode(seed: group.id.length);
+
+    if (studentCode != resolvedStudentCode ||
+        privilegedCode != resolvedPrivilegedCode) {
+      await groupRef.set({
+        'codigo_alumno': resolvedStudentCode,
+        'codigo_privilegiado': resolvedPrivilegedCode,
+      }, SetOptions(merge: true));
+    }
+
+    return _GroupAccessCodes(
+      studentCode: resolvedStudentCode,
+      privilegedCode: resolvedPrivilegedCode,
+    );
+  }
+
+  String _normalizeAccessCode(Object? rawCode) {
+    final normalized = rawCode?.toString().replaceAll(RegExp(r'[^0-9]'), '');
+    return normalized ?? '';
+  }
+
+  String _generateFallbackAccessCode({int seed = 0}) {
+    final millis = DateTime.now().millisecondsSinceEpoch + seed;
+    return (100000 + (millis % 900000)).toString();
+  }
+
+  String _formatAccessCode(String code) {
+    if (code.length != 6) {
+      return code;
+    }
+    return '${code.substring(0, 3)} ${code.substring(3, 6)}';
   }
 
   @override
@@ -688,4 +738,14 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
       ),
     );
   }
+}
+
+class _GroupAccessCodes {
+  const _GroupAccessCodes({
+    required this.studentCode,
+    required this.privilegedCode,
+  });
+
+  final String studentCode;
+  final String privilegedCode;
 }

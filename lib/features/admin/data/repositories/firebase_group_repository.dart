@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
 import 'package:tae_app/core/services/firestore_service.dart';
@@ -9,6 +11,7 @@ class FirebaseGroupRepository implements GroupRepository {
   FirebaseGroupRepository({FirestoreService? firestoreService})
     : _firestoreService = firestoreService ?? FirestoreService();
 
+  static final Random _random = Random.secure();
   final FirestoreService _firestoreService;
 
   FirebaseFirestore get _db => _firestoreService.instance;
@@ -45,11 +48,23 @@ class FirebaseGroupRepository implements GroupRepository {
       groupName: request.name,
     );
 
-    await _db.collection('grupos').add({
-      'nombre_grupo': request.name,
-      'tipo_cinta': request.beltType,
-      'horario': request.schedule,
+    final groupId = _buildGroupDocumentId(
+      branchName: request.branchName,
+      groupName: request.name,
+    );
+    final studentCode = await _generateUniqueAccessCode('codigo_alumno');
+    final privilegedCode = await _generateUniqueAccessCode(
+      'codigo_privilegiado',
+    );
+
+    await _db.collection('grupos').doc(groupId).set({
+      'nombre_grupo': request.name.trim(),
+      'tipo_cinta': request.beltType.trim(),
+      'horario': request.schedule.trim(),
       'id_sucursal': request.branchId,
+      'nombre_sucursal': request.branchName.trim(),
+      'codigo_alumno': studentCode,
+      'codigo_privilegiado': privilegedCode,
       'total_alumnos': 0,
       'fecha_creacion': FieldValue.serverTimestamp(),
     });
@@ -72,11 +87,58 @@ class FirebaseGroupRepository implements GroupRepository {
       exceptGroupId: groupId,
     );
 
-    await _db.collection('grupos').doc(groupId).update({
-      'nombre_grupo': newName,
-    });
+    final currentGroupRef = _db.collection('grupos').doc(groupId);
+    final currentGroupSnapshot = await currentGroupRef.get();
+    final currentGroupData = currentGroupSnapshot.data();
 
-    await _syncUsersAfterGroupRename(groupId: groupId, newName: newName);
+    if (!currentGroupSnapshot.exists || currentGroupData == null) {
+      throw const AppException('El grupo ya no existe.');
+    }
+
+    final branchName = await _resolveBranchName(
+      branchId: branchId,
+      groupData: currentGroupData,
+    );
+    final newGroupId = _buildGroupDocumentId(
+      branchName: branchName,
+      groupName: newName,
+    );
+
+    if (newGroupId == groupId) {
+      await currentGroupRef.update({
+        'nombre_grupo': newName.trim(),
+      });
+    } else {
+      final newGroupRef = _db.collection('grupos').doc(newGroupId);
+      await newGroupRef.set({
+        ...currentGroupData,
+        'nombre_grupo': newName.trim(),
+      });
+
+      await _copyCollection(
+        from: currentGroupRef.collection('alumnos'),
+        to: newGroupRef.collection('alumnos'),
+      );
+      await _copyCollection(
+        from: currentGroupRef.collection('actividades'),
+        to: newGroupRef.collection('actividades'),
+      );
+      await _copyCollection(
+        from: currentGroupRef.collection('secciones_cinta'),
+        to: newGroupRef.collection('secciones_cinta'),
+      );
+
+      await _deleteCollection(currentGroupRef.collection('alumnos'));
+      await _deleteCollection(currentGroupRef.collection('actividades'));
+      await _deleteCollection(currentGroupRef.collection('secciones_cinta'));
+      await currentGroupRef.delete();
+    }
+
+    await _syncUsersAfterGroupRename(
+      oldGroupId: groupId,
+      newGroupId: newGroupId,
+      newName: newName.trim(),
+    );
   }
 
   @override
@@ -131,7 +193,8 @@ class FirebaseGroupRepository implements GroupRepository {
   }
 
   Future<void> _syncUsersAfterGroupRename({
-    required String groupId,
+    required String oldGroupId,
+    required String newGroupId,
     required String newName,
   }) async {
     final usersSnapshot = await _db.collection('usuarios').get();
@@ -149,7 +212,8 @@ class FirebaseGroupRepository implements GroupRepository {
             savedGroups.map((group) {
               if (group is! Map) return group;
               final updatedGroup = Map<String, dynamic>.from(group);
-              if (updatedGroup['groupId'] == groupId) {
+              if (updatedGroup['groupId'] == oldGroupId) {
+                updatedGroup['groupId'] = newGroupId;
                 updatedGroup['groupName'] = newName;
                 groupsChanged = true;
               }
@@ -161,7 +225,8 @@ class FirebaseGroupRepository implements GroupRepository {
         }
       }
 
-      if (data['grupo_id'] == groupId) {
+      if (data['grupo_id'] == oldGroupId) {
+        updates['grupo_id'] = newGroupId;
         updates['grupo_nombre'] = newName;
       }
 
@@ -246,5 +311,79 @@ class FirebaseGroupRepository implements GroupRepository {
         break;
       }
     }
+  }
+
+  Future<void> _copyCollection({
+    required CollectionReference<Map<String, dynamic>> from,
+    required CollectionReference<Map<String, dynamic>> to,
+  }) async {
+    final snapshot = await from.get();
+    if (snapshot.docs.isEmpty) {
+      return;
+    }
+
+    for (var i = 0; i < snapshot.docs.length; i += 400) {
+      final batch = _db.batch();
+      final chunk = snapshot.docs.skip(i).take(400);
+      for (final doc in chunk) {
+        batch.set(to.doc(doc.id), doc.data());
+      }
+      await batch.commit();
+    }
+  }
+
+  Future<String> _generateUniqueAccessCode(String fieldName) async {
+    while (true) {
+      final code = (100000 + _random.nextInt(900000)).toString();
+      final existing =
+          await _db
+              .collection('grupos')
+              .where(fieldName, isEqualTo: code)
+              .limit(1)
+              .get();
+
+      if (existing.docs.isEmpty) {
+        return code;
+      }
+    }
+  }
+
+  Future<String> _resolveBranchName({
+    required String branchId,
+    required Map<String, dynamic> groupData,
+  }) async {
+    final savedBranchName = groupData['nombre_sucursal']?.toString().trim();
+    if (savedBranchName != null && savedBranchName.isNotEmpty) {
+      return savedBranchName;
+    }
+
+    final branchSnapshot =
+        await _db.collection('sucursales').doc(branchId).get();
+    final branchName = branchSnapshot.data()?['name']?.toString().trim();
+    if (branchName != null && branchName.isNotEmpty) {
+      return branchName;
+    }
+
+    return branchId;
+  }
+
+  String _buildGroupDocumentId({
+    required String branchName,
+    required String groupName,
+  }) {
+    final normalizedBranchName = _slugify(branchName);
+    final normalizedGroupName = _slugify(groupName);
+    return '${normalizedBranchName}__$normalizedGroupName';
+  }
+
+  String _slugify(String value) {
+    final cleaned =
+        value
+            .trim()
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+            .replaceAll(RegExp(r'^-+|-+$'), '');
+
+    return cleaned.isEmpty ? 'grupo' : cleaned;
   }
 }

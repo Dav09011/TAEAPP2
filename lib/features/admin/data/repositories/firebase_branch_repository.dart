@@ -67,13 +67,13 @@ class FirebaseBranchRepository implements BranchRepository {
     final groupsSnapshot =
         await _db
             .collection('grupos')
-            .where('id_sucursal', isEqualTo: oldName)
+            .where('id_sucursal', isEqualTo: branchId)
             .get();
 
     if (groupsSnapshot.docs.isNotEmpty) {
       final batch = _db.batch();
       for (final groupDoc in groupsSnapshot.docs) {
-        batch.update(groupDoc.reference, {'id_sucursal': newName});
+        batch.update(groupDoc.reference, {'nombre_sucursal': newName});
       }
       await batch.commit();
     }
@@ -89,7 +89,7 @@ class FirebaseBranchRepository implements BranchRepository {
     final groupsSnapshot =
         await _db
             .collection('grupos')
-            .where('id_sucursal', isEqualTo: branchName)
+            .where('id_sucursal', isEqualTo: branchId)
             .get();
 
     final deletedGroupIds = <String>{};

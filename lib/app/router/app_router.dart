@@ -12,39 +12,27 @@ import 'package:tae_app/features/auth/presentation/pages/type_register_page.dart
 import 'package:tae_app/features/licensing/presentation/pages/license_selection_page.dart';
 
 class AppRouter {
-  static Route<dynamic> onGenerateRoute(RouteSettings settings) {
-    switch (settings.name) {
-      case AppRoutes.login:
-        return _build(const LoginPage(), settings);
-      case AppRoutes.forgotPassword:
-        return _build(const ForgotPasswordPage(), settings);
-      case AppRoutes.typeRegister:
-        return _build(const TypeRegister(), settings);
-      case AppRoutes.registerAdmin:
-        return _build(const RegisterAdmin(), settings);
-      case AppRoutes.registerUser:
-        return _build(const RegisterTeacherStudent(), settings);
-      case AppRoutes.licenseSelection:
-        return _build(const LicenciaScreen(), settings);
-      case AppRoutes.mainAdmin:
-        return _build(const MainBranches(), settings);
-      case AppRoutes.wallet:
-        return _build(const WalletScreen(), settings);
-      case AppRoutes.walletFees:
-        return _build(const WalletFeesPage(), settings);
-      case AppRoutes.walletStudentStatus:
-        return _build(const WalletStudentStatusPage(), settings);
-      default:
-        return _build(const LoginPage(), settings);
-    }
-  }
+  static final Map<String, WidgetBuilder> routes = {
+    AppRoutes.login: (context) => const LoginPage(),
+    AppRoutes.forgotPassword: (context) => const ForgotPasswordPage(),
+    AppRoutes.typeRegister: (context) => const TypeRegister(),
+    AppRoutes.registerAdmin: (context) => const RegisterAdmin(),
+    AppRoutes.registerUser: (context) => const RegisterTeacherStudent(),
+    AppRoutes.licenseSelection: (context) => const LicenciaScreen(),
+    AppRoutes.mainAdmin: (context) => const MainBranches(),
+    AppRoutes.wallet: (context) => const WalletScreen(),
+    AppRoutes.walletFees: (context) => const WalletFeesPage(),
+    AppRoutes.walletStudentStatus: (context) => const WalletStudentStatusPage(),
+  };
 
-  static MaterialPageRoute<dynamic> _build(
-    Widget page,
-    RouteSettings settings,
-  ) {
+  static Route<dynamic> onGenerateRoute(RouteSettings settings) {
+    final builder = routes[settings.name];
+    if (builder != null) {
+      return MaterialPageRoute(builder: builder, settings: settings);
+    }
+    // Ruta por defecto si no se encuentra la ruta
     return MaterialPageRoute(
-      builder: (_) => page,
+      builder: (_) => const LoginPage(),
       settings: settings,
     );
   }

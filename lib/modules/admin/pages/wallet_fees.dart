@@ -12,54 +12,70 @@ class WalletFeesPage extends StatefulWidget {
 class _WalletFeesPageState extends State<WalletFeesPage> {
   final WalletFeesController _controller = WalletFeesController();
 
+  // ✅ SOLUCIÓN: Definimos el color a nivel de clase para usarlo en cualquier parte del archivo
+  static const Color primaryColor = Color.fromARGB(255, 41, 53, 119);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          'Configurar Tarifas',
-          style: TextStyle(color: Colors.black),
-        ),
-        backgroundColor: Colors.white,
         elevation: 0,
+        backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: const Color.fromARGB(255, 247, 248, 252),
-              borderRadius: BorderRadius.circular(18),
+          // --- TARJETA DE CABECERA ESTILO WALLET ---
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 22.0,
+              vertical: 10.0,
             ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Base de tarifas preparada',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 65.0,
+                vertical: 16.0,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  color: Colors.grey.withOpacity(0.2),
+                  width: 2.0,
                 ),
-                SizedBox(height: 8),
-                Text(
-                  'Este corte deja la pantalla lista para crecer sin meter '
-                  'reglas de cobro directo en la UI. Por ahora el catalogo es '
-                  'semilla y sirve como referencia funcional para la siguiente '
-                  'fase del modulo financiero.',
-                  style: TextStyle(fontSize: 14, color: Colors.black87),
-                ),
-              ],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'CONFIGURAR TARIFAS',
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 20),
-          ..._controller.configurations.map(_buildFeeCard),
-          const SizedBox(height: 12),
-          const Text(
-            'Siguiente paso recomendado: mover este catalogo a un repositorio y '
-            'amarrarlo a la sucursal seleccionada cuando definamos el modelo '
-            'real de cobros.',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+
+          const SizedBox(height: 10),
+
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              children: _controller.configurations.map(_buildFeeCard).toList(),
+            ),
           ),
         ],
       ),
@@ -95,7 +111,8 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Color.fromARGB(255, 41, 53, 119),
+                  color:
+                      primaryColor, // ✅ Aquí ya usamos la variable sin errores
                 ),
               ),
             ],

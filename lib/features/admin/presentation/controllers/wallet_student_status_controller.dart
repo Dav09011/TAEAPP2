@@ -1,71 +1,68 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:tae_app/features/admin/domain/entities/student_billing_status.dart';
 
-/// Prepares the student billing page for future persistence.
-///
-/// For now the controller exposes seeded records plus search/filter behavior.
-/// That lets us keep business state out of the widget tree and preserves the
-/// same migration pattern used in auth, branches, groups and activities.
 class WalletStudentStatusController extends ChangeNotifier {
-  final List<StudentBillingStatus> _students = const [
+  // 1. La lista original (Intocable, funciona como nuestra base de datos local temporal)
+  final List<StudentBillingStatus> _allStudents = [
     StudentBillingStatus(
       id: '1',
-      studentName: 'Israel Perez',
-      groupName: 'Grupo Infantil',
-      beltName: 'Cinta Blanca',
-      amountLabel: r'$850 MXN',
-      status: StudentBillingState.upToDate,
-      lastPaymentLabel: 'Pagado el 05/04/2026',
+      name: 'Maribel Castillo',
+      groupName: 'Cinta Blanca',
+      state: StudentBillingState.upToDate,
+      billingLabel: 'Mensualidad: Pagada',
+      lastPaymentLabel: 'Último pago: hace 2 días',
     ),
     StudentBillingStatus(
       id: '2',
-      studentName: 'Maribel Sanchez',
-      groupName: 'Grupo Juvenil',
-      beltName: 'Cinta Naranja',
-      amountLabel: r'$1,150 MXN',
-      status: StudentBillingState.pending,
-      lastPaymentLabel: 'Vence el 30/04/2026',
+      name: 'Jose Jose',
+      groupName: 'Cinta Blanca',
+      state: StudentBillingState.pending,
+      billingLabel: 'Mensualidad: Pendiente',
+      lastPaymentLabel: 'Venció hace 5 días',
     ),
     StudentBillingStatus(
       id: '3',
-      studentName: 'Karen Diaz',
-      groupName: 'Grupo Competencia',
-      beltName: 'Cinta Verde',
-      amountLabel: r'$0 MXN',
-      status: StudentBillingState.scholarship,
-      lastPaymentLabel: 'Beca activa hasta nuevo aviso',
+      name: 'Nancy Herrera',
+      groupName: 'Cinta Amarilla',
+      state: StudentBillingState.scholarship,
+      billingLabel: 'Beca Deportiva (100%)',
+      lastPaymentLabel: 'Ajuste de sistema',
     ),
     StudentBillingStatus(
       id: '4',
-      studentName: 'Luis Gomez',
-      groupName: 'Grupo Adultos',
-      beltName: 'Cinta Amarilla',
-      amountLabel: r'$850 MXN',
-      status: StudentBillingState.pending,
-      lastPaymentLabel: 'Pendiente desde el 18/04/2026',
+      name: 'Israel García',
+      groupName: 'Cinta Azul',
+      state: StudentBillingState.upToDate,
+      billingLabel: 'Mensualidad: Pagada',
+      lastPaymentLabel: 'Último pago: hace 1 semana',
     ),
   ];
 
-  String _query = '';
+  // 2. La lista que realmente se muestra en la pantalla
+  List<StudentBillingStatus> _filteredStudents = [];
 
-  String get query => _query;
-
-  List<StudentBillingStatus> get visibleStudents {
-    final normalizedQuery = _query.trim().toLowerCase();
-    if (normalizedQuery.isEmpty) {
-      return List<StudentBillingStatus>.unmodifiable(_students);
-    }
-
-    return _students.where((student) {
-      return student.studentName.toLowerCase().contains(normalizedQuery) ||
-          student.groupName.toLowerCase().contains(normalizedQuery) ||
-          student.beltName.toLowerCase().contains(normalizedQuery);
-    }).toList(growable: false);
+  WalletStudentStatusController() {
+    // Cuando el controlador nace, la lista filtrada es igual a la original
+    _filteredStudents = List.from(_allStudents);
   }
 
-  void updateQuery(String value) {
-    if (_query == value) return;
-    _query = value;
+  // El Getter ahora devuelve la lista filtrada
+  List<StudentBillingStatus> get students => _filteredStudents;
+
+  // 3. La función mágica de búsqueda
+  void filterStudents(String query) {
+    if (query.isEmpty) {
+      // Si borran el texto, regresamos todos los alumnos
+      _filteredStudents = List.from(_allStudents);
+    } else {
+      // Si hay texto, filtramos buscando coincidencias en el nombre ignorando mayúsculas
+      _filteredStudents =
+          _allStudents.where((student) {
+            return student.name.toLowerCase().contains(query.toLowerCase());
+          }).toList();
+    }
+
+    // Le gritamos a la UI: "¡Oye, la lista cambió, vuelve a dibujarte!"
     notifyListeners();
   }
 }

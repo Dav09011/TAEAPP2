@@ -102,7 +102,7 @@ class _WalletScreenState extends State<WalletScreen> {
                           const Text(
                             'CARTERA',
                             style: TextStyle(
-                              fontSize: 40,
+                              fontSize: 35,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1,
                               color: Colors.black,
@@ -164,7 +164,9 @@ class _WalletScreenState extends State<WalletScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
-                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
+                boxShadow: const [
+                  BoxShadow(color: Colors.black12, blurRadius: 10),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -202,7 +204,7 @@ class _WalletScreenState extends State<WalletScreen> {
               subtitle: '3 solicitudes pendientes por revisar',
               icon: Icons.account_balance_wallet_outlined,
               color: Colors.green,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.walletFees),
+              onTap: () => Navigator.pushNamed(context, AppRoutes.cashPayments),
             ),
             const SizedBox(height: 15),
             _buildWalletActionCard(
@@ -353,7 +355,8 @@ class _WalletScreenState extends State<WalletScreen> {
                       );
                     }
 
-                    final branches = snapshot.data ?? const <WalletBranchOption>[];
+                    final branches =
+                        snapshot.data ?? const <WalletBranchOption>[];
 
                     if (branches.isEmpty) {
                       return const Padding(
@@ -382,7 +385,9 @@ class _WalletScreenState extends State<WalletScreen> {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Viendo finanzas de: ${branch.name}'),
+                                content: Text(
+                                  'Viendo finanzas de: ${branch.name}',
+                                ),
                                 duration: const Duration(seconds: 1),
                                 behavior: SnackBarBehavior.floating,
                               ),

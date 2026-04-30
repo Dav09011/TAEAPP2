@@ -4,6 +4,7 @@ import 'package:tae_app/features/admin/presentation/pages/main_branches_page.dar
 import 'package:tae_app/features/admin/presentation/pages/wallet_fees_page.dart';
 import 'package:tae_app/features/admin/presentation/pages/wallet_page.dart';
 import 'package:tae_app/features/admin/presentation/pages/wallet_student_status_page.dart';
+import 'package:tae_app/modules/admin/pages/cash_payment_requests.dart';
 import 'package:tae_app/features/auth/presentation/pages/forgot_password_page.dart';
 import 'package:tae_app/features/auth/presentation/pages/login_page.dart';
 import 'package:tae_app/features/auth/presentation/pages/register_admin_page.dart';
@@ -23,6 +24,7 @@ class AppRouter {
     AppRoutes.wallet: (context) => const WalletScreen(),
     AppRoutes.walletFees: (context) => const WalletFeesPage(),
     AppRoutes.walletStudentStatus: (context) => const WalletStudentStatusPage(),
+    AppRoutes.cashPayments: (context) => const CashPaymentRequestsScreen(),
   };
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {

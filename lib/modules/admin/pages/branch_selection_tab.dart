@@ -1,16 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:tae_app/core/errors/app_exception.dart';
-import 'package:tae_app/features/admin/domain/entities/branch.dart';
-import 'package:tae_app/features/admin/presentation/controllers/branches_controller.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+
+// Widgets personalizados
 import 'package:tae_app/modules/admin/widgets/adaptive_branch_list.dart';
 import 'package:tae_app/modules/admin/widgets/add_dialog.dart';
 import 'package:tae_app/modules/admin/widgets/custom_navigation_bar_admin.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
 
+// Pantallas
 import 'group_selection.dart';
-import 'profile_screen.dart';
 import 'wallet_screen.dart';
+import 'profile_screen.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const TaeApp());
+}
+
+class TaeApp extends StatelessWidget {
+  const TaeApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: MainBranches(),
+    );
+  }
+}
 
 class MainBranches extends StatefulWidget {
   const MainBranches({super.key});
@@ -22,10 +42,17 @@ class MainBranches extends StatefulWidget {
 class _MainBranchesState extends State<MainBranches> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = const [
+  // Lista de pantallas para la navegación inferior
+  final List<Widget> _screens = [
     BranchesScreen(),
     WalletScreen(),
-    ProfileScreen(),
+    ProfileScreen(
+      fullName: 'Josepe',
+      email: 'Josepe13186',
+      phone: '34234234',
+      role: 'Administrador',
+      imageUrl: '',
+    ),
   ];
 
   void _onItemTapped(int index) {
@@ -44,10 +71,6 @@ class _MainBranchesState extends State<MainBranches> {
   }
 }
 
-/// Transitional branch dashboard.
-///
-/// The screen still owns dialogs, snackbars and route transitions, but all
-/// branch business operations now go through `BranchesController`.
 class BranchesScreen extends StatefulWidget {
   const BranchesScreen({super.key});
 
@@ -56,170 +79,107 @@ class BranchesScreen extends StatefulWidget {
 }
 
 class _BranchesScreenState extends State<BranchesScreen> {
-  final BranchesController _controller = BranchesController();
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  late final Stream<QuerySnapshot> _branchesStream;
+
+    String _searchQuery = ''; // ← Nueva variable
+
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_handleControllerChanged);
-    _controller.initialize();
+    _branchesStream = _db.collection('sucursales').orderBy('name').snapshots();
   }
 
-  @override
-  void dispose() {
-    _controller
-      ..removeListener(_handleControllerChanged)
-      ..dispose();
-    super.dispose();
-  }
 
-  void _handleControllerChanged() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
 
-  void _showSnackBar(String message, {Color? backgroundColor}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: backgroundColor,
+  void _openAddBranchDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AddDialog(
+        onSave: (newBranchData) async {
+          final String branchName = newBranchData['name'];
+          
+          try {
+            // Guardamos en Firebase
+            await _db.collection('sucursales').add({
+              'name': branchName,
+              'classes': newBranchData['classes'] ?? 0,
+              'participants': newBranchData['participants'] ?? 0,
+              'fecha_creacion': FieldValue.serverTimestamp(),
+            });
+
+            print("✅ Sucursal guardada: $branchName");
+
+            // Cerramos el diálogo DESPUÉS de guardar
+            if (!context.mounted) return;
+            Navigator.of(context).pop();
+
+            // Mostramos SnackBar DESPUÉS de cerrar el diálogo
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Sucursal "$branchName" creada exitosamente'),
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+
+            // Esperamos un momento
+            await Future.delayed(const Duration(milliseconds: 400));
+
+            // Navegamos a la pantalla de grupos
+            if (!context.mounted) return;
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => BranchGroupsScreen(
+                  branchName: branchName,
+                ),
+              ),
+            );
+            
+          } catch (e) {
+            print("❌ Error al guardar sucursal: $e");
+            
+            // Cerramos el diálogo primero
+            if (context.mounted) {
+              Navigator.of(context).pop();
+            }
+            
+            // Mostramos error DESPUÉS de cerrar
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error al crear la sucursal: ${e.toString()}'),
+                  behavior: SnackBarBehavior.floating,
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            }
+          }
+        },
       ),
     );
   }
 
-  Future<void> _showRenameBranchDialog(Branch branch) async {
-    final controller = TextEditingController(text: branch.name);
-    final newName = await showDialog<String>(
-      context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: const Text('Cambiar nombre de sucursal'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Nuevo nombre',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed:
-                    () => Navigator.of(dialogContext).pop(controller.text.trim()),
-                child: const Text('Guardar'),
-              ),
-            ],
-          ),
-    );
 
-    if (newName == null || newName.isEmpty || newName == branch.name) return;
-
-    try {
-      await _controller.renameBranch(branch, newName);
-      _showSnackBar(
-        'Sucursal renombrada a "$newName".',
-        backgroundColor: Colors.green,
-      );
-    } on AppException catch (error) {
-      _showSnackBar(error.message, backgroundColor: Colors.orange);
-    } catch (error) {
-      _showSnackBar(
-        'No pudimos cambiar el nombre de la sucursal: $error',
-        backgroundColor: Colors.red,
-      );
-    }
-  }
-
-  Future<void> _confirmDeleteBranch(Branch branch) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: const Text('Borrar sucursal'),
-            content: Text(
-              'Se borrara "${branch.name}" y tambien todos sus grupos y registros ligados. Esta accion no se puede deshacer.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('Borrar'),
-              ),
-            ],
-          ),
-    );
-
-    if (shouldDelete != true) return;
-
-    try {
-      await _controller.deleteBranch(branch);
-      _showSnackBar(
-        'Sucursal "${branch.name}" eliminada correctamente.',
-        backgroundColor: Colors.green,
-      );
-    } catch (error) {
-      _showSnackBar(
-        'No pudimos borrar la sucursal: $error',
-        backgroundColor: Colors.red,
-      );
-    }
-  }
-
-  Future<void> _openAddBranchDialog() async {
-    final newBranchData = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (dialogContext) => const AddDialog(),
-    );
-
-    if (newBranchData == null) return;
-
-    final branchName = (newBranchData['name'] as String?)?.trim() ?? '';
-    if (branchName.isEmpty) return;
-
-    try {
-      final branchDocId = await _controller.createBranch(branchName);
-      if (!mounted) return;
-
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder:
-              (context) => BranchGroupsScreen(
-                branchName: branchName,
-                branchDocId: branchDocId,
-                successMessage: 'Sucursal "$branchName" creada exitosamente',
-              ),
-        ),
-      );
-    } on AppException catch (error) {
-      _showSnackBar(error.message, backgroundColor: Colors.orange);
-    } catch (error) {
-      _showSnackBar(
-        'Error al crear la sucursal: $error',
-        backgroundColor: Colors.red,
-      );
-    }
+  
+  // Función para filtrar por nombre
+  List<Map<String, dynamic>> _filtrarSucursales(
+    List<Map<String, dynamic>> sucursales,
+    String query,
+  ) {
+    if (query.isEmpty) return sucursales;
+    return sucursales.where((sucursal) {
+      final nombre = (sucursal['name'] as String?)?.toLowerCase() ?? '';
+      return nombre.contains(query.toLowerCase());
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_controller.isBootstrapping) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -228,22 +188,30 @@ class _BranchesScreenState extends State<BranchesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 🔹 Barra de búsqueda
+              // ✅ BarSearch con funcionalidad
               BarSearch(
                 hintText: 'Buscar sucursal',
-                onSearch: _controller.updateSearchQuery,
+                onSearch: (query) {
+                  setState(() {
+                    _searchQuery = query;
+                  });
+                },
               ),
               const SizedBox(height: 10),
+
+              // 🔹 Botón "Agregar Sucursal"
               Align(
                 alignment: Alignment.centerRight,
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: _controller.isMutating ? null : _openAddBranchDialog,
-                    child: const Padding(
-                      padding: EdgeInsets.all(8.0),
+                    onTap: () => _openAddBranchDialog(context),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
-                        children: [
+                        children: const [
                           Text(
                             'Agregar Sucursal  ',
                             style: TextStyle(
@@ -259,62 +227,69 @@ class _BranchesScreenState extends State<BranchesScreen> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 20),
+
+              // 🔹 StreamBuilder para listar sucursales
               Expanded(
-                child:
-                    _controller.branchesStream == null
-                        ? const Center(
-                          child: Text('No pudimos identificar al administrador.'),
-                        )
-                        : StreamBuilder<List<Branch>>(
-                          stream: _controller.branchesStream,
-                          builder: (context, snapshot) {
-                            if (snapshot.hasError) {
-                              return const Center(
-                                child: Text('Error al cargar sucursales.'),
-                              );
-                            }
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child: CircularProgressIndicator(),
-                              );
-                            }
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: _branchesStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      print("Error en StreamBuilder: ${snapshot.error}");
+                      return const Center(
+                          child: Text('Error al cargar las sucursales.'));
+                    }
 
-                            final branches = snapshot.data ?? const <Branch>[];
-                            final filteredBranches =
-                                _controller.filterBranches(branches);
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                            if (filteredBranches.isEmpty) {
-                              return Center(
-                                child: Text(
-                                  branches.isEmpty
-                                      ? 'No hay sucursales registradas.'
-                                      : 'No encontramos sucursales con esa busqueda.',
-                                ),
-                              );
-                            }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(
+                          child: Text('No hay sucursales registradas.'));
+                    }
 
-                            return AdaptiveBranchList(
-                              branches: filteredBranches,
-                              icon: Icons.location_on_outlined,
-                              onTap: (branch) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (context) => BranchGroupsScreen(
-                                          branchName: branch.name,
-                                          branchDocId: branch.id,
-                                        ),
-                                  ),
-                                );
-                              },
-                              onRename: _showRenameBranchDialog,
-                              onDelete: _confirmDeleteBranch,
-                            );
-                          },
-                        ),
+                    final branchesFromFirebase =
+                        snapshot.data!.docs.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return {
+                        'name': data['name'] ?? 'Sin nombre',
+                        'classes': (data['classes'] as num?)?.toInt() ?? 0,
+                        'participants':
+                            (data['participants'] as num?)?.toInt() ?? 0,
+                      };
+                    }).toList();
+
+                     // ✅ Filtrar según la búsqueda
+                      final branchesFiltradas = _filtrarSucursales(
+                        branchesFromFirebase,
+                        _searchQuery,
+                      );
+
+                       if (branchesFiltradas.isEmpty) {
+                        return const Center(child: Text('No hay resultados.'));
+                      }
+
+
+                    return AdaptiveBranchList(
+                      // branches: branchesFromFirebase, //  ERROR: no es branchesFiltradas
+                      branches: branchesFiltradas,
+
+                      icon: Icons.location_on_outlined,
+                      onTap: (branchName) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => BranchGroupsScreen(
+                              branchName: branchName.toString(),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),

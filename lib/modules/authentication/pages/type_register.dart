@@ -1,10 +1,10 @@
+// archivo: forgot_password_page.dart
 import 'package:flutter/material.dart';
-import 'package:tae_app/app/router/app_routes.dart';
+// Redireccion al registro de alumno maestro.
+import 'register_teacher_student.dart';
+// Redireccion al registro de admin maestro.
+import 'register_admin.dart';
 
-/// Role selection for the registration flow.
-///
-/// This page still lives in the legacy auth module, but now it depends on
-/// centralized route constants instead of hardcoded strings.
 class TypeRegister extends StatelessWidget {
   const TypeRegister({super.key});
 
@@ -76,7 +76,13 @@ class TypeRegister extends StatelessWidget {
                         ),
                       ),
                       onPressed: () {
-                        Navigator.pushNamed(context, AppRoutes.registerAdmin);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => const RegisterAdmin(),
+                          ),
+                        );
                       },
                       child: Text(
                         'Administrador',
@@ -101,7 +107,13 @@ class TypeRegister extends StatelessWidget {
                         ),
                       ),
                       onPressed: () {
-                        Navigator.pushNamed(context, AppRoutes.registerUser);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => const RegisterTeacherStudent(),
+                          ),
+                        );
                       },
                       child: Text(
                         'Alumno / Instructor',

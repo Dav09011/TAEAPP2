@@ -1,44 +1,83 @@
 import 'package:flutter/material.dart';
-import 'package:tae_app/app/router/app_routes.dart';
-import 'package:tae_app/features/licensing/data/license_plan_catalog.dart';
-import 'package:tae_app/features/licensing/domain/entities/license_plan.dart';
+import 'package:tae_app/modules/admin/pages/branch_selection_tab.dart';
 
-/// License selection screen preserved as a normal route inside the app.
-///
-/// This file used to behave like a standalone mini-app with its own `main()`
-/// and `MaterialApp`. During migration we keep the UI, but remove the nested
-/// app shell so navigation stays centralized.
-///
-/// Product note:
-/// this screen remains because it will later evolve into the real admin
-/// licensing flow for acquiring or activating a plan.
+import '../../../login_page.dart';
+
+void main() {
+  runApp(LicenciaApp());
+}
+
+class LicenciaApp extends StatelessWidget {
+  const LicenciaApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: LicenciaScreen(),
+      routes: {
+        '/next':
+            (context) =>
+                NextScreen(), //DIGAMOS QUE AQUI ES UNA RUTA PARA LA SIGUIENTE PANTALLA, AQUI ES LA RUTA A DONDE QUEREMOS IR, LO VI COMO UN METODO.
+      },
+    );
+  }
+}
+
 class LicenciaScreen extends StatefulWidget {
   const LicenciaScreen({super.key});
 
   @override
-  State<LicenciaScreen> createState() => _LicenciaScreenState();
+  _LicenciaScreenState createState() => _LicenciaScreenState();
 }
 
 class _LicenciaScreenState extends State<LicenciaScreen> {
-  int selectedIndex = 0;
+  int selectedIndex = 0; //CONTADOR
+
+  final List<Map<String, dynamic>> plans = [
+    {
+      'title': 'MASTER',
+      'price': 1799,
+      'duration': '6ms',
+      'features': [
+        '3 sucursales',
+        'Crea grupos',
+        'Asigna contenido',
+        'Realiza notas',
+        'Administra tus finanzas',
+      ],
+    },
+    {
+      'title': 'TILIN',
+      'price': 1200,
+      'duration': '3ms',
+      'features': [
+        '1 sucursal',
+        'Sin grupos',
+        'Contenido limitado',
+        'Notas básicas',
+        'Solo estadísticas básicas',
+      ],
+    },
+    // AQUI VAN LOS PLANES, CADA FRAGMENTO DE LLAVES ES UN PLAN.
+  ];
 
   void nextPlan() {
+    //PARA VER SI IR ADELANTE O ATRAS CON EL CONTADOR
     setState(() {
-      selectedIndex = (selectedIndex + 1) % LicensePlanCatalog.plans.length;
+      selectedIndex = (selectedIndex + 1) % plans.length;
     });
   }
 
   void prevPlan() {
     setState(() {
-      selectedIndex =
-          (selectedIndex - 1 + LicensePlanCatalog.plans.length) %
-          LicensePlanCatalog.plans.length;
+      selectedIndex = (selectedIndex - 1 + plans.length) % plans.length;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final LicensePlan plan = LicensePlanCatalog.plans[selectedIndex];
+    final plan = plans[selectedIndex];
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -62,10 +101,11 @@ class _LicenciaScreenState extends State<LicenciaScreen> {
                 children: [
                   IconButton(
                     onPressed: prevPlan,
-                    icon: const Icon(Icons.arrow_back_ios),
+                    icon: Icon(Icons.arrow_back_ios),
                   ),
                   Expanded(
                     child: Column(
+                      // Cambiado de Container a Column para redibujar correctamente
                       children: [
                         Container(
                           padding: const EdgeInsets.all(24),
@@ -76,7 +116,7 @@ class _LicenciaScreenState extends State<LicenciaScreen> {
                           child: Column(
                             children: [
                               Text(
-                                plan.title,
+                                plan['title'],
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 18,
@@ -84,15 +124,15 @@ class _LicenciaScreenState extends State<LicenciaScreen> {
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                '\$${plan.price} /${plan.durationLabel}',
+                                '\$${plan['price']} /${plan['duration']}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 28,
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              ...plan.features.map(
-                                (feature) => Padding(
+                              ...plan['features'].map<Widget>(
+                                (f) => Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 2,
                                   ),
@@ -100,7 +140,7 @@ class _LicenciaScreenState extends State<LicenciaScreen> {
                                     children: [
                                       const Icon(Icons.circle, size: 8),
                                       const SizedBox(width: 8),
-                                      Expanded(child: Text(feature)),
+                                      Expanded(child: Text(f)),
                                     ],
                                   ),
                                 ),
@@ -114,13 +154,12 @@ class _LicenciaScreenState extends State<LicenciaScreen> {
                                   ),
                                 ),
                                 onPressed: () {
-                                  Navigator.pushNamedAndRemoveUntil(
-                                    context,
-                                    AppRoutes.mainAdmin,
-                                    (route) => false,
-                                  );
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => MainBranches()),
+                                    );
                                 },
-                                child: const Text(
+                                child: Text(
                                   'Proceder',
                                   style: TextStyle(color: Colors.white),
                                 ),
@@ -133,10 +172,11 @@ class _LicenciaScreenState extends State<LicenciaScreen> {
                   ),
                   IconButton(
                     onPressed: nextPlan,
-                    icon: const Icon(Icons.arrow_forward_ios),
+                    icon: Icon(Icons.arrow_forward_ios),
                   ),
                 ],
               ),
+
               const SizedBox(height: 24),
               OutlinedButton(
                 style: ElevatedButton.styleFrom(
@@ -146,13 +186,13 @@ class _LicenciaScreenState extends State<LicenciaScreen> {
                   ),
                 ),
                 onPressed: () {
-                  Navigator.pushNamedAndRemoveUntil(
+                  //AQUI VA A LA ANTERIOR PANTALLA
+                    Navigator.push(
                     context,
-                    AppRoutes.login,
-                    (route) => false,
+                    MaterialPageRoute(builder: (context) => WelcomeTaeApp()),
                   );
                 },
-                child: const Text(
+                child: Text(
                   'En otro momento',
                   style: TextStyle(color: Colors.black),
                 ),
@@ -161,6 +201,19 @@ class _LicenciaScreenState extends State<LicenciaScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class NextScreen extends StatelessWidget {
+  //AQUI SE ENCUENTRA LA SIGUIENTE PANTALLA, OSEA LA QUE SIGUE DESPUES DE LAS LICENCIAS, ESTA MADRE PUES SE PUEDE BORRAR
+  const NextScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Siguiente Pantalla')),
+      body: Center(child: Text('Aquí continúa el proceso...')),
     );
   }
 }

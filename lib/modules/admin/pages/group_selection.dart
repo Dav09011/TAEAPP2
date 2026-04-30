@@ -1,73 +1,43 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-import 'package:tae_app/core/errors/app_exception.dart';
-import 'package:tae_app/features/admin/domain/entities/branch_group.dart';
-import 'package:tae_app/features/admin/domain/entities/create_group_request.dart';
-import 'package:tae_app/features/admin/presentation/controllers/branch_groups_controller.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tae_app/modules/admin/pages/activities_section.dart';
-import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 import 'package:tae_app/modules/admin/widgets/custom_navigation_bar_admin.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
-
-import 'profile_screen.dart';
 import 'wallet_screen.dart';
+import 'profile_screen.dart';
+import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 
 class BranchGroupsScreen extends StatefulWidget {
-  const BranchGroupsScreen({
-    super.key,
-    required this.branchName,
-    required this.branchDocId,
-    this.successMessage,
-  });
-
-  final String branchDocId;
   final String branchName;
-  final String? successMessage;
+  
+  const BranchGroupsScreen({super.key, required this.branchName});
 
   @override
   State<BranchGroupsScreen> createState() => _BranchGroupsScreenState();
 }
 
 class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
-  final BranchGroupsController _controller = BranchGroupsController();
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
   int _selectedIndex = 0;
-  String? _visibleSuccessMessage;
+  late Stream<QuerySnapshot> _groupsStream;
+
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_handleControllerChanged);
-    _controller.initialize(widget.branchDocId);
-    _visibleSuccessMessage = widget.successMessage;
+    // Inicializamos el Stream para escuchar la colección 'grupos'
+    _groupsStream = _db
+        .collection('grupos')
+        .where('id_sucursal', isEqualTo: widget.branchName)
+        .snapshots();
   }
 
-  @override
-  void dispose() {
-    _controller
-      ..removeListener(_handleControllerChanged)
-      ..dispose();
-    super.dispose();
-  }
-
-  void _handleControllerChanged() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _showSnackBar(String message, {Color? backgroundColor}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: backgroundColor,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  Future<void> _openAddGroupDialog(BuildContext context) async {
+  // =================================================================
+  // === AGREGAR GRUPO ===
+  // =================================================================
+  void _openAddGroupDialog(BuildContext context) async {
     final newGroupData = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => AddGroupDialog(onSave: (_) {}),
@@ -75,127 +45,44 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
 
     if (newGroupData == null) return;
 
-    final groupName = (newGroupData['name'] as String?)?.trim() ?? '';
-    final beltType = (newGroupData['beltType'] as String?)?.trim() ?? '';
-    final schedule = (newGroupData['schedule'] as String?)?.trim() ?? '';
-
-    if (groupName.isEmpty || beltType.isEmpty || schedule.isEmpty) {
-      _showSnackBar(
-        'El grupo necesita nombre, cintas y horario.',
-        backgroundColor: Colors.orange,
-      );
-      return;
-    }
-
     try {
-      await _controller.createGroup(
-        CreateGroupRequest(
-          branchId: widget.branchDocId,
-          name: groupName,
-          beltType: beltType,
-          schedule: schedule,
-        ),
-      );
-      _showSnackBar(
-        'Grupo $groupName creado con exito.',
-        backgroundColor: Colors.green,
-      );
-    } on AppException catch (error) {
-      _showSnackBar(error.message, backgroundColor: Colors.orange);
-    } catch (_) {
-      _showSnackBar(
-        'Error al crear grupo. Revisa conexion y permisos.',
-        backgroundColor: Colors.red,
-      );
-    }
-  }
+      final groupToSave = {
+        'nombre_grupo': newGroupData['name'],
+        'tipo_cinta': newGroupData['beltType'],
+        'horario': newGroupData['schedule'],
+        'id_sucursal': widget.branchName,
+        'total_alumnos': 0,
+        'fecha_creacion': FieldValue.serverTimestamp(),
+      };
 
-  Future<void> _showRenameGroupDialog(BranchGroup group) async {
-    final controller = TextEditingController(text: group.name);
-    final newName = await showDialog<String>(
-      context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: const Text('Cambiar nombre del grupo'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Nuevo nombre',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed:
-                    () => Navigator.of(dialogContext).pop(controller.text.trim()),
-                child: const Text('Guardar'),
-              ),
-            ],
+      await _db.collection('grupos').add(groupToSave);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Grupo ${newGroupData['name']} creado con éxito.'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
           ),
-    );
-
-    if (newName == null || newName.isEmpty || newName == group.name) return;
-
-    try {
-      await _controller.renameGroup(group, newName);
-      _showSnackBar(
-        'Grupo renombrado a "$newName".',
-        backgroundColor: Colors.green,
-      );
-    } on AppException catch (error) {
-      _showSnackBar(error.message, backgroundColor: Colors.orange);
-    } catch (error) {
-      _showSnackBar(
-        'No pudimos cambiar el nombre del grupo: $error',
-        backgroundColor: Colors.red,
-      );
-    }
-  }
-
-  Future<void> _confirmDeleteGroup(BranchGroup group) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: const Text('Borrar grupo'),
-            content: Text(
-              'Se borrara "${group.name}" y tambien sus alumnos, actividades y secciones. Esta accion no se puede deshacer.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('Borrar'),
-              ),
-            ],
+        );
+      }
+    } catch (e) {
+      print("Error al guardar grupo en Firebase: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al crear grupo. Revisa conexión y permisos.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
-    );
-
-    if (shouldDelete != true) return;
-
-    try {
-      await _controller.deleteGroup(group);
-      _showSnackBar(
-        'Grupo "${group.name}" eliminado correctamente.',
-        backgroundColor: Colors.green,
-      );
-    } catch (error) {
-      _showSnackBar(
-        'No pudimos borrar el grupo: $error',
-        backgroundColor: Colors.red,
-      );
+        );
+      }
     }
   }
 
+  // =================================================================
+  // === VISTA DE GRUPOS (DINÁMICA) ===
+  // =================================================================
   Widget _buildGroupsContent() {
     return SafeArea(
       child: SingleChildScrollView(
@@ -206,56 +93,21 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             children: [
               BarSearch(
                 hintText: 'Buscar grupo, cinta o horario',
-                onSearch: _controller.updateSearchQuery,
+                onSearch: (query) {
+                  setState(() {
+                    _searchQuery = query;
+                  });
+                },
               ),
-              if (_visibleSuccessMessage != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2E7D32),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle_outline, color: Colors.white),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _visibleSuccessMessage!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _visibleSuccessMessage = null;
-                          });
-                        },
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        tooltip: 'Cerrar mensaje',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
               const SizedBox(height: 10),
+
+              // Botón Agregar Grupo
               Align(
                 alignment: Alignment.centerRight,
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap:
-                        _controller.isMutating
-                            ? null
-                            : () => _openAddGroupDialog(context),
+                    onTap: () => _openAddGroupDialog(context),
                     child: const Padding(
                       padding: EdgeInsets.all(8.0),
                       child: Row(
@@ -277,43 +129,66 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              StreamBuilder<List<BranchGroup>>(
-                stream: _controller.groupsStream,
-                builder: (context, snapshot) {
+
+              // === StreamBuilder: Escucha cambios en 'grupos' ===
+
+              // === StreamBuilder mejorado con filtro local ===
+              StreamBuilder<QuerySnapshot>(
+              stream: _groupsStream,
+              builder: (context, snapshot) {
+                try {
                   if (snapshot.hasError) {
-                    return const Center(
-                      child: Text('Tuvimos un error al cargar los grupos.'),
-                    );
+                    return const Text('¡Oh no! Tuvimos un error al cargar los grupos.');
                   }
+
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final groups = snapshot.data ?? const <BranchGroup>[];
-                  final filteredGroups = _controller.filterGroups(groups);
+                  if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                    // 1. Extraer todos los grupos desde Firebase
+                    final allGroups = snapshot.data!.docs.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>? ?? {};
+                      return {
+                        'name': data['nombre_grupo'] ?? 'Sin Nombre',
+                        'beltType': data['tipo_cinta'] ?? 'N/A',
+                        'schedule': data['horario'] ?? 'Sin horario',
+                        'alumns': '${data['total_alumnos'] ?? 0} participantes',
+                      };
+                    }).toList();
 
-                  if (groups.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'Aun no hay grupos para ${widget.branchName}. Agrega uno.',
-                      ),
+                    // 2. Filtrar localmente según _searchQuery
+                    List<Map<String, dynamic>> filteredGroups = allGroups;
+                    if (_searchQuery.isNotEmpty) {
+                      final query = _searchQuery.toLowerCase();
+                      filteredGroups = allGroups.where((group) {
+                        final name = (group['name'] as String).toLowerCase();
+                        final belt = (group['beltType'] as String).toLowerCase();
+                        final schedule = (group['schedule'] as String).toLowerCase();
+                        return name.contains(query) || belt.contains(query) || schedule.contains(query);
+                      }).toList();
+                    }
+
+                    // 3. Mostrar resultados
+                    if (filteredGroups.isEmpty) {
+                      return const Center(child: Text('No se encontraron grupos.'));
+                    }
+
+                    return Column(
+                      children: filteredGroups.map((group) => _buildGroupCard(group)).toList(),
                     );
                   }
 
-                  if (filteredGroups.isEmpty) {
-                    return const Center(
-                      child: Text('No se encontraron grupos.'),
-                    );
-                  }
-
-                  return Column(
-                    children:
-                        filteredGroups
-                            .map((group) => _buildGroupCard(group))
-                            .toList(),
+                  return Center(
+                    child: Text('Aún no hay grupos para ${widget.branchName}. ¡Agrega uno!'),
                   );
-                },
-              ),
+                } catch (e, stack) {
+                  print("⚠️ Error en StreamBuilder: $e\n$stack");
+                  return const Text('Error al renderizar grupos.');
+                }
+              },
+            ),
+            
             ],
           ),
         ),
@@ -321,51 +196,52 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     );
   }
 
-  Widget _buildGroupCard(BranchGroup group) {
+  // =================================================================
+  // === TARJETA DE GRUPO ===
+  // =================================================================
+  Widget _buildGroupCard(Map<String, dynamic> group) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxCardWidth =
-            constraints.maxWidth > 800 ? 600.0 : constraints.maxWidth * 0.95;
+        final double maxCardWidth =
+            constraints.maxWidth > 800 ? 600 : constraints.maxWidth * 0.95;
 
         return Center(
-          child: Container(
-            width: maxCardWidth,
-            margin: const EdgeInsets.only(bottom: 26),
-            padding: const EdgeInsets.all(26),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ActivitiesSection(
+                    groupName: group['name'],
+                  ),
                 ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => ActivitiesSection(
-                              groupName: group.name,
-                              groupDocId: group.id,
-                            ),
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 56),
+              );
+            },
+            child: Container(
+              width: maxCardWidth,
+              margin: const EdgeInsets.only(bottom: 26),
+              padding: const EdgeInsets.all(26),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Flexible(
+                    fit: FlexFit.loose,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          group.name,
+                          group['name'],
                           style: const TextStyle(
                             fontSize: 23,
                             fontWeight: FontWeight.bold,
@@ -373,7 +249,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Tipo de cinta(s): ${group.beltType}',
+                          'Tipo de cinta(s): ${group["beltType"]}',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
@@ -381,14 +257,14 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                           ),
                         ),
                         Text(
-                          'Horario: ${group.schedule}',
+                          'Horario: ${group["schedule"]}',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[500],
                           ),
                         ),
                         Text(
-                          'Alumnos: ${group.totalStudents} participantes',
+                          'Alumnos: ${group["alumns"]}',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[500],
@@ -397,45 +273,13 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                       ],
                     ),
                   ),
-                ),
-                Positioned(
-                  top: -10,
-                  right: -10,
-                  child: PopupMenuButton<String>(
-                    tooltip: 'Opciones del grupo',
-                    onSelected: (value) {
-                      if (value == 'rename') {
-                        _showRenameGroupDialog(group);
-                      } else if (value == 'delete') {
-                        _confirmDeleteGroup(group);
-                      }
-                    },
-                    itemBuilder:
-                        (context) => const [
-                          PopupMenuItem<String>(
-                            value: 'rename',
-                            child: Text('Cambiar nombre'),
-                          ),
-                          PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Text('Borrar grupo'),
-                          ),
-                        ],
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: GestureDetector(
-                    onTap: () => _showQRDialog(context, group),
-                    child: const Icon(
-                      Icons.qr_code,
-                      size: 36,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-              ],
+                  const Icon(
+                    Icons.group_outlined,
+                    size: 50,
+                    color: Color.fromARGB(255, 57, 56, 56),
+                  )
+                ],
+              ),
             ),
           ),
         );
@@ -443,14 +287,17 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     );
   }
 
+  // =================================================================
+  // === OBTENER PANTALLA ACTUAL ===
+  // =================================================================
   Widget _getCurrentScreen() {
     switch (_selectedIndex) {
       case 0:
         return _buildGroupsContent();
       case 1:
-        return const WalletScreen();
+        return WalletScreen();
       case 2:
-        return const ProfileScreen(
+        return ProfileScreen(
           fullName: 'Josepe',
           email: 'Josepe13186',
           phone: '34234234',
@@ -466,206 +313,6 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     setState(() {
       _selectedIndex = index;
     });
-  }
-
-  void _showQRDialog(BuildContext context, BranchGroup group) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    group.name,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.branchName,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Para quien es el QR?',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showQRCode(context, group, tipo: 'alumno');
-                      },
-                      icon: const Icon(Icons.school_outlined),
-                      label: const Text('QR para Alumno'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showQRCode(context, group, tipo: 'privilegiado');
-                      },
-                      icon: const Icon(Icons.admin_panel_settings_outlined),
-                      label: const Text('QR para Usuario Privilegiado'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Cancelar',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-    );
-  }
-
-  void _showQRCode(
-    BuildContext context,
-    BranchGroup group, {
-    required String tipo,
-  }) {
-    final esPrivilegiado = tipo == 'privilegiado';
-
-    final qrData =
-        esPrivilegiado
-            ? 'PRIVILEGIADO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}'
-            : 'ALUMNO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}';
-
-    final codigoCorto = qrData.hashCode
-        .abs()
-        .toString()
-        .padRight(6, '0')
-        .substring(0, 6);
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: esPrivilegiado ? Colors.amber[700] : Colors.black,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          esPrivilegiado
-                              ? Icons.admin_panel_settings_outlined
-                              : Icons.school_outlined,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          esPrivilegiado ? 'Usuario Privilegiado' : 'Alumno',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    group.name,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    widget.branchName,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 20),
-                  QrImageView(
-                    data: qrData,
-                    version: QrVersions.auto,
-                    size: 220,
-                    backgroundColor: Colors.white,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'O ingresa el codigo:',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${codigoCorto.substring(0, 3)} ${codigoCorto.substring(3, 6)}',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2.0,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Escanea para registrar acceso',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                  ),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Cerrar',
-                      style: TextStyle(color: Colors.black, fontSize: 16),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-    );
   }
 
   @override

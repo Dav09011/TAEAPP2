@@ -42,47 +42,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _showEditDialog(AdminProfile profile) async {
+  Future<void> _showCombinedEditDialog(AdminProfile profile) async {
     final nombreCtrl = TextEditingController(text: profile.firstName);
     final apCtrl = TextEditingController(text: profile.lastName);
     final amCtrl = TextEditingController(text: profile.middleName);
     final telefonoCtrl = TextEditingController(text: profile.phone);
+    final correoCtrl = TextEditingController(text: profile.email);
+    final String correoOriginal = profile.email;
 
     showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text(
-              'Editar Perfil',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Editar Información', style: TextStyle(fontWeight: FontWeight.bold)),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
-                    controller: nombreCtrl,
-                    decoration: const InputDecoration(labelText: 'Nombre(s)'),
-                  ),
-                  TextField(
-                    controller: apCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Apellido Paterno',
-                    ),
-                  ),
-                  TextField(
-                    controller: amCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Apellido Materno',
-                    ),
-                  ),
+                  TextField(controller: nombreCtrl, decoration: const InputDecoration(labelText: 'Nombre(s)')),
+                  TextField(controller: apCtrl, decoration: const InputDecoration(labelText: 'Apellido Paterno')),
+                  TextField(controller: amCtrl, decoration: const InputDecoration(labelText: 'Apellido Materno')),
                   TextField(
                     controller: telefonoCtrl,
-                    decoration: const InputDecoration(labelText: 'Telefono'),
+                    decoration: const InputDecoration(labelText: 'Teléfono'),
                     keyboardType: TextInputType.phone,
+                  ),
+                  const Divider(height: 30),
+                  TextField(
+                    controller: correoCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Correo Electrónico',
+                      helperText: 'Si lo cambias, deberás confirmarlo en tu nuevo email.',
+                      helperMaxLines: 2,
+                    ),
                   ),
                 ],
               ),
@@ -90,116 +84,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  try {
-                    await _controller.updateProfile(
-                      UpdateAdminProfileRequest(
-                        userId: profile.userId,
-                        firstName: nombreCtrl.text,
-                        lastName: apCtrl.text,
-                        middleName: amCtrl.text,
-                        phone: telefonoCtrl.text,
-                      ),
-                    );
-                    if (context.mounted) Navigator.pop(context);
-                  } catch (error) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error al guardar: $error')),
-                      );
-                    }
-                  }
-                },
-                child: const Text('Guardar'),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Future<void> _showEmailDialog(AdminProfile profile) async {
-    final correoCtrl = TextEditingController(text: profile.email);
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text(
-              'Cambiar Correo',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Nota: Tu correo es tu credencial de acceso. Si el sistema detecta que iniciaste sesion hace mucho tiempo, te pedira que vuelvas a entrar por seguridad.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: correoCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Nuevo Correo Electronico',
-                    prefixIcon: Icon(Icons.email_outlined),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Cancelar',
-                  style: TextStyle(color: Colors.grey),
-                ),
+                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () async {
                   try {
-                    await _controller.requestEmailChange(
-                      userId: profile.userId,
-                      currentEmail: profile.email,
-                      newEmail: correoCtrl.text,
+                    // 1. Actualizamos datos generales
+                    await _controller.updateProfile(
+                      UpdateAdminProfileRequest(
+                        userId: profile.userId,
+                        firstName: nombreCtrl.text.trim(),
+                        lastName: apCtrl.text.trim(),
+                        middleName: amCtrl.text.trim(),
+                        phone: telefonoCtrl.text.trim(),
+                      ),
                     );
+
+                    // 2. Si el correo cambió, lanzamos la petición de cambio
+                    final nuevoCorreo = correoCtrl.text.trim();
+                    bool correoActualizado = false;
+
+                    if (nuevoCorreo.isNotEmpty && nuevoCorreo != correoOriginal) {
+                      await _controller.requestEmailChange(
+                        userId: profile.userId,
+                        currentEmail: correoOriginal,
+                        newEmail: nuevoCorreo,
+                      );
+                      correoActualizado = true;
+                    }
+
                     if (context.mounted) {
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Revisa la bandeja de tu nuevo correo para confirmar el cambio.',
+                      if (correoActualizado) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Guardado. Revisa tu nuevo correo para confirmar.'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 5),
                           ),
-                          backgroundColor: Colors.green,
-                          duration: Duration(seconds: 5),
-                        ),
-                      );
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Información actualizada'), backgroundColor: Colors.green),
+                        );
+                      }
                     }
                   } on AppException catch (error) {
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(error.message),
-                          backgroundColor: Colors.redAccent,
-                        ),
-                      );
-                    }
+                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message), backgroundColor: Colors.redAccent));
+                  } catch (error) {
+                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $error')));
                   }
                 },
-                child: const Text('Actualizar'),
+                child: const Text('Guardar Todo'),
               ),
             ],
           ),
@@ -237,7 +178,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               try {
                 final profile = await _controller.getCurrentProfile();
                 if (context.mounted) {
-                  _showEditDialog(profile);
+                  _showCombinedEditDialog(profile);
                 }
               } catch (error) {
                 if (context.mounted) {
@@ -342,14 +283,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: Colors.black,
                               fontWeight: FontWeight.w500,
                             ),
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(
-                              Icons.edit_outlined,
-                              size: 20,
-                              color: Colors.blueAccent,
-                            ),
-                            onPressed: () => _showEmailDialog(profile),
                           ),
                         ),
                         const Divider(),

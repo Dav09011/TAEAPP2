@@ -5,14 +5,10 @@ allprojects {
     }
 }
 
-<<<<<<< HEAD
-val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
-=======
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
         .get()
->>>>>>> origin/feature/project_fixed
 rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {

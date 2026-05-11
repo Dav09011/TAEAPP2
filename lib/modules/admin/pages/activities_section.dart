@@ -213,9 +213,12 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                                     title: const Text('Nuevo ejercicio'),
                                     content: TextField(
                                       controller: exerciseController,
+                                      minLines: 3,
+                                      maxLines: 6,
                                       decoration: const InputDecoration(
-                                        hintText: 'Ej: Patada frontal',
-                                        labelText: 'Tipo de ejercicio',
+                                        hintText:
+                                            'Ej: Describe la tecnica, postura o repeticiones del ejercicio.',
+                                        labelText: 'Descripcion del ejercicio',
                                         labelStyle: TextStyle(
                                           color: Colors.blueGrey,
                                         ),
@@ -482,6 +485,101 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
     }
   }
 
+  Future<void> _confirmDeleteBeltSection(String beltName) async {
+    final groupId = _groupId;
+    if (groupId == null || groupId.isEmpty) return;
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Eliminar seccion'),
+            content: Text(
+              'Se eliminara la seccion "$beltName" y tambien todas sus actividades. Esta accion no se puede deshacer.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      await _controller.deleteBeltSection(
+        groupId: groupId,
+        beltName: beltName,
+      );
+      _showSnackBar(
+        'Seccion "$beltName" eliminada.',
+        backgroundColor: Colors.green,
+      );
+    } catch (_) {
+      _showSnackBar(
+        'Error al eliminar la seccion.',
+        backgroundColor: Colors.red,
+      );
+    }
+  }
+
+  Future<void> _updateBeltSectionColor({
+    required String beltName,
+    required int colorValue,
+  }) async {
+    final groupId = _groupId;
+    if (groupId == null || groupId.isEmpty) return;
+
+    try {
+      await _controller.updateBeltSectionColor(
+        groupId: groupId,
+        beltName: beltName,
+        colorValue: colorValue,
+      );
+      _showSnackBar(
+        'Color de la seccion actualizado.',
+        backgroundColor: Colors.green,
+      );
+    } catch (_) {
+      _showSnackBar(
+        'Error al actualizar el color de la seccion.',
+        backgroundColor: Colors.red,
+      );
+    }
+  }
+
+  Future<void> _updateActivityColor({
+    required String activityId,
+    required int colorValue,
+  }) async {
+    final groupId = _groupId;
+    if (groupId == null || groupId.isEmpty) return;
+
+    try {
+      await _controller.updateActivityColor(
+        groupId: groupId,
+        activityId: activityId,
+        colorValue: colorValue,
+      );
+      _showSnackBar(
+        'Color de la actividad actualizado.',
+        backgroundColor: Colors.green,
+      );
+    } catch (_) {
+      _showSnackBar(
+        'Error al actualizar el color de la actividad.',
+        backgroundColor: Colors.red,
+      );
+    }
+  }
+
   List<Map<String, dynamic>> _mapActivities(List<ActivityItem> activities) {
     return activities
         .map(
@@ -489,6 +587,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
             'id': activity.id,
             'name': activity.name,
             'exercises': activity.exercises,
+            'colorValue': activity.colorValue,
           },
         )
         .toList();
@@ -649,6 +748,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                             ),
                             groupTitle: beltSection.name,
                             groupId: groupId,
+                            beltColorValue: beltSection.colorValue,
                             isReadOnly: widget.isReadOnly,
                             onAddActivity:
                                 widget.isReadOnly
@@ -664,6 +764,27 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                             onBeltNameChanged: (newName) {
                               _renameBeltSection(beltSection.name, newName);
                             },
+                            onBeltColorChanged:
+                                widget.isReadOnly
+                                    ? null
+                                    : (colorValue) => _updateBeltSectionColor(
+                                      beltName: beltSection.name,
+                                      colorValue: colorValue,
+                                    ),
+                            onDeleteBeltSection:
+                                widget.isReadOnly
+                                    ? null
+                                    : () => _confirmDeleteBeltSection(
+                                      beltSection.name,
+                                    ),
+                            onActivityColorChanged:
+                                widget.isReadOnly
+                                    ? null
+                                    : (activityId, colorValue) =>
+                                        _updateActivityColor(
+                                          activityId: activityId,
+                                          colorValue: colorValue,
+                                        ),
                           );
                         },
                       );

@@ -14,6 +14,11 @@ abstract class BranchRepository {
     required String newName,
   });
 
+  Future<void> updateBranchColor({
+    required String branchId,
+    required int colorValue,
+  });
+
   Future<void> deleteBranch({
     required String branchId,
     required String branchName,

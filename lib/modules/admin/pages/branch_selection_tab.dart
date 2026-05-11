@@ -7,6 +7,7 @@ import 'package:tae_app/modules/admin/widgets/add_dialog.dart';
 import 'package:tae_app/modules/admin/widgets/custom_navigation_bar_admin.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
+import 'package:tae_app/shared/presentation/color_customization.dart';
 
 import 'group_selection.dart';
 import 'profile_screen.dart';
@@ -176,6 +177,31 @@ class _BranchesScreenState extends State<BranchesScreen> {
     }
   }
 
+  Future<void> _showBranchColorDialog(Branch branch) async {
+    final selectedColor = await showPresetColorPickerDialog(
+      context: context,
+      title: 'Color para ${branch.name}',
+      selectedColorValue: branch.cardColorValue,
+    );
+
+    if (selectedColor == null || selectedColor == branch.cardColorValue) {
+      return;
+    }
+
+    try {
+      await _controller.updateBranchColor(branch, selectedColor);
+      _showSnackBar(
+        'Color actualizado para "${branch.name}".',
+        backgroundColor: Colors.green,
+      );
+    } catch (error) {
+      _showSnackBar(
+        'No pudimos actualizar el color: $error',
+        backgroundColor: Colors.red,
+      );
+    }
+  }
+
   Future<void> _openAddBranchDialog() async {
     final newBranchData = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -311,6 +337,7 @@ class _BranchesScreenState extends State<BranchesScreen> {
                                 );
                               },
                               onRename: _showRenameBranchDialog,
+                              onChangeColor: _showBranchColorDialog,
                               onDelete: _confirmDeleteBranch,
                             );
                           },

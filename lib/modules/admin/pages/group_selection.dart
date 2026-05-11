@@ -10,7 +10,7 @@ import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 import 'package:tae_app/modules/admin/widgets/custom_navigation_bar_admin.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
-
+import 'package:tae_app/shared/presentation/color_customization.dart';
 import 'profile_screen.dart';
 import 'wallet_screen.dart';
 
@@ -198,6 +198,32 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     }
   }
 
+  Future<void> _showGroupColorDialog(BranchGroup group) async {
+    final selectedColor = await showPresetColorPickerDialog(
+      context: context,
+      title: 'Cinta para ${group.name}',
+      selectedColorValue: group.cardColorValue,
+      options: kTaeKwonDoBeltColorOptions,
+    );
+
+    if (selectedColor == null || selectedColor == group.cardColorValue) {
+      return;
+    }
+
+    try {
+      await _controller.updateGroupColor(group, selectedColor);
+      _showSnackBar(
+        'Color actualizado para "${group.name}".',
+        backgroundColor: Colors.green,
+      );
+    } catch (error) {
+      _showSnackBar(
+        'No pudimos actualizar el color del grupo: $error',
+        backgroundColor: Colors.red,
+      );
+    }
+  }
+
   Widget _buildGroupsContent() {
     return SafeArea(
       child: SingleChildScrollView(
@@ -324,6 +350,9 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   }
 
   Widget _buildGroupCard(BranchGroup group) {
+    final backgroundColor = resolveCardColor(group.cardColorValue);
+    final foregroundColor = resolveOnColor(backgroundColor);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxCardWidth =
@@ -335,7 +364,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             margin: const EdgeInsets.only(bottom: 26),
             padding: const EdgeInsets.all(26),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: backgroundColor,
               borderRadius: BorderRadius.circular(12),
               boxShadow: const [
                 BoxShadow(
@@ -368,9 +397,10 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                       children: [
                         Text(
                           group.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 23,
                             fontWeight: FontWeight.bold,
+                            color: foregroundColor,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -379,21 +409,21 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
-                            color: Colors.grey[700],
+                            color: foregroundColor.withOpacity(0.82),
                           ),
                         ),
                         Text(
                           'Horario: ${group.schedule}',
                           style: TextStyle(
                             fontSize: 18,
-                            color: Colors.grey[500],
+                            color: foregroundColor.withOpacity(0.68),
                           ),
                         ),
                         Text(
                           'Alumnos: ${group.totalStudents} participantes',
                           style: TextStyle(
                             fontSize: 18,
-                            color: Colors.grey[500],
+                            color: foregroundColor.withOpacity(0.68),
                           ),
                         ),
                       ],
@@ -408,6 +438,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                     onSelected: (value) {
                       if (value == 'rename') {
                         _showRenameGroupDialog(group);
+                      } else if (value == 'color') {
+                        _showGroupColorDialog(group);
                       } else if (value == 'delete') {
                         _confirmDeleteGroup(group);
                       }
@@ -417,6 +449,10 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                           PopupMenuItem<String>(
                             value: 'rename',
                             child: Text('Cambiar nombre'),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'color',
+                            child: Text('Cambiar color'),
                           ),
                           PopupMenuItem<String>(
                             value: 'delete',

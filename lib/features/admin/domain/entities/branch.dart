@@ -5,6 +5,7 @@ class Branch {
     required this.ownerUserId,
     required this.classesCount,
     required this.participantsCount,
+    this.cardColorValue,
   });
 
   final String id;
@@ -12,4 +13,5 @@ class Branch {
   final String ownerUserId;
   final int classesCount;
   final int participantsCount;
+  final int? cardColorValue;
 }

@@ -9,6 +9,7 @@ class AdaptiveBranchList extends StatelessWidget {
     required this.icon,
     this.onTap,
     this.onRename,
+    this.onChangeColor,
     this.onDelete,
   });
 
@@ -16,6 +17,7 @@ class AdaptiveBranchList extends StatelessWidget {
   final IconData icon;
   final void Function(Branch branch)? onTap;
   final void Function(Branch branch)? onRename;
+  final void Function(Branch branch)? onChangeColor;
   final void Function(Branch branch)? onDelete;
 
   @override
@@ -32,6 +34,7 @@ class AdaptiveBranchList extends StatelessWidget {
             icon: icon,
             onTap: onTap,
             onRename: onRename,
+            onChangeColor: onChangeColor,
             onDelete: onDelete,
           );
         },

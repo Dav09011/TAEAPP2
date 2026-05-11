@@ -34,6 +34,23 @@ abstract class ActivityRepository {
     required String newName,
   });
 
+  Future<void> deleteBeltSection({
+    required String groupId,
+    required String beltName,
+  });
+
+  Future<void> updateBeltSectionColor({
+    required String groupId,
+    required String beltName,
+    required int colorValue,
+  });
+
+  Future<void> updateActivityColor({
+    required String groupId,
+    required String activityId,
+    required int colorValue,
+  });
+
   Future<void> addExercise({
     required String groupId,
     required String activityId,

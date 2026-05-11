@@ -35,6 +35,8 @@ class FirebaseGroupRepository implements GroupRepository {
                       schedule: doc.data()['horario'] as String? ?? 'Sin horario',
                       totalStudents:
                           (doc.data()['total_alumnos'] as num?)?.toInt() ?? 0,
+                      cardColorValue:
+                          (doc.data()['group_card_color'] as num?)?.toInt(),
                     ),
                   )
                   .toList(),
@@ -52,6 +54,7 @@ class FirebaseGroupRepository implements GroupRepository {
       branchName: request.branchName,
       groupName: request.name,
     );
+    final branchColorValue = await _resolveBranchColorValue(request.branchId);
     final studentCode = await _generateUniqueAccessCode('codigo_alumno');
     final privilegedCode = await _generateUniqueAccessCode(
       'codigo_privilegiado',
@@ -63,6 +66,8 @@ class FirebaseGroupRepository implements GroupRepository {
       'horario': request.schedule.trim(),
       'id_sucursal': request.branchId,
       'nombre_sucursal': request.branchName.trim(),
+      'color_sucursal': branchColorValue,
+      'group_card_color': null,
       'codigo_alumno': studentCode,
       'codigo_privilegiado': privilegedCode,
       'total_alumnos': 0,
@@ -72,6 +77,62 @@ class FirebaseGroupRepository implements GroupRepository {
     await _db.collection('sucursales').doc(request.branchId).update({
       'classes': FieldValue.increment(1),
     });
+  }
+
+  @override
+  Future<void> updateGroupColor({
+    required String groupId,
+    required int colorValue,
+  }) async {
+    await _db.collection('grupos').doc(groupId).update({
+      'group_card_color': colorValue,
+    });
+
+    final usersSnapshot = await _db.collection('usuarios').get();
+    final batch = _db.batch();
+    var hasWrites = false;
+
+    for (final userDoc in usersSnapshot.docs) {
+      final data = userDoc.data();
+      final updates = <String, dynamic>{};
+      final savedGroups = data['grupos'];
+
+      if (savedGroups is List) {
+        var groupsChanged = false;
+        final updatedGroups =
+            savedGroups.map((group) {
+              if (group is! Map) return group;
+              final updatedGroup = Map<String, dynamic>.from(group);
+              if (updatedGroup['groupId']?.toString() == groupId) {
+                updatedGroup['groupColorValue'] = colorValue;
+                groupsChanged = true;
+              }
+              return updatedGroup;
+            }).toList();
+
+        if (groupsChanged) {
+          updates['grupos'] = updatedGroups;
+        }
+      }
+
+      if (data['grupo_id']?.toString() == groupId) {
+        updates['grupo_color'] = colorValue;
+      }
+
+      if (updates.isNotEmpty) {
+        hasWrites = true;
+        batch.update(userDoc.reference, updates);
+      }
+    }
+
+    if (hasWrites) {
+      await batch.commit();
+    }
+  }
+
+  Future<int?> _resolveBranchColorValue(String branchId) async {
+    final branchSnapshot = await _db.collection('sucursales').doc(branchId).get();
+    return (branchSnapshot.data()?['card_color'] as num?)?.toInt();
   }
 
   @override

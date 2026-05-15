@@ -281,6 +281,7 @@ class _StudentGroupCard extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
+                    final miRol = group.cachedData['rol_en_grupo'] ?? 'alumno';
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -288,7 +289,9 @@ class _StudentGroupCard extends StatelessWidget {
                             (context) => ActivitiesSection(
                               groupName: groupName,
                               groupDocId: group.groupId,
-                              isReadOnly: true,
+                              // Si el rol NO ES 'moderador', entonces isReadOnly será true (bloqueado).
+                              // Si SÍ ES 'moderador', isReadOnly será false (desbloqueado).
+                              isReadOnly: miRol != 'moderador',
                             ),
                       ),
                     );
@@ -409,6 +412,7 @@ List<_StudentGroupData> _parseGroupsFromUserData(
             'id_sucursal': groupMap['branchName'],
             'tipo_cinta': groupMap['beltType'],
             'horario': groupMap['schedule'],
+            'rol_en_grupo': groupMap['rol_en_grupo'],
           },
         );
       })
@@ -429,6 +433,7 @@ Future<void> _saveGroupsToProfile(String uid, List<_StudentGroupData> groups) {
                   '',
               'beltType': group.cachedData['tipo_cinta'] ?? '',
               'schedule': group.cachedData['horario'] ?? '',
+              'rol_en_grupo': group.cachedData['rol_en_grupo'] ?? 'alumno',
             },
           )
           .toList();

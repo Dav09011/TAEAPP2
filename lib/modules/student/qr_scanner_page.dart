@@ -30,14 +30,17 @@ class _QRScannerPageState extends State<QRScannerPage> {
       return;
     }
 
-    if (payload.type != 'ALUMNO') {
-      _showError('Este QR no es para alumnos.');
+    if (payload.type != 'ALUMNO' && payload.type != 'PRIVILEGIADO') {
+      _showError('Este QR no es valido para unirse a grupos.');
       return;
     }
+
+    final rolAsignado = payload.type == 'PRIVILEGIADO' ? 'moderador' : 'alumno';
 
     await _joinGroupById(
       payload.groupId,
       fallbackGroupName: payload.groupName,
+      assignedRole: rolAsignado,
     );
   }
 
@@ -142,19 +145,25 @@ class _QRScannerPageState extends State<QRScannerPage> {
     }
 
     try {
-      final groupQuery =
-          await FirebaseFirestore.instance
-              .collection('grupos')
+      final db = FirebaseFirestore.instance;
+      
+      final groupQueryAlumno = await db.collection('grupos')
               .where('codigo_alumno', isEqualTo: accessCode)
               .limit(1)
               .get();
 
-      if (groupQuery.docs.isEmpty) {
-        _showError('No encontramos un grupo con ese codigo.');
-        return;
-      }
+      final groupQueryPrivilegiado = await db.collection('grupos')
+              .where('codigo_privilegiado', isEqualTo: accessCode)
+              .limit(1)
+              .get();
 
-      await _joinGroupFromSnapshot(groupQuery.docs.first);
+      if (groupQueryAlumno.docs.isNotEmpty) {
+        await _joinGroupFromSnapshot(groupQueryAlumno.docs.first, assignedRole: 'alumno');
+      } else if (groupQueryPrivilegiado.docs.isNotEmpty) {
+        await _joinGroupFromSnapshot(groupQueryPrivilegiado.docs.first, assignedRole: 'moderador');
+      } else {
+        _showError('No encontramos un grupo con ese codigo o ya expiro.');
+      }
     } catch (error) {
       _showError('Error inesperado: $error');
     }
@@ -163,6 +172,7 @@ class _QRScannerPageState extends State<QRScannerPage> {
   Future<void> _joinGroupById(
     String groupId, {
     String? fallbackGroupName,
+    required String assignedRole,
   }) async {
     if (!await _startProcessing()) {
       return;
@@ -180,6 +190,7 @@ class _QRScannerPageState extends State<QRScannerPage> {
       await _joinGroupFromSnapshot(
         groupSnapshot,
         fallbackGroupName: fallbackGroupName,
+        assignedRole: assignedRole,
       );
     } catch (error) {
       _showError('Error inesperado: $error');
@@ -189,6 +200,7 @@ class _QRScannerPageState extends State<QRScannerPage> {
   Future<void> _joinGroupFromSnapshot(
     DocumentSnapshot<Map<String, dynamic>> groupSnapshot, {
     String? fallbackGroupName,
+    required String assignedRole,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -251,6 +263,7 @@ class _QRScannerPageState extends State<QRScannerPage> {
       });
     }
 
+    // Aquí guardamos el rol y limpiamos el documento
     await db.collection('usuarios').doc(user.uid).set({
       'grupos': FieldValue.arrayUnion([
         {
@@ -259,13 +272,9 @@ class _QRScannerPageState extends State<QRScannerPage> {
           'branchName': branchName,
           'beltType': beltType,
           'schedule': schedule,
+          'rol_en_grupo': assignedRole, 
         },
       ]),
-      'grupo_id': groupId,
-      'grupo_nombre': groupName,
-      'grupo_sucursal': branchName,
-      'grupo_cinta': beltType,
-      'grupo_horario': schedule,
     }, SetOptions(merge: true));
 
     if (mounted) {

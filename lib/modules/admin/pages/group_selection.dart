@@ -10,6 +10,8 @@ import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 import 'package:tae_app/modules/admin/widgets/custom_navigation_bar_admin.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async'; // <--- Se agrega esta línea para poder usar el Timer
 
 import 'profile_screen.dart';
@@ -36,14 +38,36 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   int _selectedIndex = 0;
   String? _visibleSuccessMessage;
 
+  String? _miRolGlobal;
+
   @override
   void initState() {
     super.initState();
     _controller.addListener(_handleControllerChanged);
     _controller.initialize(widget.branchDocId);
     _visibleSuccessMessage = widget.successMessage;
+    _buscarMiRolEnFirebase();
   }
 
+  Future<void> _buscarMiRolEnFirebase() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _miRolGlobal = userDoc.data()?['role'] as String?; 
+        });
+      }
+    } catch (e) {
+      print('Error al buscar rol: $e');
+    }
+  }
   @override
   void dispose() {
     _controller
@@ -161,6 +185,15 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   }
 
   Future<void> _confirmDeleteGroup(BranchGroup group) async {
+    // --- EL CANDADO LÓGICO ---
+    if (_miRolGlobal != 'admin') {
+      _showSnackBar(
+        'No tienes permisos para borrar grupos enteros.',
+        backgroundColor: Colors.orange,
+      );
+      return; 
+    }
+    // -------------------------
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder:
@@ -413,17 +446,17 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                         _confirmDeleteGroup(group);
                       }
                     },
-                    itemBuilder:
-                        (context) => const [
-                          PopupMenuItem<String>(
-                            value: 'rename',
-                            child: Text('Cambiar nombre'),
-                          ),
-                          PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Text('Borrar grupo'),
-                          ),
-                        ],
+                    itemBuilder: (context) => [
+                      const PopupMenuItem<String>(
+                        value: 'rename',
+                        child: Text('Cambiar nombre'),
+                      ),        
+                      if (_miRolGlobal == 'admin')
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('Borrar grupo'),
+                        ),
+                    ],
                   ),
                 ),
                 Positioned(
@@ -683,7 +716,7 @@ class _DynamicQRDialogState extends State<_DynamicQRDialog> {
     _generarNuevoCodigo(); // Generamos uno nuevo en cuanto se abre la pantalla
     _iniciarTemporizador();
   }
-
+  
   @override
   void dispose() {
     _timer.cancel(); // ¡Muy importante! Apaga el reloj al cerrar la ventana

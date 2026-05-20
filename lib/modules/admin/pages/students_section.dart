@@ -3,6 +3,7 @@ import 'package:tae_app/features/admin/domain/entities/admin_student.dart';
 import 'package:tae_app/features/admin/presentation/controllers/students_controller.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class StudentsSectionScreen extends StatefulWidget {
   const StudentsSectionScreen({super.key, this.groupName, this.groupDocId});
@@ -45,10 +46,62 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
     }
 
     try {
-      await _controller.deleteStudents(
-        groupId: groupId,
-        studentIds: _selectedStudentIds.toList(),
-      );
+      // --- LÓGICA DE LIMPIEZA PROFUNDA DIRECTO EN LA PANTALLA ---
+      final db = FirebaseFirestore.instance;
+      
+      // 1. Obtenemos la sucursal para actualizar su contador
+      final groupSnap = await db.collection('grupos').doc(groupId).get();
+      final idSucursal = groupSnap.data()?['id_sucursal'] as String?;
+
+      int alumnosBorradosReales = 0;
+
+      // 2. Iteramos sobre los alumnos seleccionados
+      for (final studentDocId in _selectedStudentIds) {
+        final studentRef = db
+            .collection('grupos')
+            .doc(groupId)
+            .collection('alumnos')
+            .doc(studentDocId);
+
+        final studentSnap = await studentRef.get();
+        
+        if (studentSnap.exists) {
+          final uidDelAlumno = studentSnap.data()?['uid'] as String?;
+
+          // A. Borramos al alumno de la clase
+          await studentRef.delete();
+          alumnosBorradosReales++;
+
+          // B. Le quitamos el grupo (y el gafete VIP) de su perfil personal
+          if (uidDelAlumno != null) {
+            final userRef = db.collection('usuarios').doc(uidDelAlumno);
+            final userSnap = await userRef.get();
+            
+            if (userSnap.exists && userSnap.data()?['grupos'] != null) {
+              final List<dynamic> gruposActuales = userSnap.data()!['grupos'];
+              final gruposLimpios = gruposActuales
+                  .where((g) => g['groupId'] != groupId)
+                  .toList();
+              
+              await userRef.update({'grupos': gruposLimpios});
+            }
+          }
+        }
+      }
+
+      // 3. Actualizamos los contadores de Firebase
+      if (alumnosBorradosReales > 0) {
+        await db.collection('grupos').doc(groupId).update({
+          'total_alumnos': FieldValue.increment(-alumnosBorradosReales),
+        });
+
+        if (idSucursal != null && idSucursal.isNotEmpty) {
+          await db.collection('sucursales').doc(idSucursal).update({
+            'participants': FieldValue.increment(-alumnosBorradosReales),
+          });
+        }
+      }
+      // ----------------------------------------------------------
 
       if (mounted) {
         setState(() {
@@ -56,7 +109,7 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Alumnos eliminados correctamente'),
+            content: Text('Alumno(s) eliminado(s) correctamente'),
             backgroundColor: Colors.green,
           ),
         );
@@ -91,7 +144,7 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
       builder:
           (context) => AlertDialog(
             backgroundColor: const Color.fromARGB(255, 250, 250, 250),
-            title: const Text('Confirmar eliminacion'),
+            title: const Text('Confirmar eliminación'),
             titleTextStyle: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 25,

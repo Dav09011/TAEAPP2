@@ -5,6 +5,7 @@ import 'package:tae_app/features/admin/domain/entities/belt_section.dart';
 import 'package:tae_app/features/admin/domain/entities/create_activity_request.dart';
 import 'package:tae_app/features/admin/presentation/controllers/activities_controller.dart';
 import 'package:tae_app/modules/admin/pages/profile_screen.dart';
+import 'package:tae_app/modules/admin/pages/branch_calendar_screen.dart';
 import 'package:tae_app/modules/admin/pages/students_section.dart';
 import 'package:tae_app/modules/admin/pages/wallet_screen.dart';
 import 'package:tae_app/modules/admin/widgets/activities_card.dart';
@@ -17,11 +18,15 @@ class ActivitiesSection extends StatefulWidget {
     super.key,
     this.groupName,
     this.groupDocId,
+    this.branchName,
+    this.branchDocId,
     this.isReadOnly = false,
   });
 
   final String? groupName;
   final String? groupDocId;
+  final String? branchName;
+  final String? branchDocId;
   final bool isReadOnly;
 
   @override
@@ -35,7 +40,13 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
     ActivitiesSectionScreen(
       groupName: widget.groupName,
       groupDocId: widget.groupDocId,
+      branchName: widget.branchName,
+      branchDocId: widget.branchDocId,
       isReadOnly: widget.isReadOnly,
+    ),
+    BranchCalendarScreen(
+      branchId: widget.branchDocId,
+      branchName: widget.branchName,
     ),
     const WalletScreen(),
     const ProfileScreen(
@@ -68,6 +79,8 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
         body: ActivitiesSectionScreen(
           groupName: widget.groupName,
           groupDocId: widget.groupDocId,
+          branchName: widget.branchName,
+          branchDocId: widget.branchDocId,
           isReadOnly: true,
         ),
       );
@@ -101,11 +114,15 @@ class ActivitiesSectionScreen extends StatefulWidget {
     super.key,
     this.groupName,
     this.groupDocId,
+    this.branchName,
+    this.branchDocId,
     this.isReadOnly = false,
   });
 
   final String? groupName;
   final String? groupDocId;
+  final String? branchName;
+  final String? branchDocId;
   final bool isReadOnly;
 
   @override

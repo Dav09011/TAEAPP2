@@ -10,6 +10,7 @@ import 'package:tae_app/modules/admin/widgets/search_bar.dart';
 import 'package:tae_app/shared/presentation/color_customization.dart';
 
 import 'group_selection.dart';
+import 'branch_calendar_screen.dart';
 import 'profile_screen.dart';
 import 'wallet_screen.dart';
 
@@ -25,6 +26,7 @@ class _MainBranchesState extends State<MainBranches> {
 
   final List<Widget> _screens = const [
     BranchesScreen(),
+    BranchCalendarScreen(),
     WalletScreen(),
     ProfileScreen(),
   ];

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tae_app/modules/admin/pages/activities_section.dart';
+import 'package:tae_app/modules/student/branch_calendar_student_screen.dart';
 import 'package:tae_app/modules/student/profile_screen_student.dart';
 import 'package:tae_app/modules/student/qr_scanner_page.dart';
 import 'package:tae_app/modules/student/wallet_screen_student.dart';
@@ -20,6 +21,7 @@ class _HomePageStudentState extends State<HomePageStudent> {
 
   late final List<Widget> _screens = const [
     _StudentHomeScreen(),
+    BranchCalendarStudentScreen(),
     WalletScreenStudent(),
     ProfileScreenStudent(),
   ];

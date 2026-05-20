@@ -38,6 +38,166 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
     }
   }
 
+  Future<void> _showStudentDetails(AdminStudent student) async {
+    if (student.userId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No encontramos informacion adicional del alumno.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final details = await _controller.getStudentDetails(student.userId);
+      if (!mounted) return;
+      final currentGroupName = (widget.groupName ?? '').trim();
+      final resolvedBelt =
+          student.belt.trim().isNotEmpty ? student.belt.trim() : details.belt;
+      final resolvedGroup =
+          currentGroupName.isNotEmpty ? currentGroupName : resolvedBelt;
+
+      showDialog(
+        context: context,
+        builder:
+            (dialogContext) => AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(24, 20, 12, 0),
+              title: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Informacion del alumno',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 22,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 380,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 20,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F7FB),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Column(
+                          children: [
+                            CircleAvatar(
+                              radius: 38,
+                              backgroundImage:
+                                  details.imageUrl.isNotEmpty
+                                      ? NetworkImage(details.imageUrl)
+                                      : const AssetImage('assets/image/Logo.png')
+                                          as ImageProvider,
+                              backgroundColor: Colors.white,
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              details.fullName.isNotEmpty
+                                  ? details.fullName
+                                  : student.name,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                _InfoChip(
+                                  icon: Icons.sports_martial_arts,
+                                  label: 'Cinta',
+                                  value:
+                                      resolvedBelt.isNotEmpty
+                                          ? resolvedBelt
+                                          : 'No registrada',
+                                ),
+                                _InfoChip(
+                                  icon: Icons.groups_2_outlined,
+                                  label: 'Grupo actual',
+                                  value:
+                                      resolvedGroup.isNotEmpty
+                                          ? resolvedGroup
+                                          : 'No registrado',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _DetailCard(
+                        icon: Icons.mail_outline,
+                        label: 'Correo',
+                        value:
+                            details.email.isNotEmpty
+                                ? details.email
+                                : 'No registrado',
+                      ),
+                      const SizedBox(height: 12),
+                      _DetailCard(
+                        icon: Icons.phone_outlined,
+                        label: 'Telefono',
+                        value:
+                            details.phone.isNotEmpty
+                                ? details.phone
+                                : 'No registrado',
+                      ),
+                      const SizedBox(height: 12),
+                      _DetailCard(
+                        icon: Icons.badge_outlined,
+                        label: 'Tipo',
+                        value:
+                            details.role.isNotEmpty
+                                ? details.role
+                                : 'No registrado',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No pudimos cargar la informacion: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _deleteSelectedStudents() async {
     final groupId = widget.groupDocId ?? widget.groupName;
     if (groupId == null || groupId.isEmpty || _selectedStudentIds.isEmpty) {
@@ -282,6 +442,7 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
                                 students: entry.value,
                                 selectedStudentIds: _selectedStudentIds,
                                 onSeeMore: () {},
+                                onViewStudentDetails: _showStudentDetails,
                                 onSelectionChanged: (selectedIdsFromGroup) {
                                   setState(() {
                                     _selectedStudentIds
@@ -317,12 +478,14 @@ class StudentCard extends StatelessWidget {
     required this.image,
     required this.isSelected,
     required this.onTap,
+    required this.onViewDetails,
   });
 
   final String name;
   final String image;
   final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback onViewDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -332,28 +495,35 @@ class StudentCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 70,
-            height: 50,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(
-                image:
-                    image.isNotEmpty
-                        ? NetworkImage(image)
-                        : const AssetImage('assets/image/Logo.png')
-                            as ImageProvider,
-                fit: BoxFit.cover,
+          InkWell(
+            borderRadius: BorderRadius.circular(40),
+            onTap: onViewDetails,
+            child: Container(
+              width: 70,
+              height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: DecorationImage(
+                  image:
+                      image.isNotEmpty
+                          ? NetworkImage(image)
+                          : const AssetImage('assets/image/Logo.png')
+                              as ImageProvider,
+                  fit: BoxFit.cover,
+                ),
+                border: Border.all(color: Colors.white, width: 2),
               ),
-              border: Border.all(color: Colors.white, width: 2),
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            name,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
+          InkWell(
+            onTap: onViewDetails,
+            child: Text(
+              name,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           const SizedBox(height: 2),
           Align(
@@ -385,6 +555,7 @@ class BeltGroup extends StatelessWidget {
     required this.students,
     required this.selectedStudentIds,
     required this.onSeeMore,
+    required this.onViewStudentDetails,
     required this.onSelectionChanged,
   });
 
@@ -392,6 +563,7 @@ class BeltGroup extends StatelessWidget {
   final List<AdminStudent> students;
   final Set<String> selectedStudentIds;
   final VoidCallback onSeeMore;
+  final ValueChanged<AdminStudent> onViewStudentDetails;
   final ValueChanged<Set<String>> onSelectionChanged;
 
   void _toggleSelection(AdminStudent student) {
@@ -450,6 +622,7 @@ class BeltGroup extends StatelessWidget {
                   image: student.imageUrl,
                   isSelected: isSelected,
                   onTap: () => _toggleSelection(student),
+                  onViewDetails: () => onViewStudentDetails(student),
                 ),
               );
             },
@@ -457,6 +630,160 @@ class BeltGroup extends StatelessWidget {
         ),
         const SizedBox(height: 16),
       ],
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: Colors.black87),
+          const SizedBox(width: 8),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black54,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailCard extends StatelessWidget {
+  const _DetailCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F9FB),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE8E8EE)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 20, color: Colors.black87),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

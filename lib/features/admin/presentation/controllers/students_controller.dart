@@ -19,6 +19,10 @@ class StudentsController extends ChangeNotifier {
     return _studentRepository.watchStudentsByGroup(groupId);
   }
 
+  Future<AdminStudent> getStudentDetails(String userId) {
+    return _studentRepository.getStudentDetails(userId);
+  }
+
   void updateSearchQuery(String query) {
     _searchQuery = query;
     notifyListeners();

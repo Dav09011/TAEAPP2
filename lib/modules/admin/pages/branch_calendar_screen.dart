@@ -20,6 +20,8 @@ class BranchCalendarScreen extends StatefulWidget {
 }
 
 class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
+  final ValueNotifier<int> _currentTabIndex = ValueNotifier<int>(0);
+  final PageController _eventPageController = PageController();
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = _normalizeDay(DateTime.now());
   DateTime _selectedDay = _normalizeDay(DateTime.now());
@@ -37,6 +39,13 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
         .collection('sucursales')
         .doc(branchId)
         .collection('eventos');
+  }
+
+  @override
+  void dispose() {
+    _currentTabIndex.dispose();
+    _eventPageController.dispose();
+    super.dispose();
   }
 
   void _showSnackBar(String message, {Color? backgroundColor}) {
@@ -406,6 +415,107 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
     );
   }
 
+  Future<void> _showEventDetailsSheet(_CalendarEvent event) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      builder: (sheetContext) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.title,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _DetailLine(label: 'Tipo', value: event.type),
+                _DetailLine(
+                  label: 'Fecha',
+                  value: DateFormat('EEEE d MMMM y').format(event.date),
+                ),
+                if (event.timeLabel.isNotEmpty)
+                  _DetailLine(label: 'Horario', value: event.timeLabel),
+                _DetailLine(label: 'Repeticion', value: event.repeatLabel),
+                if (event.notes.isNotEmpty) _DetailLine(label: 'Notas', value: event.notes),
+                const SizedBox(height: 18),
+                if (!widget.isReadOnly) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        _showEventDialog(event: event);
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Editar evento'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        _deleteEvent(event);
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Eliminar evento'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC0392B),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                    ),
+                  ),
+                ],
+                if (widget.isReadOnly || !widget.isReadOnly) ...[
+                  if (!widget.isReadOnly) const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      child: const Text('Cerrar'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showEventCarousel(List<_CalendarEvent> allEvents) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => _EventCarouselPage(
+          allEvents: allEvents,
+          selectedDay: _selectedDay,
+          onEventTap: _showEventDetailsSheet,
+          onClose: () => Navigator.of(context).pop(),
+        ),
+      ),
+    );
+  }
+
   Future<void> _deleteEvent(_CalendarEvent event) async {
     final collection = _eventsCollection;
     if (collection == null) return;
@@ -527,161 +637,367 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
                   .toList() ??
               const <_CalendarEvent>[];
           final eventsByDay = _groupEventsByDay(events);
-          final selectedEvents = eventsByDay[_selectedDay] ?? const <_CalendarEvent>[];
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x12000000),
-                        blurRadius: 18,
-                        offset: Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(14),
-                  child: TableCalendar<_CalendarEvent>(
-                    firstDay: _calendarFirstDay,
-                    lastDay: _calendarLastDay,
-                    focusedDay: _focusedDay,
-                    calendarFormat: _calendarFormat,
-                    selectedDayPredicate: (day) => isSameDay(day, _selectedDay),
-                    eventLoader:
-                        (day) => eventsByDay[_normalizeDay(day)] ?? const [],
-                    onDaySelected: (selectedDay, focusedDay) {
-                      setState(() {
-                        _selectedDay = _normalizeDay(selectedDay);
-                        _focusedDay = _normalizeDay(focusedDay);
-                      });
-                    },
-                    onPageChanged: (focusedDay) {
-                      _focusedDay = _normalizeDay(focusedDay);
-                    },
-                    onFormatChanged: (format) {
-                      setState(() {
-                        _calendarFormat = format;
-                      });
-                    },
-                    availableCalendarFormats: const {
-                      CalendarFormat.month: 'Mes',
-                      CalendarFormat.twoWeeks: '2 semanas',
-                      CalendarFormat.week: 'Semana',
-                    },
-                    headerStyle: HeaderStyle(
-                      titleCentered: true,
-                      formatButtonDecoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      formatButtonTextStyle: const TextStyle(color: Colors.white),
-                    ),
-                    calendarStyle: CalendarStyle(
-                      todayDecoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.14),
-                        shape: BoxShape.circle,
-                      ),
-                      selectedDecoration: const BoxDecoration(
-                        color: Colors.black,
-                        shape: BoxShape.circle,
-                      ),
-                      markerDecoration: const BoxDecoration(
-                        color: Color(0xFFC63D2F),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Agenda del dia',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            DateFormat('EEEE d MMMM').format(_selectedDay),
-                            style: const TextStyle(
-                              color: Color(0xFF6D645B),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (!widget.isReadOnly)
-                      ElevatedButton.icon(
-                        onPressed:
-                            () => _showEventDialog(initialDate: _selectedDay),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Agregar'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          foregroundColor: Colors.white,
+         return CustomScrollView(
+  slivers: [
+    // === Calendario ===
+    SliverToBoxAdapter(
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 18,
+              offset: Offset(0, 10),
+            ),
+          ],
+        ),
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        padding: const EdgeInsets.all(14),
+        child: TableCalendar<_CalendarEvent>(
+          firstDay: _calendarFirstDay,
+          lastDay: _calendarLastDay,
+          focusedDay: _focusedDay,
+          calendarFormat: _calendarFormat,
+          selectedDayPredicate: (day) => isSameDay(day, _selectedDay),
+          eventLoader: (day) => eventsByDay[_normalizeDay(day)] ?? const [],
+          onDaySelected: (selectedDay, focusedDay) {
+            setState(() {
+              _selectedDay = _normalizeDay(selectedDay);
+              _focusedDay = _normalizeDay(focusedDay);
+            });
+          },
+          onPageChanged: (focusedDay) {
+            _focusedDay = _normalizeDay(focusedDay);
+          },
+          onFormatChanged: (format) {
+            setState(() => _calendarFormat = format);
+          },
+          availableCalendarFormats: const {
+            CalendarFormat.month: 'Mes',
+            CalendarFormat.twoWeeks: '2 semanas',
+            CalendarFormat.week: 'Semana',
+          },
+          headerStyle: HeaderStyle(
+            titleCentered: true,
+            formatButtonDecoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            formatButtonTextStyle: const TextStyle(color: Colors.white),
+          ),
+          calendarStyle: CalendarStyle(
+            todayDecoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            selectedDecoration: const BoxDecoration(
+              color: Colors.black,
+              shape: BoxShape.circle,
+            ),
+            markerDecoration: const BoxDecoration(
+              color: Color(0xFFC63D2F),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+      ),
+    ),
+
+    // === Tabs Día/Mes/Año + Botón Agregar ===
+    SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: ['Día', 'Mes', 'Año'].asMap().entries.map((entry) {
+                final index = entry.key;
+                final label = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: _currentTabIndex,
+                    builder: (context, currentIndex, _) {
+                      final isSelected = currentIndex == index;
+                      return GestureDetector(
+                        onTap: () {
+                          _eventPageController.animateToPage(
+                            index,
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.easeOut,
+                          );
+                        },
+                        child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+                            horizontal: 12, vertical: 6,
                           ),
-                          shape: RoundedRectangleBorder(
+                          decoration: BoxDecoration(
+                            color: isSelected ? Colors.black : Colors.white,
+                            border: Border.all(
+                              color: Colors.black.withValues(alpha: 0.2),
+                            ),
                             borderRadius: BorderRadius.circular(16),
                           ),
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.black,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
-                      ),
-                  ],
+                      );
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+            if (!widget.isReadOnly)
+              ElevatedButton.icon(
+                onPressed: () => _showEventDialog(initialDate: _selectedDay),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Agregar'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 8,
+                  ),
                 ),
-                const SizedBox(height: 14),
-                if (selectedEvents.isEmpty)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(18),
+              ),
+          ],
+        ),
+      ),
+    ),
+
+    
+
+    // === Lista de eventos ===
+    SliverToBoxAdapter(
+      child: SizedBox(
+        height: 360,
+        child: PageView(
+          controller: _eventPageController,
+          onPageChanged: (index) {
+            _currentTabIndex.value = index;
+          },
+          children: [
+            _EventsSwipeList(
+              events: _getEventsForDay(events, _selectedDay),
+              emptyLabel: 'Sin eventos en este d\u00eda',
+              onEventTap: _showEventDetailsSheet,
+            ),
+            _EventsSwipeList(
+              events: _getEventsForMonth(events, _selectedDay),
+              emptyLabel: 'Sin eventos en este mes',
+              onEventTap: _showEventDetailsSheet,
+            ),
+            _EventsSwipeList(
+              events: _getEventsForYear(events, _selectedDay),
+              emptyLabel: 'Sin eventos en este a\u00f1o',
+              onEventTap: _showEventDetailsSheet,
+            ),
+          ],
+        ),
+      ),
+    ),
+  ],
+);
+        },
+      ),
+    );
+  }
+}
+
+class _EventCarouselPage extends StatefulWidget {
+  const _EventCarouselPage({
+    required this.allEvents,
+    required this.selectedDay,
+    required this.onEventTap,
+    required this.onClose,
+  });
+
+  final List<_CalendarEvent> allEvents;
+  final DateTime selectedDay;
+  final Function(_CalendarEvent) onEventTap;
+  final VoidCallback onClose;
+
+  @override
+  State<_EventCarouselPage> createState() => _EventCarouselPageState();
+}
+
+class _EventCarouselPageState extends State<_EventCarouselPage> {
+  late PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dayEvents = _getEventsForDay(widget.allEvents, widget.selectedDay);
+    final monthEvents = _getEventsForMonth(widget.allEvents, widget.selectedDay);
+    final yearEvents = _getEventsForYear(widget.allEvents, widget.selectedDay);
+
+    final pages = ['Día', 'Mes', 'Año'];
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F4EF),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: const Color(0xFFF7F4EF),
+        iconTheme: const IconThemeData(color: Colors.black),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: widget.onClose,
+        ),
+        title: const Text(
+          'Eventos',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                3,
+                (index) => GestureDetector(
+                  onTap: () {
+                    _pageController.animateToPage(
+                      index,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: _currentPage == index ? Colors.black : Colors.white,
+                      border: Border.all(
+                        color: Colors.black.withValues(alpha: 0.2),
+                      ),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      widget.isReadOnly
-                          ? 'No hay eventos programados para este dia.'
-                          : 'No hay eventos para este dia. Puedes agregar clases, examenes, torneos o recordatorios.',
+                      pages[index],
                       style: TextStyle(
-                        color: Color(0xFF6D645B),
-                        fontWeight: FontWeight.w500,
+                        color: _currentPage == index ? Colors.white : Colors.black,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  )
-                else
-                  Column(
-                    children:
-                        selectedEvents
-                            .map(
-                              (event) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _EventCard(
-                                  event: event,
-                                  onTap: () => _showEventDetails(event),
-                                ),
-                              ),
-                            )
-                            .toList(),
                   ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (index) {
+                setState(() => _currentPage = index);
+              },
+              children: [
+                _EventsListPage(
+                  events: dayEvents,
+                  onEventTap: widget.onEventTap,
+                  pageTitle: 'este día',
+                ),
+                _EventsListPage(
+                  events: monthEvents,
+                  onEventTap: widget.onEventTap,
+                  pageTitle: 'este mes',
+                ),
+                _EventsListPage(
+                  events: yearEvents,
+                  onEventTap: widget.onEventTap,
+                  pageTitle: 'este año',
+                ),
               ],
             ),
-          );
-        },
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _EventsSwipeList extends StatelessWidget {
+  const _EventsSwipeList({
+    required this.events,
+    required this.emptyLabel,
+    required this.onEventTap,
+  });
+
+  final List<_CalendarEvent> events;
+  final String emptyLabel;
+  final void Function(_CalendarEvent event) onEventTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (events.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.calendar_today_outlined,
+                size: 48,
+                color: Colors.black.withValues(alpha: 0.2),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                emptyLabel,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6D645B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+      primary: false,
+      physics: const ClampingScrollPhysics(),
+      itemCount: events.length,
+      itemBuilder: (context, index) {
+        final event = events[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _EventCard(
+            event: event,
+            onTap: () => onEventTap(event),
+          ),
+        );
+      },
     );
   }
 }
@@ -1037,6 +1353,72 @@ enum _RepeatMode { none, daily, weekly, monthly, yearly, custom }
 
 enum _RepeatUnit { days, weeks, months, years }
 
+bool _isSameMonth(DateTime a, DateTime b) {
+  return a.year == b.year && a.month == b.month;
+}
+
+bool _isSameYear(DateTime a, DateTime b) {
+  return a.year == b.year;
+}
+
+List<_CalendarEvent> _getEventsForMonth(List<_CalendarEvent> events, DateTime referenceDay) {
+  final result = <String, _CalendarEvent>{};
+  for (final event in events) {
+    for (final occurrence in _expandOccurrences(event)) {
+      if (occurrence.year == referenceDay.year &&
+          occurrence.month == referenceDay.month) {
+        result[event.id] = event;
+      }
+    }
+  }
+  return result.values.toList()
+    ..sort((a, b) {
+      final aOcc = _expandOccurrences(a)
+          .where((d) => d.year == referenceDay.year && d.month == referenceDay.month)
+          .first;
+      final bOcc = _expandOccurrences(b)
+          .where((d) => d.year == referenceDay.year && d.month == referenceDay.month)
+          .first;
+      return aOcc.compareTo(bOcc);
+    });
+}
+
+List<_CalendarEvent> _getEventsForYear(List<_CalendarEvent> events, DateTime referenceDay) {
+  final result = <String, _CalendarEvent>{};
+  for (final event in events) {
+    for (final occurrence in _expandOccurrences(event)) {
+      if (occurrence.year == referenceDay.year) {
+        result[event.id] = event;
+      }
+    }
+  }
+  return result.values.toList()
+    ..sort((a, b) {
+      final aOcc = _expandOccurrences(a)
+          .where((d) => d.year == referenceDay.year)
+          .first;
+      final bOcc = _expandOccurrences(b)
+          .where((d) => d.year == referenceDay.year)
+          .first;
+      return aOcc.compareTo(bOcc);
+    });
+}
+
+List<_CalendarEvent> _getEventsForDay(List<_CalendarEvent> events, DateTime day) {
+  final normalized = _normalizeDay(day);
+  return events
+      .where((event) {
+        for (final occurrence in _expandOccurrences(event)) {
+          if (occurrence == normalized) {
+            return true;
+          }
+        }
+        return false;
+      })
+      .toList()
+    ..sort((a, b) => a.date.compareTo(b.date));
+}
+
 class _DetailLine extends StatelessWidget {
   const _DetailLine({
     required this.label,
@@ -1070,6 +1452,259 @@ class _DetailLine extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EventCarouselSection extends StatefulWidget {
+  const _EventCarouselSection({
+    required this.allEvents,
+    required this.selectedDay,
+    required this.isReadOnly,
+    required this.onAddEvent,
+     required this.onEventTap,
+  });
+
+  final List<_CalendarEvent> allEvents;
+  final DateTime selectedDay;
+  final bool isReadOnly;
+  final VoidCallback onAddEvent;
+  final Function(_CalendarEvent) onEventTap;
+
+  @override
+  State<_EventCarouselSection> createState() => _EventCarouselSectionState();
+}
+
+class _EventCarouselSectionState extends State<_EventCarouselSection> {
+  late PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dayEvents = _getEventsForDay(widget.allEvents, widget.selectedDay);
+    final monthEvents = _getEventsForMonth(widget.allEvents, widget.selectedDay);
+    final yearEvents = _getEventsForYear(widget.allEvents, widget.selectedDay);
+
+    final pages = ['Día', 'Mes', 'Año'];
+
+    return Container(
+      color: const Color(0xFFF7F4EF),
+      height: 320,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: List.generate(
+                    3,
+                    (index) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: GestureDetector(
+                        onTap: () {
+                          _pageController.animateToPage(
+                            index,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _currentPage == index ? Colors.black : Colors.white,
+                            border: Border.all(
+                              color: Colors.black.withValues(alpha: 0.2),
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            pages[index],
+                            style: TextStyle(
+                              color: _currentPage == index ? Colors.white : Colors.black,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (!widget.isReadOnly)
+                  ElevatedButton.icon(
+                    onPressed: widget.onAddEvent,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Agregar'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (index) {
+                setState(() => _currentPage = index);
+              },
+              children: [
+                _EventCarouselCardView(
+                  events: dayEvents,
+                  pageTitle: 'este día',
+                  onEventTap: widget.onEventTap,
+                ),
+                _EventCarouselCardView(
+                  events: monthEvents,
+                  pageTitle: 'este mes',
+                  onEventTap: widget.onEventTap,
+                ),
+                _EventCarouselCardView(
+                  events: yearEvents,
+                  pageTitle: 'este año',
+                  onEventTap: widget.onEventTap,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EventCarouselCardView extends StatelessWidget {
+  const _EventCarouselCardView({
+    required this.events,
+    required this.pageTitle,
+    required this.onEventTap,
+  });
+
+  final List<_CalendarEvent> events;
+  final String pageTitle;
+  final Function(_CalendarEvent) onEventTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (events.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 48,
+              color: Colors.black.withValues(alpha: 0.2),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Sin eventos en $pageTitle',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6D645B),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+      child: Column(
+        children: events
+            .map(
+              (event) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _EventCard(
+                  event: event,
+                  onTap: () => onEventTap(event),
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+}
+
+class _EventsListPage extends StatelessWidget {
+  const _EventsListPage({
+    required this.events,
+    required this.onEventTap,
+    required this.pageTitle,
+  });
+
+  final List<_CalendarEvent> events;
+  final Function(_CalendarEvent) onEventTap;
+  final String pageTitle;
+
+  @override
+  Widget build(BuildContext context) {
+    if (events.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.calendar_today_outlined,
+                size: 54,
+                color: Colors.black.withValues(alpha: 0.2),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Sin eventos en $pageTitle',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6D645B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      child: Column(
+        children: events
+            .map(
+              (event) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: GestureDetector(
+                  onTap: () => onEventTap(event),
+                  child: _EventCard(
+                    event: event,
+                    onTap: () => onEventTap(event),
+                  ),
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }

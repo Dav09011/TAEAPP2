@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tae_app/app/router/app_routes.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
 import 'package:tae_app/features/admin/domain/entities/admin_profile.dart';
@@ -144,6 +145,111 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ],
           ),
+    );
+  }
+
+  Future<void> _showChangePasswordDialog(String currentEmail) async {
+    final passActualCtrl = TextEditingController();
+    final passNuevaCtrl = TextEditingController();
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder( 
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Cambiar Contraseña', style: TextStyle(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Por seguridad, ingresa tu contraseña actual antes de crear una nueva.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: passActualCtrl,
+                  obscureText: true, 
+                  decoration: const InputDecoration(
+                    labelText: 'Contraseña Actual',
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: passNuevaCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Nueva Contraseña',
+                    prefixIcon: Icon(Icons.lock_reset),
+                    helperText: 'Mínimo 6 caracteres',
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Navigator.pop(context),
+                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: isLoading ? null : () async {
+                  final passActual = passActualCtrl.text;
+                  final passNueva = passNuevaCtrl.text.trim();
+
+                  if (passActual.isEmpty || passNueva.isEmpty) return;
+                  if (passNueva.length < 6) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('La nueva contraseña debe tener al menos 6 caracteres'), backgroundColor: Colors.redAccent),
+                    );
+                    return;
+                  }
+
+                  setStateDialog(() => isLoading = true);
+
+                  try {
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user != null) {
+                      final credential = EmailAuthProvider.credential(
+                        email: currentEmail, 
+                        password: passActual,
+                      );
+                      await user.reauthenticateWithCredential(credential);
+                      await user.updatePassword(passNueva);
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Contraseña actualizada con éxito. ¡Guárdala bien!'), backgroundColor: Colors.green),
+                        );
+                      }
+                    }
+                  } on FirebaseAuthException catch (e) {
+                    if (context.mounted) {
+                      String mensaje = 'Error al cambiar la contraseña.';
+                      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+                        mensaje = 'La contraseña actual es incorrecta.';
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensaje), backgroundColor: Colors.redAccent));
+                    }
+                  } finally {
+                    setStateDialog(() => isLoading = false);
+                  }
+                },
+                child: isLoading 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                  : const Text('Actualizar'),
+              ),
+            ],
+          );
+        }
+      ),
     );
   }
 
@@ -299,6 +405,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: Colors.black,
                               fontWeight: FontWeight.w500,
                             ),
+                          ),
+                        ),
+
+                        const Divider(),
+                        ListTile(
+                          leading: const Icon(Icons.password_outlined),
+                          title: const Text(
+                            'Contraseña',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          subtitle: const Text(
+                            '********', 
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.black,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              size: 20,
+                              color: Colors.blueAccent,
+                            ),
+                            onPressed: () => _showChangePasswordDialog(profile.email),
                           ),
                         ),
                       ],

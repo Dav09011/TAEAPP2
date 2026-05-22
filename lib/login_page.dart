@@ -148,7 +148,7 @@ class _LoginPageState extends State<LoginPage> {
             controller: _passwordController,
             obscureText: _obscureText,
             decoration: InputDecoration(
-              labelText: 'Contrasena',
+              labelText: 'Contraseña',
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscureText ? Icons.visibility_off : Icons.visibility,
@@ -178,7 +178,7 @@ class _LoginPageState extends State<LoginPage> {
             onPressed:
                 () => Navigator.pushNamed(context, AppRoutes.forgotPassword),
             child: const Text(
-              'Olvidaste tu contrasena?',
+              'Olvidaste tu contraseña?',
               style: TextStyle(
                 decoration: TextDecoration.underline,
                 color: Colors.black,

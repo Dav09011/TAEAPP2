@@ -1,119 +1,147 @@
 import 'package:flutter/material.dart';
 import 'package:tae_app/modules/admin/pages/activity_detail_screen.dart';
+import 'package:tae_app/shared/presentation/color_customization.dart';
 
 class ActivitiesCard extends StatelessWidget {
-  final List<Map<String, dynamic>> group;
-
-  final String groupTitle;
-  final String groupId;
-  final bool isReadOnly;
-  final VoidCallback? onAddActivity; // ← Callback opcional
-
-    // 👇 Nuevos callbacks
-  final Function(String activityId, String newName)? onNameChanged;
-  final Function(String activityId)? onDelete;
-
-  // 👇 Nuevo callback para editar el NOMBRE DE LA CINTA
-  final ValueChanged<String>? onBeltNameChanged;
-    
-
-  //const ActivitiesCard({super.key});
   const ActivitiesCard({
     super.key,
     required this.group,
     required this.groupTitle,
     required this.groupId,
+    this.beltColorValue,
     this.isReadOnly = false,
     this.onAddActivity,
-     this.onNameChanged,
+    this.onNameChanged,
     this.onDelete,
-    this.onBeltNameChanged, // ← Aquí
-
+    this.onActivityColorChanged,
+    this.onBeltNameChanged,
+    this.onBeltColorChanged,
+    this.onDeleteBeltSection,
   });
 
-  // Callback para cuando se edite
-  void _handleEdit() {
-    print("Editar $groupTitle");
-    // Aquí puedes abrir un diálogo, navegar, etc.
-  }
+  final List<Map<String, dynamic>> group;
+  final String groupTitle;
+  final String groupId;
+  final int? beltColorValue;
+  final bool isReadOnly;
+  final VoidCallback? onAddActivity;
+  final void Function(String activityId, String newName)? onNameChanged;
+  final void Function(String activityId)? onDelete;
+  final void Function(String activityId, int colorValue)? onActivityColorChanged;
+  final ValueChanged<String>? onBeltNameChanged;
+  final ValueChanged<int>? onBeltColorChanged;
+  final VoidCallback? onDeleteBeltSection;
 
   void _showEditBeltNameDialog(
-  BuildContext context,
-  String currentName,
-  ValueChanged<String>? onConfirm,
-) {
-  final nameController = TextEditingController(text: currentName);
+    BuildContext context,
+    String currentName,
+    ValueChanged<String>? onConfirm,
+  ) {
+    final nameController = TextEditingController(text: currentName);
 
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Editar nombre de la cinta'),
-      content: TextField(
-        controller: nameController,
-        decoration: const InputDecoration(
-          hintText: 'Nuevo nombre',
-          border: OutlineInputBorder(),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: Navigator.of(context).pop,
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          
-          onPressed: () {
-            final newName = nameController.text.trim();
-            if (newName.isNotEmpty && newName != currentName) {
-              onConfirm?.call(newName);
-            } else if (newName == currentName) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('El nombre ya está actualizado')),
-              );
-            }
-            Navigator.of(context).pop();
-          },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 14, 162, 221),
-                foregroundColor: const Color.fromARGB(255, 241, 239, 239), // color del texto
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Editar nombre de la cinta'),
+            content: TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                hintText: 'Nuevo nombre',
+                border: OutlineInputBorder(),
               ),
-          child: const Text('Guardar'),
-        ),
-      ],
-    ),
-  );
-}
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final newName = nameController.text.trim();
+                  if (newName.isNotEmpty && newName != currentName) {
+                    onConfirm?.call(newName);
+                  } else if (newName == currentName) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('El nombre ya esta actualizado.'),
+                      ),
+                    );
+                  }
+                  Navigator.of(dialogContext).pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0EA2DD),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Guardar'),
+              ),
+            ],
+          ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final beltBackgroundColor = resolveCardColor(beltColorValue);
+    final beltForegroundColor = resolveOnColor(beltBackgroundColor);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Encabezado con menú desplegable y botón de agregar
         Row(
           children: [
             if (isReadOnly)
-              Padding(
-                padding: const EdgeInsets.all(8.0),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: beltBackgroundColor,
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 child: Text(
                   groupTitle,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: beltForegroundColor,
+                  ),
                 ),
               )
             else ...[
               GroupHeaderWithMenu(
                 title: groupTitle,
+                backgroundColor: beltBackgroundColor,
+                foregroundColor: beltForegroundColor,
                 onEdit: () {
-                    _showEditBeltNameDialog(context, groupTitle, onBeltNameChanged);
-                  },            
-                  ),
+                  _showEditBeltNameDialog(
+                    context,
+                    groupTitle,
+                    onBeltNameChanged,
+                  );
+                },
+                onChangeColor:
+                    onBeltColorChanged == null
+                        ? null
+                        : () async {
+                          final selectedColor =
+                              await showPresetColorPickerDialog(
+                                context: context,
+                                title: 'Cinta para $groupTitle',
+                                selectedColorValue: beltColorValue,
+                                options: kTaeKwonDoBeltColorOptions,
+                              );
+                          if (selectedColor != null) {
+                            onBeltColorChanged?.call(selectedColor);
+                          }
+                        },
+                onDelete: onDeleteBeltSection,
+              ),
               const SizedBox(width: 25),
               InkWell(
                 onTap: onAddActivity,
                 borderRadius: BorderRadius.circular(8),
                 child: const Padding(
-                  padding: EdgeInsets.all(12.0),
+                  padding: EdgeInsets.all(12),
                   child: Icon(Icons.add_circle_outline, size: 30),
                 ),
               ),
@@ -130,101 +158,69 @@ class ActivitiesCard extends StatelessWidget {
               style: TextStyle(color: Colors.grey[600]),
             ),
           ),
-
-        // Espacio vertical
         const SizedBox(height: 16),
-
-        // Carrusel horizontal de tarjetas
         SizedBox(
-          height: 200, // Altura fija para que se vea bien
+          height: 200,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: group.length,
             itemBuilder: (context, index) {
               final activity = group[index];
-              final String activityId = activity['id'] as String;
+              final activityId = activity['id'] as String;
               return ActivityCard(
                 group: activity,
-                activityId: activityId,      // ✅ Ahora SÍ lo pasamos
+                activityId: activityId,
                 groupId: groupId,
+                fallbackColorValue: beltColorValue,
                 isReadOnly: isReadOnly,
-                onNameChanged: (newName){
-                 onNameChanged?.call(activityId, newName);
+                onNameChanged: (newName) {
+                  onNameChanged?.call(activityId, newName);
                 },
                 onDelete: () {
-                  // 👈 Aquí usas el index que conoces
                   onDelete?.call(activityId);
                 },
-                );
+                onColorChanged:
+                    onActivityColorChanged == null
+                        ? null
+                        : (colorValue) =>
+                            onActivityColorChanged!(activityId, colorValue),
+              );
             },
           ),
         ),
       ],
     );
   }
-
-  // Ese sirve para el menu desplegale al dar tab en el nombre o 3 puntos.
-  PopupMenuButton<String> PopupMenuEditar() {
-    return PopupMenuButton<String>(
-      onSelected: (String? value) async {
-        if (value == 'editar') {
-          print("Editar nombre");
-
-          // Aquí puedes abrir un diálogo, navegar a edición, etc.
-        }
-      },
-      color: Colors.white, // ← Fondo blanco para TODO el menú desplegable
-      //  forma redondeada y sombra
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey[300]!), // Borde sutil
-      ),
-      elevation: 4, // Sombra
-
-
-
-      itemBuilder: (BuildContext context) {
-        return [
-          PopupMenuItem<String>(
-            value: 'editar',
-            // 👇 Esto evita el fondo morado AL SELECCIONAR el ítem
-            child: Container(
-              color: Colors.transparent, // ← ¡Evita el morado de selección!
-              //padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12), // ← Espaciado bonito
-              child: Row(
-                children: [
-                  Icon(Icons.edit, color: Colors.blue, size: 18),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Editar nombre',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ];
-      },
-    );
-  }
 }
 
 class GroupHeaderWithMenu extends StatelessWidget {
-  final String title;
-  final VoidCallback? onEdit; // ← Callback opcional para cuando se edite
+  const GroupHeaderWithMenu({
+    super.key,
+    required this.title,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    this.onEdit,
+    this.onChangeColor,
+    this.onDelete,
+  });
 
-  const GroupHeaderWithMenu({super.key, required this.title, this.onEdit});
+  final String title;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final VoidCallback? onEdit;
+  final VoidCallback? onChangeColor;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
       onSelected: (value) {
         if (value == 'editar') {
-          onEdit?.call(); // ← Llama al callback si existe
+          onEdit?.call();
+        } else if (value == 'color') {
+          onChangeColor?.call();
+        } else if (value == 'delete') {
+          onDelete?.call();
         }
       },
       color: Colors.white,
@@ -233,30 +229,36 @@ class GroupHeaderWithMenu extends StatelessWidget {
         side: BorderSide(color: Colors.grey[300]!),
       ),
       elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(14),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.more_vert, size: 20),
+            Icon(Icons.more_vert, size: 20, color: foregroundColor),
             const SizedBox(width: 8),
             Text(
-              title, // ← ¡Texto dinámico!
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              title,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: foregroundColor,
+              ),
             ),
           ],
         ),
       ),
-      itemBuilder: (BuildContext context) {
-        return [
-          PopupMenuItem<String>(
-            value: 'editar',
-            child: Container(
-              color: Colors.transparent,
+      itemBuilder:
+          (context) => const [
+            PopupMenuItem<String>(
+              value: 'editar',
               child: Row(
                 children: [
                   Icon(Icons.edit, color: Colors.blue, size: 18),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Text(
                     'Editar nombre',
                     style: TextStyle(
@@ -268,85 +270,121 @@ class GroupHeaderWithMenu extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ];
-      },
+            PopupMenuItem<String>(
+              value: 'color',
+              child: Row(
+                children: [
+                  Icon(Icons.palette_outlined, color: Colors.deepPurple, size: 18),
+                  SizedBox(width: 12),
+                  Text(
+                    'Cambiar color',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                  SizedBox(width: 12),
+                  Text(
+                    'Eliminar seccion',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
     );
   }
 }
 
-// Tarjeta individual
 class ActivityCard extends StatelessWidget {
-  final Map<String, dynamic> group;
-  final String activityId;  // ✅ NUEVO: ID de la actividad
-  final String groupId;      // ✅ NUEVO: ID del grupo
-  final bool isReadOnly;
-  // 👇 Nuevos callbacks para editar/eliminar actividades
-  final ValueChanged<String>? onNameChanged; // ✅ Solo el nuevo nombre
-  final VoidCallback? onDelete;              // ✅ Sin parámetros
-  final VoidCallback? onTap; // Para manejar el tap y la navegación
-  
-
   const ActivityCard({
     super.key,
     required this.group,
-    required this.activityId,   // ✅ NUEVO: Obligatorio
+    required this.activityId,
     required this.groupId,
+    this.fallbackColorValue,
     this.isReadOnly = false,
     this.onNameChanged,
     this.onDelete,
-    this.onTap, // Recibe el callback
-    });
-  
-  
+    this.onColorChanged,
+  });
+
+  final Map<String, dynamic> group;
+  final String activityId;
+  final String groupId;
+  final int? fallbackColorValue;
+  final bool isReadOnly;
+  final ValueChanged<String>? onNameChanged;
+  final VoidCallback? onDelete;
+  final ValueChanged<int>? onColorChanged;
 
   @override
   Widget build(BuildContext context) {
+    final backgroundColor = resolveCardColor(
+      group['colorValue'] as int?,
+      fallback: resolveCardColor(fallbackColorValue),
+    );
+    final foregroundColor = resolveOnColor(backgroundColor);
+
     return Container(
-      width: 220, // ← Ancho fijo para cada tarjeta
-      margin: EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+      width: 220,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.3),
             blurRadius: 4,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Padding(
-        padding: EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Título
             Text(
-              group['name'],
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              group['name']?.toString() ?? 'Actividad',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: foregroundColor,
+              ),
             ),
-            SizedBox(height: 8),
-
-            // Lista de ejercicios
+            const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(
                 shrinkWrap: true,
-                physics:
-                    NeverScrollableScrollPhysics(), // ← Evita conflicto de scrolls
-                itemCount: group['exercises']?.length ?? 0,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: (group['exercises'] as List?)?.length ?? 0,
                 itemBuilder: (context, index) {
+                  final exercises = (group['exercises'] as List?) ?? const [];
                   return Text(
-                    '${group['exercises'][index]}',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                    '${exercises[index]}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: foregroundColor.withOpacity(0.82),
+                    ),
                   );
                 },
               ),
             ),
-
-            SizedBox(height: 12),
-
-            // Botones
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -354,154 +392,226 @@ class ActivityCard extends StatelessWidget {
                   const SizedBox.shrink()
                 else
                   IconButton(
-                    icon: const Icon(Icons.edit_note_sharp, size: 20),
+                    icon: Icon(
+                      Icons.edit_note_sharp,
+                      size: 20,
+                      color: foregroundColor,
+                    ),
                     onPressed: () => _showEditDialog(context),
                   ),
                 if (isReadOnly)
                   const SizedBox(width: 24)
                 else
                   IconButton(
-                    icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                    icon: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: foregroundColor,
+                    ),
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ActivityDetailScreen(
-                            activityId: activityId,
-                            groupId: groupId,
-                            activityName: group['name'],
-                            exercises: List<String>.from(group['exercises']),
-                          ),
+                          builder:
+                              (context) => ActivityDetailScreen(
+                                activityId: activityId,
+                                groupId: groupId,
+                                activityName: group['name'],
+                                exercises: List<String>.from(
+                                  group['exercises'] as List? ?? const [],
+                                ),
+                              ),
                         ),
                       );
                     },
-                  )
+                  ),
               ],
             ),
           ],
         ),
       ),
-
-      
     );
   }
 
-  // 🗂️ Diálogo principal: Editar nombre o Eliminar
   void _showEditNameDialog(BuildContext context) {
-  final nameController = TextEditingController(text: group['name']); // ✅ group, no activity
-  final String activityId = group['id'] as String; // 🚨 Obtén el ID aquí
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Editar nombre'),
-      content: TextField(
-        controller: nameController,
-        decoration: const InputDecoration(
-          hintText: 'Nuevo nombre',
-          border: OutlineInputBorder(),
+    final nameController = TextEditingController(
+      text: group['name']?.toString() ?? '',
+    );
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Editar nombre'),
+            content: TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                hintText: 'Nuevo nombre',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final newName = nameController.text.trim();
+                  if (newName.isNotEmpty) {
+                    onNameChanged?.call(newName);
+                  }
+                  Navigator.of(dialogContext).pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0EA2DD),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Guardar'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Eliminar actividad'),
+            content: Text(
+              'Se eliminara la actividad "${group['name']}". Esta accion no se puede deshacer.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  onDelete?.call();
+                  Navigator.of(dialogContext).pop();
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text(
+                  'Eliminar',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Opciones de actividad',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Cerrar',
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Que deseas hacer con esta actividad?',
+                    style: TextStyle(fontSize: 18, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 24),
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 14,
+                    children: [
+                      _buildActionButton(
+                        label: 'Editar nombre',
+                        backgroundColor: const Color(0xFF0B8EE6),
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          _showEditNameDialog(context);
+                        },
+                      ),
+                      _buildActionButton(
+                        label: 'Cambiar color',
+                        backgroundColor: const Color(0xFF7E57C2),
+                        onPressed: () async {
+                          Navigator.of(dialogContext).pop();
+                          final selectedColor = await showPresetColorPickerDialog(
+                            context: context,
+                            title: 'Color para ${group['name']}',
+                            selectedColorValue: group['colorValue'] as int?,
+                          );
+                          if (selectedColor != null) {
+                            onColorChanged?.call(selectedColor);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Center(
+                    child: _buildActionButton(
+                      label: 'Eliminar',
+                      backgroundColor: const Color(0xFFB10202),
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop();
+                        _showDeleteConfirmation(context);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required Color backgroundColor,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: 170,
+      height: 56,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor: Colors.white,
+          textStyle: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        onPressed: onPressed,
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: Navigator.of(context).pop,
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          
-          onPressed: () {
-            final newName = nameController.text.trim();
-            if (newName.isNotEmpty) {
-              onNameChanged?.call(newName);
-            }
-            Navigator.of(context).pop();
-          },
-
-          style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 14, 162, 221),
-                foregroundColor: const Color.fromARGB(255, 241, 239, 239), // color del texto
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-          child: const Text('Guardar'),
-        ),
-      ],
-    ),
-  );
+    );
+  }
 }
-
- 
-      // 🗑️ Diálogo de confirmación para eliminar
-      
-      void _showDeleteConfirmation(BuildContext context) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('¿Eliminar actividad?'),
-          content: Text('Se eliminará la actividad "${group['name']}".\nEsta acción no se puede deshacer.'), // ✅ group
-          actions: [
-            TextButton(
-              onPressed: Navigator.of(context).pop,
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              
-              onPressed: () {
-                onDelete?.call();
-                Navigator.of(context).pop();
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // 🗂️ Diálogo principal: muestra las opciones "Editar nombre" y "Eliminar"
-    void _showEditDialog(BuildContext context) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Opciones de actividad'),
-          content: const Text('¿Qué deseas hacer con esta actividad?'),
-          actions: [
-            TextButton(
-              onPressed: Navigator.of(context).pop,
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 11, 142, 230),
-                foregroundColor: const Color.fromARGB(255, 54, 54, 54), // color del texto
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showEditNameDialog(context); // ← Abre edición de nombre
-              },
-              
-
-
-              
-              child: const Text('Editar nombre', 
-              style: TextStyle(color: Color.fromARGB(255, 238, 238, 238)),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 177, 2, 2),
-                foregroundColor: const Color.fromARGB(255, 54, 54, 54), // color del texto
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showDeleteConfirmation(context); // ← Abre confirmación de eliminación
-              },
-              child: const Text('Eliminar', style: TextStyle(color: Color.fromARGB(255, 253, 253, 253))),
-            ),
-          ],
-        ),
-      );
-    }
-}
-

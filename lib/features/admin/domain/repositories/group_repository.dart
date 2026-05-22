@@ -13,6 +13,11 @@ abstract class GroupRepository {
     required String newName,
   });
 
+  Future<void> updateGroupColor({
+    required String groupId,
+    required int colorValue,
+  });
+
   Future<void> deleteGroup({
     required String branchId,
     required String groupId,

@@ -52,6 +52,15 @@ class BranchGroupsController extends ChangeNotifier {
     );
   }
 
+  Future<void> updateGroupColor(BranchGroup group, int colorValue) {
+    return _runMutation(
+      () => _groupRepository.updateGroupColor(
+        groupId: group.id,
+        colorValue: colorValue,
+      ),
+    );
+  }
+
   Future<void> deleteGroup(BranchGroup group) {
     return _runMutation(
       () => _groupRepository.deleteGroup(

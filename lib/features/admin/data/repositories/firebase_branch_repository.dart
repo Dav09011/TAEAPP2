@@ -30,6 +30,7 @@ class FirebaseBranchRepository implements BranchRepository {
                       classesCount: (doc.data()['classes'] as num?)?.toInt() ?? 0,
                       participantsCount:
                           (doc.data()['participants'] as num?)?.toInt() ?? 0,
+                      cardColorValue: (doc.data()['card_color'] as num?)?.toInt(),
                     ),
                   )
                   .toList(),
@@ -79,6 +80,35 @@ class FirebaseBranchRepository implements BranchRepository {
     }
 
     await _syncUsersAfterBranchRename(oldName: oldName, newName: newName);
+  }
+
+  @override
+  Future<void> updateBranchColor({
+    required String branchId,
+    required int colorValue,
+  }) async {
+    await _db.collection('sucursales').doc(branchId).update({
+      'card_color': colorValue,
+    });
+
+    final groupsSnapshot =
+        await _db
+            .collection('grupos')
+            .where('id_sucursal', isEqualTo: branchId)
+            .get();
+
+    if (groupsSnapshot.docs.isNotEmpty) {
+      final batch = _db.batch();
+      for (final groupDoc in groupsSnapshot.docs) {
+        batch.update(groupDoc.reference, {'color_sucursal': colorValue});
+      }
+      await batch.commit();
+    }
+
+    await _syncUsersAfterBranchColorUpdate(
+      branchId: branchId,
+      colorValue: colorValue,
+    );
   }
 
   @override
@@ -211,6 +241,65 @@ class FirebaseBranchRepository implements BranchRepository {
       if (snapshot.docs.length < 100) {
         break;
       }
+    }
+  }
+
+  Future<void> _syncUsersAfterBranchColorUpdate({
+    required String branchId,
+    required int colorValue,
+  }) async {
+    final usersSnapshot = await _db.collection('usuarios').get();
+    final batch = _db.batch();
+    var hasWrites = false;
+
+    for (final userDoc in usersSnapshot.docs) {
+      final data = userDoc.data();
+      final updates = <String, dynamic>{};
+      final savedGroups = data['grupos'];
+
+      if (savedGroups is List) {
+        var groupsChanged = false;
+        final updatedGroups =
+            savedGroups.map((group) {
+              if (group is! Map) return group;
+              final updatedGroup = Map<String, dynamic>.from(group);
+              if (updatedGroup['branchId']?.toString() == branchId) {
+                updatedGroup['branchColorValue'] = colorValue;
+                groupsChanged = true;
+              }
+              return updatedGroup;
+            }).toList();
+
+        if (groupsChanged) {
+          updates['grupos'] = updatedGroups;
+        }
+
+        final currentGroupId = data['grupo_id']?.toString();
+        if (currentGroupId != null && currentGroupId.isNotEmpty) {
+          Map<String, dynamic>? currentGroup;
+          for (final group in updatedGroups) {
+            if (group is! Map) continue;
+            final groupMap = Map<String, dynamic>.from(group);
+            if (groupMap['groupId']?.toString() == currentGroupId) {
+              currentGroup = groupMap;
+              break;
+            }
+          }
+          if (currentGroup != null) {
+            updates['grupo_color_sucursal'] =
+                currentGroup['branchColorValue'] ?? colorValue;
+          }
+        }
+      }
+
+      if (updates.isNotEmpty) {
+        hasWrites = true;
+        batch.update(userDoc.reference, updates);
+      }
+    }
+
+    if (hasWrites) {
+      await batch.commit();
     }
   }
 

@@ -227,6 +227,8 @@ class _QRScannerPageState extends State<QRScannerPage> {
     final beltType = groupData['tipo_cinta']?.toString() ?? '';
     final branchId = groupData['id_sucursal']?.toString() ?? '';
     final schedule = groupData['horario']?.toString() ?? '';
+    final branchColorValue = (groupData['color_sucursal'] as num?)?.toInt();
+    final groupColorValue = (groupData['group_card_color'] as num?)?.toInt();
     final branchName = await _resolveBranchName(
       db: db,
       groupId: groupId,
@@ -257,8 +259,11 @@ class _QRScannerPageState extends State<QRScannerPage> {
           'groupId': groupId,
           'groupName': groupName,
           'branchName': branchName,
+          'branchId': branchId,
           'beltType': beltType,
           'schedule': schedule,
+          'branchColorValue': branchColorValue,
+          'groupColorValue': groupColorValue,
         },
       ]),
       'grupo_id': groupId,
@@ -266,6 +271,8 @@ class _QRScannerPageState extends State<QRScannerPage> {
       'grupo_sucursal': branchName,
       'grupo_cinta': beltType,
       'grupo_horario': schedule,
+      'grupo_color_sucursal': branchColorValue,
+      'grupo_color': groupColorValue,
     }, SetOptions(merge: true));
 
     if (mounted) {

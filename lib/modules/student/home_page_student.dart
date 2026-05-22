@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tae_app/modules/admin/pages/activities_section.dart';
+import 'package:tae_app/modules/student/branch_calendar_student_screen.dart';
 import 'package:tae_app/modules/student/profile_screen_student.dart';
 import 'package:tae_app/modules/student/qr_scanner_page.dart';
 import 'package:tae_app/modules/student/wallet_screen_student.dart';
 import 'package:tae_app/modules/student/widgets/custom_navigation_bar_student.dart';
+import 'package:tae_app/shared/presentation/color_customization.dart';
 
 class HomePageStudent extends StatefulWidget {
   const HomePageStudent({super.key});
@@ -19,6 +21,7 @@ class _HomePageStudentState extends State<HomePageStudent> {
 
   late final List<Widget> _screens = const [
     _StudentHomeScreen(),
+    BranchCalendarStudentScreen(),
     WalletScreenStudent(),
     ProfileScreenStudent(),
   ];
@@ -206,12 +209,23 @@ class _StudentGroupCard extends StatelessWidget {
         final schedule =
             (groupData['horario'] as String?) ?? 'Horario pendiente';
         final totalStudents = groupData['total_alumnos'] ?? 0;
+        final branchColorValue =
+            (groupData['color_sucursal'] as num?)?.toInt() ??
+            (group.cachedData['color_sucursal'] as num?)?.toInt();
+        final groupColorValue =
+            (groupData['group_card_color'] as num?)?.toInt() ??
+            (group.cachedData['group_card_color'] as num?)?.toInt();
+        final backgroundColor = resolveCardColor(
+          groupColorValue,
+          fallback: resolveCardColor(branchColorValue),
+        );
+        final foregroundColor = resolveOnColor(backgroundColor);
 
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: backgroundColor,
             borderRadius: BorderRadius.circular(20),
             boxShadow: const [
               BoxShadow(
@@ -230,14 +244,15 @@ class _StudentGroupCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       groupName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
+                        color: foregroundColor,
                       ),
                     ),
                   ),
                   PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: Colors.black87),
+                    icon: Icon(Icons.more_vert, color: foregroundColor),
                     onSelected: (value) async {
                       if (value == 'leave_group') {
                         final shouldLeave = await _showLeaveGroupDialog(
@@ -264,17 +279,33 @@ class _StudentGroupCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              _InfoRow(label: 'Sucursal', value: branchName),
-              _InfoRow(label: 'Cinta', value: beltType),
-              _InfoRow(label: 'Horario', value: schedule),
-              _InfoRow(label: 'Integrantes', value: '$totalStudents'),
+              _InfoRow(
+                label: 'Sucursal',
+                value: branchName,
+                textColor: foregroundColor,
+              ),
+              _InfoRow(
+                label: 'Cinta',
+                value: beltType,
+                textColor: foregroundColor,
+              ),
+              _InfoRow(
+                label: 'Horario',
+                value: schedule,
+                textColor: foregroundColor,
+              ),
+              _InfoRow(
+                label: 'Integrantes',
+                value: '$totalStudents',
+                textColor: foregroundColor,
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
+                    backgroundColor: foregroundColor,
+                    foregroundColor: backgroundColor,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -331,6 +362,8 @@ Future<List<_StudentGroupData>> _loadStudentGroups(
           'id_sucursal': safeUserData['grupo_sucursal'],
           'tipo_cinta': safeUserData['grupo_cinta'],
           'horario': safeUserData['grupo_horario'],
+          'color_sucursal': safeUserData['grupo_color_sucursal'],
+          'group_card_color': safeUserData['grupo_color'],
         },
       ),
     ];
@@ -406,9 +439,11 @@ List<_StudentGroupData> _parseGroupsFromUserData(
           cachedData: {
             'nombre_grupo': groupMap['groupName'],
             'nombre_sucursal': groupMap['branchName'],
-            'id_sucursal': groupMap['branchName'],
+            'id_sucursal': groupMap['branchId'] ?? groupMap['branchName'],
             'tipo_cinta': groupMap['beltType'],
             'horario': groupMap['schedule'],
+            'color_sucursal': groupMap['branchColorValue'],
+            'group_card_color': groupMap['groupColorValue'],
           },
         );
       })
@@ -427,8 +462,12 @@ Future<void> _saveGroupsToProfile(String uid, List<_StudentGroupData> groups) {
                   group.cachedData['nombre_sucursal'] ??
                   group.cachedData['id_sucursal'] ??
                   '',
+              'branchId':
+                  group.cachedData['id_sucursal'] ?? '',
               'beltType': group.cachedData['tipo_cinta'] ?? '',
               'schedule': group.cachedData['horario'] ?? '',
+              'branchColorValue': group.cachedData['color_sucursal'],
+              'groupColorValue': group.cachedData['group_card_color'],
             },
           )
           .toList();
@@ -444,6 +483,8 @@ Future<void> _saveGroupsToProfile(String uid, List<_StudentGroupData> groups) {
           '',
       'grupo_cinta': groups.first.cachedData['tipo_cinta'] ?? '',
       'grupo_horario': groups.first.cachedData['horario'] ?? '',
+      'grupo_color_sucursal': groups.first.cachedData['color_sucursal'],
+      'grupo_color': groups.first.cachedData['group_card_color'],
     },
   }, SetOptions(merge: true));
 }
@@ -471,6 +512,8 @@ Future<void> _clearSavedGroups(String uid) {
     'grupo_sucursal': FieldValue.delete(),
     'grupo_cinta': FieldValue.delete(),
     'grupo_horario': FieldValue.delete(),
+    'grupo_color_sucursal': FieldValue.delete(),
+    'grupo_color': FieldValue.delete(),
   }, SetOptions(merge: true));
 }
 
@@ -592,20 +635,31 @@ class _InlineGroupMessage extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
+  final Color? textColor;
 
-  const _InfoRow({required this.label, required this.value});
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.textColor,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final resolvedTextColor =
+        textColor ?? DefaultTextStyle.of(context).style.color ?? Colors.black87;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: RichText(
         text: TextSpan(
-          style: const TextStyle(color: Colors.black87, fontSize: 16),
+          style: TextStyle(color: resolvedTextColor, fontSize: 16),
           children: [
             TextSpan(
               text: '$label: ',
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: resolvedTextColor,
+              ),
             ),
             TextSpan(text: value),
           ],

@@ -11,7 +11,9 @@ import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 import 'package:tae_app/modules/admin/widgets/custom_navigation_bar_admin.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tae_app/shared/presentation/color_customization.dart';
+import 'dart:async';
 import 'profile_screen.dart';
 import 'wallet_screen.dart';
 
@@ -37,14 +39,36 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   String? _visibleSuccessMessage;
   bool _isSavingCategories = false;
 
+  String? _miRolGlobal;
+
   @override
   void initState() {
     super.initState();
     _controller.addListener(_handleControllerChanged);
     _controller.initialize(widget.branchDocId);
     _visibleSuccessMessage = widget.successMessage;
+    _buscarMiRolEnFirebase();
   }
 
+  Future<void> _buscarMiRolEnFirebase() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _miRolGlobal = userDoc.data()?['role'] as String?;
+        });
+      }
+    } catch (e) {
+      print('Error al buscar rol: $e');
+    }
+  }
   @override
   void dispose() {
     _controller
@@ -162,6 +186,15 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   }
 
   Future<void> _confirmDeleteGroup(BranchGroup group) async {
+    // --- EL CANDADO LÓGICO ---
+    if (_miRolGlobal != 'admin') {
+      _showSnackBar(
+        'No tienes permisos para borrar grupos enteros.',
+        backgroundColor: Colors.orange,
+      );
+      return;
+    }
+    // -------------------------
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder:
@@ -843,21 +876,21 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                         _confirmDeleteGroup(group);
                       }
                     },
-                    itemBuilder:
-                        (context) => const [
-                          PopupMenuItem<String>(
-                            value: 'rename',
-                            child: Text('Cambiar nombre'),
-                          ),
-                          PopupMenuItem<String>(
-                            value: 'color',
-                            child: Text('Cambiar color'),
-                          ),
-                          PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Text('Borrar grupo'),
-                          ),
-                        ],
+                    itemBuilder: (context) => [
+                      const PopupMenuItem<String>(
+                        value: 'rename',
+                        child: Text('Cambiar nombre'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'color',
+                        child: Text('Cambiar color'),
+                      ),
+                      if (_miRolGlobal == 'admin')
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('Borrar grupo'),
+                        ),
+                    ],
                   ),
                 ),
                 Positioned(
@@ -995,119 +1028,21 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     );
   }
 
-  Future<void> _showQRCode(
+  void _showQRCode(
     BuildContext context,
     BranchGroup group, {
     required String tipo,
-  }) async {
+  }) {
     final esPrivilegiado = tipo == 'privilegiado';
-    final accessCodes = await _ensureGroupAccessCodes(group);
-    if (!mounted) return;
-    if (!context.mounted) return;
-    final accessCode =
-        esPrivilegiado ? accessCodes.privilegedCode : accessCodes.studentCode;
-
-    final qrData =
-        esPrivilegiado
-            ? 'PRIVILEGIADO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}|Codigo:$accessCode'
-            : 'ALUMNO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}|Codigo:$accessCode';
 
     showDialog(
       context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: esPrivilegiado ? Colors.amber[700] : Colors.black,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          esPrivilegiado
-                              ? Icons.admin_panel_settings_outlined
-                              : Icons.school_outlined,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          esPrivilegiado ? 'Usuario Privilegiado' : 'Alumno',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    group.name,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    widget.branchName,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 20),
-                  QrImageView(
-                    data: qrData,
-                    version: QrVersions.auto,
-                    size: 220,
-                    backgroundColor: Colors.white,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'O ingresa el codigo:',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatAccessCode(accessCode),
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2.0,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    esPrivilegiado
-                        ? 'Escanea para registrar acceso privilegiado'
-                        : 'Si el alumno no puede escanear, puede escribir este codigo',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                  ),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Cerrar',
-                      style: TextStyle(color: Colors.black, fontSize: 16),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+      barrierDismissible: false,
+      builder: (context) => _DynamicQRDialog(
+        group: group,
+        branchName: widget.branchName,
+        esPrivilegiado: esPrivilegiado,
+      ),
     );
   }
 
@@ -1280,4 +1215,196 @@ class _GroupAccessCodes {
 
   final String studentCode;
   final String privilegedCode;
+}
+
+// ============================================================
+// WIDGET DEL CÓDIGO QR DINÁMICO (Con Temporizador)
+// ============================================================
+class _DynamicQRDialog extends StatefulWidget {
+  final BranchGroup group;
+  final String branchName;
+  final bool esPrivilegiado;
+
+  const _DynamicQRDialog({
+    required this.group,
+    required this.branchName,
+    required this.esPrivilegiado,
+  });
+
+  @override
+  State<_DynamicQRDialog> createState() => _DynamicQRDialogState();
+}
+
+class _DynamicQRDialogState extends State<_DynamicQRDialog> {
+  late Timer _timer;
+  int _timeLeft = 120; // 2 minutos exactos en segundos
+  String _currentCode = '';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _generarNuevoCodigo(); // Generamos uno nuevo en cuanto se abre la pantalla
+    _iniciarTemporizador();
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel(); // ¡Muy importante! Apaga el reloj al cerrar la ventana
+    super.dispose();
+  }
+
+  void _iniciarTemporizador() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_timeLeft > 0) {
+        if (mounted) setState(() => _timeLeft--);
+      } else {
+        // Se acabó el tiempo: Reiniciamos a 120 y forzamos código nuevo
+        _timeLeft = 120;
+        _generarNuevoCodigo();
+      }
+    });
+  }
+
+  Future<void> _generarNuevoCodigo() async {
+    if (mounted) setState(() => _isLoading = true);
+
+    // 1. Fabricamos un código de 6 dígitos aleatorio basado en el tiempo
+    final millis = DateTime.now().millisecondsSinceEpoch;
+    final int seed = widget.esPrivilegiado ? 1 : 0;
+    final nuevoCodigo = (100000 + ((millis + seed) % 900000)).toString();
+
+    // 2. Lo guardamos inmediatamente en Firebase
+    final groupRef = FirebaseFirestore.instance.collection('grupos').doc(widget.group.id);
+    final campoActualizar = widget.esPrivilegiado ? 'codigo_privilegiado' : 'codigo_alumno';
+
+    await groupRef.set({
+      campoActualizar: nuevoCodigo,
+      // Opcional: Podrías guardar la fecha de expiración si el scanner lo necesita
+      // 'expiracion_$campoActualizar': DateTime.now().add(const Duration(minutes: 2)).toIso8601String(),
+    }, SetOptions(merge: true));
+
+    // 3. Actualizamos la pantalla con el nuevo código
+    if (mounted) {
+      setState(() {
+        _currentCode = nuevoCodigo;
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatAccessCode(String code) {
+    if (code.length != 6) return code;
+    return '${code.substring(0, 3)} ${code.substring(3, 6)}';
+  }
+
+  String _formatTime(int totalSeconds) {
+    final m = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final s = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Generamos la cadena exacta que leerá tu escáner
+    final qrData = widget.esPrivilegiado
+        ? 'PRIVILEGIADO|GrupoId:${widget.group.id}|Grupo:${widget.group.name}|Sucursal:${widget.branchName}|Codigo:$_currentCode'
+        : 'ALUMNO|GrupoId:${widget.group.id}|Grupo:${widget.group.name}|Sucursal:${widget.branchName}|Codigo:$_currentCode';
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: widget.esPrivilegiado ? Colors.amber[700] : Colors.black,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.esPrivilegiado ? Icons.admin_panel_settings_outlined : Icons.school_outlined,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    widget.esPrivilegiado ? 'Usuario Privilegiado' : 'Alumno',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(widget.group.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(widget.branchName, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+            const SizedBox(height: 15),
+
+            // === EL RELOJ TEMPORIZADOR ===
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: _timeLeft <= 10 ? Colors.red[50] : Colors.grey[100], // Se pone rojo en los últimos 10 seg
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.timer_outlined, size: 18, color: _timeLeft <= 10 ? Colors.red : Colors.grey[700]),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Expira en: ${_formatTime(_timeLeft)}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: _timeLeft <= 10 ? Colors.red : Colors.grey[700],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // === EL QR Y EL CÓDIGO ===
+            if (_isLoading)
+              const SizedBox(height: 220, child: Center(child: CircularProgressIndicator(color: Colors.black)))
+            else ...[
+              QrImageView(
+                data: qrData,
+                version: QrVersions.auto,
+                size: 220,
+                backgroundColor: Colors.white,
+              ),
+              const SizedBox(height: 12),
+              Text('O ingresa el codigo:', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+              const SizedBox(height: 4),
+              Text(
+                _formatAccessCode(_currentCode),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2.0, color: Colors.black87),
+              ),
+            ],
+
+            const SizedBox(height: 12),
+            Text(
+              widget.esPrivilegiado
+                  ? 'Escanea para registrar acceso privilegiado'
+                  : 'Si el alumno no puede escanear, puede escribir este codigo',
+              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar', style: TextStyle(color: Colors.black, fontSize: 16)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

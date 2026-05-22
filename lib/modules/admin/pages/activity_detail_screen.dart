@@ -71,8 +71,12 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
             title: const Text('Agregar ejercicio'),
             content: TextField(
               controller: controller,
+              minLines: 3,
+              maxLines: 6,
               decoration: const InputDecoration(
-                labelText: 'Nombre del ejercicio',
+                labelText: 'Descripcion del ejercicio',
+                hintText:
+                    'Ej: Explica la tecnica, postura, repeticiones o detalles importantes.',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -139,8 +143,10 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
             title: const Text('Editar ejercicio'),
             content: TextField(
               controller: controller,
+              minLines: 3,
+              maxLines: 6,
               decoration: const InputDecoration(
-                labelText: 'Nuevo nombre',
+                labelText: 'Nueva descripcion',
                 border: OutlineInputBorder(),
               ),
             ),

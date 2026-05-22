@@ -1,4 +1,3 @@
-// cash_payment_requests.dart
 import 'package:flutter/material.dart';
 
 
@@ -10,15 +9,30 @@ class CashPaymentRequestsScreen extends StatefulWidget {
       _CashPaymentRequestsScreenState();
 }
 
-class _CashPaymentRequestsScreenState
-    extends State<CashPaymentRequestsScreen> {
+class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
+  // Datos de prueba (manteniendo tu lógica actual)
   final List<Map<String, String>> _todosLosAlumnos = [
-    {'nombre': 'Maribel Castillo', 'inscripcion': '1,500', 'grupo': 'Cinta Blanca'},
+    {
+      'nombre': 'Maribel Castillo',
+      'inscripcion': '1,500',
+      'grupo': 'Cinta Blanca',
+    },
     {'nombre': 'Jose Jose', 'inscripcion': '1,500', 'grupo': 'Cinta Blanca'},
-    {'nombre': 'Nancy Herrera', 'inscripcion': '1,500', 'grupo': 'Cinta Blanca'},
-    {'nombre': 'Josue De Vicente', 'inscripcion': '1,500', 'grupo': 'Cinta Blanca'},
-    {'nombre': 'Israel García', 'inscripcion': '1,500', 'grupo': 'Cinta Amarilla'},
-    
+    {
+      'nombre': 'Nancy Herrera',
+      'inscripcion': '1,500',
+      'grupo': 'Cinta Blanca',
+    },
+    {
+      'nombre': 'Josue De Vicente',
+      'inscripcion': '1,500',
+      'grupo': 'Cinta Blanca',
+    },
+    {
+      'nombre': 'Israel García',
+      'inscripcion': '1,500',
+      'grupo': 'Cinta Amarilla',
+    },
   ];
 
   late List<Map<String, String>> _alumnosMostrados;
@@ -34,14 +48,16 @@ class _CashPaymentRequestsScreenState
   void _filtrarAlumnos(String query) {
     setState(() {
       _busqueda = query;
-      if (query.isEmpty) {
-        _alumnosMostrados = List.from(_todosLosAlumnos);
-      } else {
-        _alumnosMostrados = _todosLosAlumnos
-            .where((alumno) =>
-                alumno['nombre']!.toLowerCase().contains(query.toLowerCase()))
-            .toList();
-      }
+      _alumnosMostrados =
+          query.isEmpty
+              ? List.from(_todosLosAlumnos)
+              : _todosLosAlumnos
+                  .where(
+                    (alumno) => alumno['nombre']!.toLowerCase().contains(
+                      query.toLowerCase(),
+                    ),
+                  )
+                  .toList();
     });
   }
 
@@ -55,180 +71,343 @@ class _CashPaymentRequestsScreenState
     });
   }
 
- void _confirmarSeleccionados() {
-  if (_alumnosSeleccionados.isEmpty) {
+  void _procesarPagoIndividual(String nombre, bool aprobado) {
+    setState(() {
+      _todosLosAlumnos.removeWhere((a) => a['nombre'] == nombre);
+      _alumnosMostrados.removeWhere((a) => a['nombre'] == nombre);
+      _alumnosSeleccionados.remove(nombre);
+    });
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Selecciona al menos un alumno')),
+      SnackBar(
+        content: Text(
+          aprobado ? 'Pago de $nombre aprobado.' : 'Solicitud rechazada.',
+        ),
+        backgroundColor: aprobado ? Colors.green : Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
-    return;
   }
 
-  showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        backgroundColor: const Color.fromARGB(255, 247, 247, 247),
-        title: const Text('Confirmar inscripciones'),
-        content: SizedBox(
-          width: double.maxFinite, // Asegura que use todo el ancho disponible
-          child: ListView.builder(
-            shrinkWrap: true,        // ← Clave: ajusta al contenido
-            primary: false,          // ← Clave: evita scroll conflictivo
-            itemCount: _alumnosSeleccionados.length,
-            itemBuilder: (context, index) {
-              final nombre = _alumnosSeleccionados.elementAt(index);
-              return ListTile(
-                leading: const Icon(Icons.person, color: Colors.purple),
-                title: Text(nombre),
-              );
-            },
+  void _confirmarSeleccionados() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+          title: const Text('Confirmar pagos'),
+          content: Text(
+            '¿Aprobar el pago de ${_alumnosSeleccionados.length} alumnos?',
           ),
-          ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Confirmados ${_alumnosSeleccionados.length} alumnos'),
-                ),
-              );
-              setState(() {
-                _alumnosSeleccionados.clear();
-              });
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple,
-              foregroundColor: Colors.white,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
             ),
-            child: const Text('Confirmar'),
-          ),
-        ],
-      );
-    },
-  );
-}
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _todosLosAlumnos.removeWhere(
+                    (a) => _alumnosSeleccionados.contains(a['nombre']),
+                  );
+                  _alumnosMostrados.removeWhere(
+                    (a) => _alumnosSeleccionados.contains(a['nombre']),
+                  );
+                  _alumnosSeleccionados.clear();
+                });
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color.fromARGB(255, 41, 53, 119),
+              ),
+              child: const Text(
+                'Aprobar todos',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    const primaryColor = Color.fromARGB(255, 41, 53, 119);
+    final bool modoMultiSeleccion = _alumnosSeleccionados.isNotEmpty;
+
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        titleTextStyle: TextStyle(color: Colors.white,fontSize: 20) ,
-        title: const Text('Solicitudes de pago en efectivo'),
-        backgroundColor: const Color.fromARGB(255, 41, 53, 119),
-        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Campo de búsqueda
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xffe1e3eb),
-                borderRadius: BorderRadius.circular(20),
+      floatingActionButton:
+          modoMultiSeleccion
+              ? FloatingActionButton.extended(
+                onPressed: _confirmarSeleccionados,
+                backgroundColor: primaryColor,
+                label: Text(
+                  'Aprobar ${_alumnosSeleccionados.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                icon: const Icon(Icons.check, color: Colors.white),
+              )
+              : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // --- TARJETA DE CABECERA (ESTILO WALLET) ---
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+              vertical: 8.0,
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 16.0,
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  color: Colors.grey.withOpacity(0.2),
+                  width: 2.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      onChanged: _filtrarAlumnos,
-                      decoration: const InputDecoration(
-                        hintText: 'Buscar alumno por nombre',
-                        border: InputBorder.none,
-                        hintStyle: TextStyle(color: Color.fromARGB(255, 194, 191, 191)),
-                      ),
+                  const Text(
+                    'SOLICITUDES EN EFECTIVO',
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                      color: Colors.black,
                     ),
                   ),
-                  const Icon(Icons.search, color: Colors.grey),
+                  const SizedBox(height: 12),
+                  // Buscador dentro de la tarjeta
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xfff1f3f6),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 2,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.search, color: Colors.grey),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            onChanged: _filtrarAlumnos,
+                            decoration: const InputDecoration(
+                              hintText: 'Buscar alumno...',
+                              border: InputBorder.none,
+                              hintStyle: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+          ),
 
-            // Descripción
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Bandeja de entrada',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(
+                  height: 4,
+                ), // Espacio pequeño entre el título y la instrucción
+                const Text(
+                  'Desliza a la derecha para aprobar, a la izquierda para rechazar, o selecciona varios para procesar en bloque.',
+                  style: TextStyle(
+                    fontSize: 13, // Tamaño compacto para no saturar la vista
+                    color: Colors.grey,
+                    height: 1.2, // Ajusta el interlineado para que se lea mejor
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // --- LISTA DE SOLICITUDES ---
+          Expanded(
+            child:
+                _alumnosMostrados.isEmpty
+                    ? const Center(
+                      child: Text('No hay solicitudes pendientes.'),
+                    )
+                    : ListView.builder(
+                      padding: const EdgeInsets.only(
+                        left: 20,
+                        right: 20,
+                        bottom: 100,
+                      ),
+                      itemCount: _alumnosMostrados.length,
+                      itemBuilder: (context, index) {
+                        final alumno = _alumnosMostrados[index];
+                        final nombre = alumno['nombre']!;
+                        final seleccionado = _alumnosSeleccionados.contains(
+                          nombre,
+                        );
+
+                        return Dismissible(
+                          key: Key(nombre),
+                          background: _buildSwipeBackground(
+                            Colors.green,
+                            Icons.check,
+                            Alignment.centerLeft,
+                          ),
+                          secondaryBackground: _buildSwipeBackground(
+                            Colors.red,
+                            Icons.close,
+                            Alignment.centerRight,
+                          ),
+                          onDismissed:
+                              (dir) => _procesarPagoIndividual(
+                                nombre,
+                                dir == DismissDirection.startToEnd,
+                              ),
+                          child: _buildStudentCard(
+                            alumno,
+                            seleccionado,
+                            primaryColor,
+                            modoMultiSeleccion,
+                          ),
+                        );
+                      },
+                    ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentCard(
+    Map<String, String> alumno,
+    bool seleccionado,
+    Color primaryColor,
+    bool modoMulti,
+  ) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: seleccionado ? primaryColor : Colors.grey.withOpacity(0.15),
+          width: seleccionado ? 2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () => _toggleSeleccion(alumno['nombre']!),
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color:
+                      seleccionado
+                          ? primaryColor.withOpacity(0.1)
+                          : Colors.green.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  seleccionado ? Icons.check : Icons.person_outline,
+                  color: seleccionado ? primaryColor : Colors.green,
+                ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+              const SizedBox(width: 15),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Solicitudes de pago en efectivo',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    Text(
+                      alumno['nombre']!,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Se muestran todos los alumnos que hicieron el proceso de pago y aún no se ha confirmado la inscripción.',
-                      style: TextStyle(fontSize: 14, color: Colors.grey),
+                    Text(
+                      alumno['grupo']!,
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-
-            // Lista de alumnos
-            Expanded(
-              child: ListView.separated(
-                itemCount: _alumnosMostrados.length,
-                separatorBuilder: (context, index) => const Divider(height: 16),
-                itemBuilder: (context, index) {
-                  final alumno = _alumnosMostrados[index];
-                  final nombre = alumno['nombre']!;
-                  final seleccionado = _alumnosSeleccionados.contains(nombre);
-
-                  return Card(
-                    child: CheckboxListTile(
-                      value: seleccionado,
-                      onChanged: (value) => _toggleSeleccion(nombre),
-                      title: Text(nombre),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Pago realizado.'),
-                          Text('Inscripción: \$${alumno['inscripcion']}'),
-                          Text('Grupo: ${alumno['grupo']}'),
-                        ],
-                      ),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      checkColor: Colors.white,
-                      activeColor: Colors.green,
-                    ),
-                  );
-                },
-              ),
-            ),
-
-            // Botón "Confirmar"
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: ElevatedButton.icon(
-                onPressed: _confirmarSeleccionados,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Confirmar seleccionados'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(255, 29, 92, 143),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+              Text(
+                '\$${alumno['inscripcion']}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: primaryColor,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSwipeBackground(Color color, IconData icon, Alignment align) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      alignment: align,
+      child: Icon(icon, color: Colors.white, size: 30),
     );
   }
 }

@@ -11,7 +11,8 @@ class TaeApp extends StatelessWidget {
       title: 'TAE App',
       debugShowCheckedModeBanner: false,
       initialRoute: AppRoutes.login,
+      routes: AppRouter.routes, // Usar el mapa de rutas
       onGenerateRoute: AppRouter.onGenerateRoute,
-    );
+    ); // Manejar rutas dinámicas);
   }
 }

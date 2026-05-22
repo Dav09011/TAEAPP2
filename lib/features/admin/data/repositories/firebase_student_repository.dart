@@ -27,10 +27,30 @@ class FirebaseStudentRepository implements StudentRepository {
                       name: doc.data()['nombre'] as String? ?? 'Sin nombre',
                       imageUrl: doc.data()['imagen'] as String? ?? '',
                       belt: doc.data()['cinta'] as String? ?? 'Sin cinta',
+                      userId: doc.data()['uid'] as String? ?? '',
                     ),
                   )
                   .toList(),
         );
+  }
+
+  @override
+  Future<AdminStudent> getStudentDetails(String userId) async {
+    final userDoc = await _db.collection('usuarios').doc(userId).get();
+    final data = userDoc.data() ?? const <String, dynamic>{};
+
+    return AdminStudent(
+      id: userId,
+      userId: userId,
+      name: data['nombre'] as String? ?? 'Sin nombre',
+      lastName: data['ap'] as String? ?? '',
+      middleName: data['am'] as String? ?? '',
+      imageUrl: data['imagen'] as String? ?? '',
+      belt: data['grupo_cinta'] as String? ?? 'Sin cinta',
+      email: data['correo'] as String? ?? '',
+      phone: data['telefono'] as String? ?? '',
+      role: data['tipo'] as String? ?? '',
+    );
   }
 
   @override

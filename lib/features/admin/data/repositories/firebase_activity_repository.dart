@@ -24,7 +24,13 @@ class FirebaseActivityRepository implements ActivityRepository {
         .map(
           (snapshot) =>
               snapshot.docs
-                  .map((doc) => BeltSection(id: doc.id, name: doc.id))
+                  .map(
+                    (doc) => BeltSection(
+                      id: doc.id,
+                      name: doc.id,
+                      colorValue: (doc.data()['color_value'] as num?)?.toInt(),
+                    ),
+                  )
                   .toList(),
         );
   }
@@ -55,6 +61,7 @@ class FirebaseActivityRepository implements ActivityRepository {
                               .toList(),
                       beltSection:
                           doc.data()['cinta_seccion'] as String? ?? beltName,
+                      colorValue: (doc.data()['color_value'] as num?)?.toInt(),
                     ),
                   )
                   .toList(),
@@ -77,6 +84,7 @@ class FirebaseActivityRepository implements ActivityRepository {
           'nombre_actividad': request.activityName,
           'ejercicios': request.exercises,
           'cinta_seccion': request.beltName,
+          'color_value': null,
           'fecha_creacion': FieldValue.serverTimestamp(),
         });
   }
@@ -97,6 +105,7 @@ class FirebaseActivityRepository implements ActivityRepository {
         .doc(beltName)
         .set({
           'nombre_cinta': beltName,
+          'color_value': null,
           'fecha_creacion': FieldValue.serverTimestamp(),
         });
   }
@@ -178,6 +187,63 @@ class FirebaseActivityRepository implements ActivityRepository {
         .collection('secciones_cinta')
         .doc(oldName)
         .delete();
+  }
+
+  @override
+  Future<void> deleteBeltSection({
+    required String groupId,
+    required String beltName,
+  }) async {
+    final activitiesSnapshot =
+        await _db
+            .collection('grupos')
+            .doc(groupId)
+            .collection('actividades')
+            .where('cinta_seccion', isEqualTo: beltName)
+            .get();
+
+    if (activitiesSnapshot.docs.isNotEmpty) {
+      final batch = _db.batch();
+      for (final doc in activitiesSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+
+    await _db
+        .collection('grupos')
+        .doc(groupId)
+        .collection('secciones_cinta')
+        .doc(beltName)
+        .delete();
+  }
+
+  @override
+  Future<void> updateBeltSectionColor({
+    required String groupId,
+    required String beltName,
+    required int colorValue,
+  }) {
+    return _db
+        .collection('grupos')
+        .doc(groupId)
+        .collection('secciones_cinta')
+        .doc(beltName)
+        .set({'color_value': colorValue}, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> updateActivityColor({
+    required String groupId,
+    required String activityId,
+    required int colorValue,
+  }) {
+    return _db
+        .collection('grupos')
+        .doc(groupId)
+        .collection('actividades')
+        .doc(activityId)
+        .update({'color_value': colorValue});
   }
 
   @override

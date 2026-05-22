@@ -104,6 +104,46 @@ class ActivitiesController extends ChangeNotifier {
     );
   }
 
+  Future<void> deleteBeltSection({
+    required String groupId,
+    required String beltName,
+  }) {
+    return _runMutation(
+      () => _activityRepository.deleteBeltSection(
+        groupId: groupId,
+        beltName: beltName,
+      ),
+    );
+  }
+
+  Future<void> updateBeltSectionColor({
+    required String groupId,
+    required String beltName,
+    required int colorValue,
+  }) {
+    return _runMutation(
+      () => _activityRepository.updateBeltSectionColor(
+        groupId: groupId,
+        beltName: beltName,
+        colorValue: colorValue,
+      ),
+    );
+  }
+
+  Future<void> updateActivityColor({
+    required String groupId,
+    required String activityId,
+    required int colorValue,
+  }) {
+    return _runMutation(
+      () => _activityRepository.updateActivityColor(
+        groupId: groupId,
+        activityId: activityId,
+        colorValue: colorValue,
+      ),
+    );
+  }
+
   Future<void> _runMutation(Future<void> Function() action) async {
     _isMutating = true;
     notifyListeners();

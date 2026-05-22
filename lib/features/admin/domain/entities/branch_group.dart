@@ -6,6 +6,7 @@ class BranchGroup {
     required this.beltType,
     required this.schedule,
     required this.totalStudents,
+    this.cardColorValue,
   });
 
   final String id;
@@ -14,4 +15,5 @@ class BranchGroup {
   final String beltType;
   final String schedule;
   final int totalStudents;
+  final int? cardColorValue;
 }

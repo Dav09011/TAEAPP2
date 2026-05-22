@@ -9,4 +9,5 @@ abstract final class AppRoutes {
   static const wallet = '/wallet';
   static const walletFees = '/wallet-fees';
   static const walletStudentStatus = '/wallet-student-status';
+  static const String cashPayments = '/cash-payments';
 }

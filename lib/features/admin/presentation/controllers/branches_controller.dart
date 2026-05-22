@@ -75,6 +75,15 @@ class BranchesController extends ChangeNotifier {
     );
   }
 
+  Future<void> updateBranchColor(Branch branch, int colorValue) {
+    return _runMutation(
+      () => _branchRepository.updateBranchColor(
+        branchId: branch.id,
+        colorValue: colorValue,
+      ),
+    );
+  }
+
   Future<void> deleteBranch(Branch branch) {
     return _runMutation(
       () => _branchRepository.deleteBranch(

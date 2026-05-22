@@ -10,6 +10,7 @@ class BranchListView extends StatelessWidget {
     required this.icon,
     this.onTap,
     this.onRename,
+    this.onChangeColor,
     this.onDelete,
   });
 
@@ -18,6 +19,7 @@ class BranchListView extends StatelessWidget {
   final IconData icon;
   final void Function(Branch branch)? onTap;
   final void Function(Branch branch)? onRename;
+  final void Function(Branch branch)? onChangeColor;
   final void Function(Branch branch)? onDelete;
 
   @override
@@ -33,6 +35,8 @@ class BranchListView extends StatelessWidget {
           icon: icon,
           onTap: onTap == null ? null : () => onTap!(branch),
           onRename: onRename == null ? null : () => onRename!(branch),
+          onChangeColor:
+              onChangeColor == null ? null : () => onChangeColor!(branch),
           onDelete: onDelete == null ? null : () => onDelete!(branch),
         );
       },

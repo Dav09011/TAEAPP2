@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tae_app/features/admin/domain/entities/branch.dart';
 import 'package:tae_app/modules/admin/pages/group_selection.dart';
+import 'package:tae_app/shared/presentation/color_customization.dart';
 
 class BranchCard extends StatelessWidget {
   const BranchCard({
@@ -10,6 +11,7 @@ class BranchCard extends StatelessWidget {
     required this.icon,
     this.onTap,
     this.onRename,
+    this.onChangeColor,
     this.onDelete,
   });
 
@@ -18,10 +20,14 @@ class BranchCard extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final VoidCallback? onRename;
+  final VoidCallback? onChangeColor;
   final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
+    final backgroundColor = resolveCardColor(branch.cardColorValue);
+    final foregroundColor = resolveOnColor(backgroundColor);
+
     return Center(
       child: InkWell(
         onTap:
@@ -44,7 +50,7 @@ class BranchCard extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 26),
           padding: const EdgeInsets.all(26),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
             boxShadow: const [
               BoxShadow(
@@ -66,9 +72,10 @@ class BranchCard extends StatelessWidget {
                         Flexible(
                           child: Text(
                             branch.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 23,
                               fontWeight: FontWeight.bold,
+                              color: foregroundColor,
                             ),
                           ),
                         ),
@@ -78,14 +85,14 @@ class BranchCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
-                            color: Colors.grey[700],
+                            color: foregroundColor.withOpacity(0.82),
                           ),
                         ),
                         Text(
                           '${branch.participantsCount} participantes',
                           style: TextStyle(
                             fontSize: 18,
-                            color: Colors.grey[500],
+                            color: foregroundColor.withOpacity(0.68),
                           ),
                         ),
                       ],
@@ -95,7 +102,7 @@ class BranchCard extends StatelessWidget {
                   Icon(
                     icon,
                     size: 50,
-                    color: const Color.fromARGB(255, 57, 56, 56),
+                    color: foregroundColor,
                   ),
                 ],
               ),
@@ -107,6 +114,8 @@ class BranchCard extends StatelessWidget {
                   onSelected: (value) {
                     if (value == 'rename') {
                       onRename?.call();
+                    } else if (value == 'color') {
+                      onChangeColor?.call();
                     } else if (value == 'delete') {
                       onDelete?.call();
                     }
@@ -116,6 +125,10 @@ class BranchCard extends StatelessWidget {
                         PopupMenuItem<String>(
                           value: 'rename',
                           child: Text('Cambiar nombre'),
+                        ),
+                        PopupMenuItem<String>(
+                          value: 'color',
+                          child: Text('Cambiar color'),
                         ),
                         PopupMenuItem<String>(
                           value: 'delete',

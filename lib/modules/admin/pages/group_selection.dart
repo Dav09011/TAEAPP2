@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
@@ -5,11 +6,12 @@ import 'package:tae_app/features/admin/domain/entities/branch_group.dart';
 import 'package:tae_app/features/admin/domain/entities/create_group_request.dart';
 import 'package:tae_app/features/admin/presentation/controllers/branch_groups_controller.dart';
 import 'package:tae_app/modules/admin/pages/activities_section.dart';
+import 'package:tae_app/modules/admin/pages/branch_calendar_screen.dart';
 import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 import 'package:tae_app/modules/admin/widgets/custom_navigation_bar_admin.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
-
+import 'package:tae_app/shared/presentation/color_customization.dart';
 import 'profile_screen.dart';
 import 'wallet_screen.dart';
 
@@ -33,6 +35,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   final BranchGroupsController _controller = BranchGroupsController();
   int _selectedIndex = 0;
   String? _visibleSuccessMessage;
+  bool _isSavingCategories = false;
 
   @override
   void initState() {
@@ -91,6 +94,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
       await _controller.createGroup(
         CreateGroupRequest(
           branchId: widget.branchDocId,
+          branchName: widget.branchName,
           name: groupName,
           beltType: beltType,
           schedule: schedule,
@@ -196,6 +200,371 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     }
   }
 
+  Future<void> _showGroupColorDialog(BranchGroup group) async {
+    final selectedColor = await showPresetColorPickerDialog(
+      context: context,
+      title: 'Cinta para ${group.name}',
+      selectedColorValue: group.cardColorValue,
+      options: kTaeKwonDoBeltColorOptions,
+    );
+
+    if (selectedColor == null || selectedColor == group.cardColorValue) {
+      return;
+    }
+
+    try {
+      await _controller.updateGroupColor(group, selectedColor);
+      _showSnackBar(
+        'Color actualizado para "${group.name}".',
+        backgroundColor: Colors.green,
+      );
+    } catch (error) {
+      _showSnackBar(
+        'No pudimos actualizar el color del grupo: $error',
+        backgroundColor: Colors.red,
+      );
+    }
+  }
+
+  Future<void> _pickCategoryColor({
+    int? selectedColorValue,
+    required ValueChanged<int> onSelected,
+  }) async {
+    final colorValue = await showPresetColorPickerDialog(
+      context: context,
+      title: 'Color para la cinta',
+      selectedColorValue: selectedColorValue,
+      options: _categoryPaletteOptions,
+    );
+
+    if (colorValue != null) {
+      onSelected(colorValue);
+    }
+  }
+
+  Future<void> _saveBranchCategories(List<_BranchCategory> categories) async {
+    try {
+      setState(() {
+        _isSavingCategories = true;
+      });
+      await FirebaseFirestore.instance
+          .collection('sucursales')
+          .doc(widget.branchDocId)
+          .set({
+            'available_belts':
+                categories
+                    .map(
+                      (category) => {
+                        'label': category.label,
+                        'color_value': category.colorValue,
+                      },
+                    )
+                    .toList(),
+          }, SetOptions(merge: true));
+      _showSnackBar(
+        'Categorias actualizadas para ${widget.branchName}.',
+        backgroundColor: Colors.green,
+      );
+    } catch (error) {
+      _showSnackBar(
+        'No pudimos guardar las categorias: $error',
+        backgroundColor: Colors.red,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingCategories = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showCategoriesPopup(List<_BranchCategory> initialCategories) async {
+    final nameController = TextEditingController();
+    var draftCategories = initialCategories
+        .map((category) => category.copyWith())
+        .toList();
+    var draftColorValue = 0xFFF4D03F;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> saveDraft(List<_BranchCategory> categories) async {
+              await _saveBranchCategories(categories);
+              if (mounted && dialogContext.mounted) {
+                setDialogState(() {
+                  draftCategories =
+                      categories.map((category) => category.copyWith()).toList();
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Categorias de la sucursal'),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (draftCategories.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE5D7C7)),
+                          ),
+                          child: const Text(
+                            'Aun no hay categorias. Agrega la primera cinta disponible para esta sucursal.',
+                            style: TextStyle(
+                              color: Color(0xFF6E6154),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ...draftCategories.map((category) {
+                        final optionColor = Color(category.colorValue);
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: optionColor.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: optionColor.withValues(alpha: 0.5),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 14,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: optionColor,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  category.label,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF2E2722),
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed:
+                                    _isSavingCategories
+                                        ? null
+                                        : () => _pickCategoryColor(
+                                          selectedColorValue: category.colorValue,
+                                          onSelected: (colorValue) async {
+                                            final updated =
+                                                draftCategories
+                                                    .map(
+                                                      (item) =>
+                                                          item.label ==
+                                                                  category.label
+                                                              ? item.copyWith(
+                                                                colorValue:
+                                                                    colorValue,
+                                                              )
+                                                              : item,
+                                                    )
+                                                    .toList();
+                                            await saveDraft(updated);
+                                          },
+                                        ),
+                                tooltip: 'Cambiar color',
+                                icon: const Icon(Icons.palette_outlined),
+                              ),
+                              IconButton(
+                                onPressed:
+                                    _isSavingCategories
+                                        ? null
+                                        : () async {
+                                          final updated =
+                                              draftCategories
+                                                  .where(
+                                                    (item) =>
+                                                        item.label.toLowerCase() !=
+                                                        category.label
+                                                            .toLowerCase(),
+                                                  )
+                                                  .toList();
+                                          await saveDraft(updated);
+                                        },
+                                tooltip: 'Eliminar categoria',
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.62),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0xFFE5D7C7)),
+                        ),
+                        child: Column(
+                          children: [
+                            TextField(
+                              controller: nameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Nombre de la cinta',
+                                hintText: 'Ej. Roja Avanzada',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed:
+                                        _isSavingCategories
+                                            ? null
+                                            : () => _pickCategoryColor(
+                                              selectedColorValue:
+                                                  draftColorValue,
+                                              onSelected: (colorValue) {
+                                                setDialogState(() {
+                                                  draftColorValue = colorValue;
+                                                });
+                                              },
+                                            ),
+                                    icon: Icon(
+                                      Icons.palette_outlined,
+                                      color: Color(draftColorValue),
+                                    ),
+                                    label: const Text('Elegir color'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    color: Color(draftColorValue),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.10,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed:
+                                    _isSavingCategories
+                                        ? null
+                                        : () async {
+                                          final label = nameController.text.trim();
+                                          if (label.isEmpty) {
+                                            _showSnackBar(
+                                              'Escribe el nombre de la cinta.',
+                                              backgroundColor: Colors.orange,
+                                            );
+                                            return;
+                                          }
+
+                                          final alreadyExists =
+                                              draftCategories.any(
+                                                (item) =>
+                                                    item.label.toLowerCase() ==
+                                                    label.toLowerCase(),
+                                              );
+                                          if (alreadyExists) {
+                                            _showSnackBar(
+                                              'Esa categoria ya existe en esta sucursal.',
+                                              backgroundColor: Colors.orange,
+                                            );
+                                            return;
+                                          }
+
+                                          final updated = [
+                                            ...draftCategories,
+                                            _BranchCategory(
+                                              label: label,
+                                              colorValue: draftColorValue,
+                                            ),
+                                          ];
+                                          await saveDraft(updated);
+                                          if (dialogContext.mounted) {
+                                            setDialogState(() {
+                                              nameController.clear();
+                                              draftColorValue = 0xFFF4D03F;
+                                            });
+                                          }
+                                        },
+                                icon:
+                                    _isSavingCategories
+                                        ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                        : const Icon(Icons.add),
+                                label: Text(
+                                  _isSavingCategories
+                                      ? 'Guardando...'
+                                      : 'Agregar categoria',
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2B221C),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cerrar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    nameController.dispose();
+  }
+
   Widget _buildGroupsContent() {
     return SafeArea(
       child: SingleChildScrollView(
@@ -247,34 +616,58 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                 ),
               ],
               const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap:
-                        _controller.isMutating
-                            ? null
-                            : () => _openAddGroupDialog(context),
-                    child: const Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Agregar Grupo  ',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream:
+                    FirebaseFirestore.instance
+                        .collection('sucursales')
+                        .doc(widget.branchDocId)
+                        .snapshots(),
+                builder: (context, snapshot) {
+                  final categories = _parseBranchCategories(snapshot.data?.data());
+                  return Row(
+                    children: [
+                      _buildCategoriesCard(categories),
+                      const Spacer(),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap:
+                              _controller.isMutating
+                                  ? null
+                                  : () => _openAddGroupDialog(context),
+                          borderRadius: BorderRadius.circular(18),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF7F0E8),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: const Color(0xFFE2D2BF),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Agregar Grupo',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(Icons.add_circle_outline),
+                              ],
                             ),
                           ),
-                          SizedBox(width: 5),
-                          Icon(Icons.add_circle_outline),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 20),
               StreamBuilder<List<BranchGroup>>(
@@ -321,7 +714,42 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     );
   }
 
+  Widget _buildCategoriesCard(List<_BranchCategory> categories) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showCategoriesPopup(categories),
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F0E8),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2D2BF)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Categorias',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              SizedBox(width: 8),
+              Icon(Icons.open_in_new_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildGroupCard(BranchGroup group) {
+    final backgroundColor = resolveCardColor(group.cardColorValue);
+    final foregroundColor = resolveOnColor(backgroundColor);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxCardWidth =
@@ -333,7 +761,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             margin: const EdgeInsets.only(bottom: 26),
             padding: const EdgeInsets.all(26),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: backgroundColor,
               borderRadius: BorderRadius.circular(12),
               boxShadow: const [
                 BoxShadow(
@@ -354,6 +782,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                             (context) => ActivitiesSection(
                               groupName: group.name,
                               groupDocId: group.id,
+                              branchName: widget.branchName,
+                              branchDocId: widget.branchDocId,
                             ),
                       ),
                     );
@@ -366,9 +796,10 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                       children: [
                         Text(
                           group.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 23,
                             fontWeight: FontWeight.bold,
+                            color: foregroundColor,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -377,21 +808,21 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
-                            color: Colors.grey[700],
+                            color: foregroundColor.withOpacity(0.82),
                           ),
                         ),
                         Text(
                           'Horario: ${group.schedule}',
                           style: TextStyle(
                             fontSize: 18,
-                            color: Colors.grey[500],
+                            color: foregroundColor.withOpacity(0.68),
                           ),
                         ),
                         Text(
                           'Alumnos: ${group.totalStudents} participantes',
                           style: TextStyle(
                             fontSize: 18,
-                            color: Colors.grey[500],
+                            color: foregroundColor.withOpacity(0.68),
                           ),
                         ),
                       ],
@@ -406,6 +837,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                     onSelected: (value) {
                       if (value == 'rename') {
                         _showRenameGroupDialog(group);
+                      } else if (value == 'color') {
+                        _showGroupColorDialog(group);
                       } else if (value == 'delete') {
                         _confirmDeleteGroup(group);
                       }
@@ -415,6 +848,10 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                           PopupMenuItem<String>(
                             value: 'rename',
                             child: Text('Cambiar nombre'),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'color',
+                            child: Text('Cambiar color'),
                           ),
                           PopupMenuItem<String>(
                             value: 'delete',
@@ -448,8 +885,13 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
       case 0:
         return _buildGroupsContent();
       case 1:
-        return const WalletScreen();
+        return BranchCalendarScreen(
+          branchId: widget.branchDocId,
+          branchName: widget.branchName,
+        );
       case 2:
+        return const WalletScreen();
+      case 3:
         return const ProfileScreen(
           fullName: 'Josepe',
           email: 'Josepe13186',
@@ -553,23 +995,22 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     );
   }
 
-  void _showQRCode(
+  Future<void> _showQRCode(
     BuildContext context,
     BranchGroup group, {
     required String tipo,
-  }) {
+  }) async {
     final esPrivilegiado = tipo == 'privilegiado';
+    final accessCodes = await _ensureGroupAccessCodes(group);
+    if (!mounted) return;
+    if (!context.mounted) return;
+    final accessCode =
+        esPrivilegiado ? accessCodes.privilegedCode : accessCodes.studentCode;
 
     final qrData =
         esPrivilegiado
-            ? 'PRIVILEGIADO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}'
-            : 'ALUMNO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}';
-
-    final codigoCorto = qrData.hashCode
-        .abs()
-        .toString()
-        .padRight(6, '0')
-        .substring(0, 6);
+            ? 'PRIVILEGIADO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}|Codigo:$accessCode'
+            : 'ALUMNO|GrupoId:${group.id}|Grupo:${group.name}|Sucursal:${widget.branchName}|Codigo:$accessCode';
 
     showDialog(
       context: context,
@@ -640,7 +1081,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${codigoCorto.substring(0, 3)} ${codigoCorto.substring(3, 6)}',
+                    _formatAccessCode(accessCode),
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -650,7 +1091,9 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Escanea para registrar acceso',
+                    esPrivilegiado
+                        ? 'Escanea para registrar acceso privilegiado'
+                        : 'Si el alumno no puede escanear, puede escribir este codigo',
                     style: TextStyle(fontSize: 13, color: Colors.grey[500]),
                   ),
                   const SizedBox(height: 16),
@@ -666,6 +1109,53 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             ),
           ),
     );
+  }
+
+  Future<_GroupAccessCodes> _ensureGroupAccessCodes(BranchGroup group) async {
+    final groupRef = FirebaseFirestore.instance.collection('grupos').doc(
+      group.id,
+    );
+    final snapshot = await groupRef.get();
+    final data = snapshot.data() ?? const <String, dynamic>{};
+
+    final studentCode = _normalizeAccessCode(data['codigo_alumno']);
+    final privilegedCode = _normalizeAccessCode(data['codigo_privilegiado']);
+    final resolvedStudentCode =
+        studentCode.isNotEmpty ? studentCode : _generateFallbackAccessCode();
+    final resolvedPrivilegedCode =
+        privilegedCode.isNotEmpty
+            ? privilegedCode
+            : _generateFallbackAccessCode(seed: group.id.length);
+
+    if (studentCode != resolvedStudentCode ||
+        privilegedCode != resolvedPrivilegedCode) {
+      await groupRef.set({
+        'codigo_alumno': resolvedStudentCode,
+        'codigo_privilegiado': resolvedPrivilegedCode,
+      }, SetOptions(merge: true));
+    }
+
+    return _GroupAccessCodes(
+      studentCode: resolvedStudentCode,
+      privilegedCode: resolvedPrivilegedCode,
+    );
+  }
+
+  String _normalizeAccessCode(Object? rawCode) {
+    final normalized = rawCode?.toString().replaceAll(RegExp(r'[^0-9]'), '');
+    return normalized ?? '';
+  }
+
+  String _generateFallbackAccessCode({int seed = 0}) {
+    final millis = DateTime.now().millisecondsSinceEpoch + seed;
+    return (100000 + (millis % 900000)).toString();
+  }
+
+  String _formatAccessCode(String code) {
+    if (code.length != 6) {
+      return code;
+    }
+    return '${code.substring(0, 3)} ${code.substring(3, 6)}';
   }
 
   @override
@@ -688,4 +1178,106 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
       ),
     );
   }
+}
+
+List<_BranchCategory> _parseBranchCategories(Map<String, dynamic>? data) {
+  final saved = data?['available_belts'];
+  if (saved is! List || saved.isEmpty) {
+    return const <_BranchCategory>[];
+  }
+
+  final parsed = <_BranchCategory>[];
+  for (final item in saved) {
+    if (item is Map) {
+      final label = item['label']?.toString().trim() ?? '';
+      if (label.isEmpty) continue;
+      parsed.add(
+        _BranchCategory(
+          label: label,
+          colorValue:
+              (item['color_value'] as num?)?.toInt() ??
+              _defaultColorValueForLabel(label),
+        ),
+      );
+      continue;
+    }
+
+    final label = item.toString().trim();
+    if (label.isEmpty) continue;
+    parsed.add(
+      _BranchCategory(
+        label: label,
+        colorValue: _defaultColorValueForLabel(label),
+      ),
+    );
+  }
+  return _sortBranchCategories(parsed);
+}
+
+List<_BranchCategory> _sortBranchCategories(List<_BranchCategory> categories) {
+  final ordered = <_BranchCategory>[];
+  for (final option in kTaeKwonDoBeltColorOptions) {
+    for (final category in categories) {
+      if (category.label.toLowerCase() == option.label.toLowerCase()) {
+        ordered.add(category);
+      }
+    }
+  }
+  for (final category in categories) {
+    if (!ordered.any(
+      (value) => value.label.toLowerCase() == category.label.toLowerCase(),
+    )) {
+      ordered.add(category);
+    }
+  }
+  return ordered;
+}
+
+int _defaultColorValueForLabel(String label) {
+  for (final option in kTaeKwonDoBeltColorOptions) {
+    if (option.label.toLowerCase() == label.toLowerCase()) {
+      return option.colorValue;
+    }
+  }
+  for (final option in kPresetColorOptions) {
+    if (option.label.toLowerCase() == label.toLowerCase()) {
+      return option.colorValue;
+    }
+  }
+  return 0xFFD9D0C3;
+}
+
+final List<PresetColorOption> _categoryPaletteOptions = [
+  ...kTaeKwonDoBeltColorOptions,
+  ...kPresetColorOptions,
+];
+
+class _BranchCategory {
+  const _BranchCategory({
+    required this.label,
+    required this.colorValue,
+  });
+
+  final String label;
+  final int colorValue;
+
+  _BranchCategory copyWith({
+    String? label,
+    int? colorValue,
+  }) {
+    return _BranchCategory(
+      label: label ?? this.label,
+      colorValue: colorValue ?? this.colorValue,
+    );
+  }
+}
+
+class _GroupAccessCodes {
+  const _GroupAccessCodes({
+    required this.studentCode,
+    required this.privilegedCode,
+  });
+
+  final String studentCode;
+  final String privilegedCode;
 }

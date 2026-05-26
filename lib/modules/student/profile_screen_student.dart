@@ -276,6 +276,11 @@ class ProfileScreenStudent extends StatelessWidget {
     required String beltLabel,
     required _StudentBeltTheme beltTheme,
   }) {
+    final heroShadowColor =
+        beltTheme.primary.computeLuminance() > 0.88
+            ? beltTheme.accent.withValues(alpha: 0.24)
+            : beltTheme.primary.withValues(alpha: 0.28);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
@@ -289,9 +294,13 @@ class ProfileScreenStudent extends StatelessWidget {
           ],
         ),
         borderRadius: BorderRadius.circular(36),
+        border: Border.all(
+          color: beltTheme.accent.withValues(alpha: 0.30),
+          width: 1.4,
+        ),
         boxShadow: [
           BoxShadow(
-            color: beltTheme.primary.withValues(alpha: 0.28),
+            color: heroShadowColor,
             blurRadius: 30,
             offset: const Offset(0, 18),
           ),
@@ -620,6 +629,14 @@ Future<void> _showEditProfileDialog({
                                             ? Color(beltOption.colorValue!)
                                             : const Color(0xFFD9D0C3),
                                     shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color:
+                                          _isVeryLightColor(
+                                                beltOption.colorValue,
+                                              )
+                                              ? const Color(0xFF8F877A)
+                                              : Colors.transparent,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 10),
@@ -711,13 +728,18 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visualTint =
+        tintColor.computeLuminance() > 0.88
+            ? const Color(0xFF7B6448)
+            : tintColor;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: tintColor.withValues(alpha: 0.09),
+        color: visualTint.withValues(alpha: 0.09),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: tintColor.withValues(alpha: 0.18)),
+        border: Border.all(color: visualTint.withValues(alpha: 0.24)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -726,10 +748,10 @@ class _InfoCard extends StatelessWidget {
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              color: tintColor.withValues(alpha: 0.14),
+              color: visualTint.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(icon, color: tintColor),
+            child: Icon(icon, color: visualTint),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -767,15 +789,36 @@ class _InfoCard extends StatelessWidget {
 Future<List<_StudentBeltOption>> _loadAvailableBeltsForStudent(
   Map<String, dynamic> userData,
 ) async {
-  final branchId = await _resolveStudentBranchId(userData);
-  if (branchId.isEmpty) {
+  final branchIds = await _resolveStudentBranchIds(userData);
+  if (branchIds.isEmpty) {
     return const <_StudentBeltOption>[];
   }
 
-  final branchSnapshot =
-      await FirebaseFirestore.instance.collection('sucursales').doc(branchId).get();
-  final branchData = branchSnapshot.data();
-  final savedBelts = branchData?['available_belts'];
+  final beltsByName = <String, _StudentBeltOption>{};
+  for (final branchId in branchIds) {
+    final branchSnapshot =
+        await FirebaseFirestore.instance
+            .collection('sucursales')
+            .doc(branchId)
+            .get();
+    final branchData = branchSnapshot.data();
+    final savedBelts = branchData?['available_belts'];
+
+    for (final belt in _parseStudentBeltOptions(savedBelts)) {
+      final key = belt.label.trim().toLowerCase();
+      final existing = beltsByName[key];
+      if (existing == null ||
+          (existing.colorValue == null && belt.colorValue != null)) {
+        beltsByName[key] = belt;
+      }
+    }
+  }
+
+  final belts = beltsByName.values.toList();
+  return belts.isEmpty ? const <_StudentBeltOption>[] : _sortStudentBelts(belts);
+}
+
+List<_StudentBeltOption> _parseStudentBeltOptions(Object? savedBelts) {
   if (savedBelts is! List) {
     return const <_StudentBeltOption>[];
   }
@@ -791,30 +834,54 @@ Future<List<_StudentBeltOption>> _loadAvailableBeltsForStudent(
           colorValue: (value['color_value'] as num?)?.toInt(),
         ),
       );
-      continue;
+    } else {
+      final label = _normalizeBeltName(value);
+      if (label.isEmpty) continue;
+      belts.add(
+        _StudentBeltOption(
+          label: label,
+          colorValue: _defaultStudentBeltColorValue(label),
+        ),
+      );
     }
-
-    final label = _normalizeBeltName(value);
-    if (label.isEmpty) continue;
-    belts.add(
-      _StudentBeltOption(
-        label: label,
-        colorValue: _defaultStudentBeltColorValue(label),
-      ),
-    );
   }
-  return belts.isEmpty ? const <_StudentBeltOption>[] : _sortStudentBelts(belts);
+  return belts;
 }
 
-Future<String> _resolveStudentBranchId(Map<String, dynamic> userData) async {
-  final currentGroupId = userData['grupo_id']?.toString().trim() ?? '';
-  if (currentGroupId.isNotEmpty) {
+Future<List<String>> _resolveStudentBranchIds(
+  Map<String, dynamic> userData,
+) async {
+  final branchIds = <String>[];
+  final seenBranchIds = <String>{};
+
+  Future<void> addBranchId(String branchId) async {
+    final resolvedBranchId =
+        await _resolveBranchIdFromPossibleIdOrName(branchId);
+    if (resolvedBranchId.isEmpty) return;
+    final key = resolvedBranchId.toLowerCase();
+    if (seenBranchIds.add(key)) {
+      branchIds.add(resolvedBranchId);
+    }
+  }
+
+  Future<bool> addBranchFromGroupId(String groupId) async {
+    if (groupId.isEmpty) return false;
     final groupSnapshot =
-        await FirebaseFirestore.instance.collection('grupos').doc(currentGroupId).get();
+        await FirebaseFirestore.instance
+            .collection('grupos')
+            .doc(groupId)
+            .get();
     final branchId = groupSnapshot.data()?['id_sucursal']?.toString().trim() ?? '';
     if (branchId.isNotEmpty) {
-      return branchId;
+      await addBranchId(branchId);
+      return true;
     }
+    return false;
+  }
+
+  final currentGroupId = userData['grupo_id']?.toString().trim() ?? '';
+  if (currentGroupId.isNotEmpty) {
+    await addBranchFromGroupId(currentGroupId);
   }
 
   final savedGroups = userData['grupos'];
@@ -822,9 +889,23 @@ Future<String> _resolveStudentBranchId(Map<String, dynamic> userData) async {
     for (final group in savedGroups) {
       if (group is! Map) continue;
       final groupMap = Map<String, dynamic>.from(group);
+      final groupId = groupMap['groupId']?.toString().trim() ?? '';
+      if (groupId.isNotEmpty) {
+        final resolvedFromGroup = await addBranchFromGroupId(groupId);
+        if (resolvedFromGroup) {
+          continue;
+        }
+      }
+
       final branchId = groupMap['branchId']?.toString().trim() ?? '';
       if (branchId.isNotEmpty) {
-        return branchId;
+        await addBranchId(branchId);
+        continue;
+      }
+
+      final branchName = groupMap['branchName']?.toString().trim() ?? '';
+      if (branchName.isNotEmpty) {
+        await addBranchId(branchName);
       }
     }
   }
@@ -838,8 +919,34 @@ Future<String> _resolveStudentBranchId(Map<String, dynamic> userData) async {
             .limit(1)
             .get();
     if (branchQuery.docs.isNotEmpty) {
-      return branchQuery.docs.first.id;
+      await addBranchId(branchQuery.docs.first.id);
     }
+  }
+
+  return branchIds;
+}
+
+Future<String> _resolveBranchIdFromPossibleIdOrName(String value) async {
+  final trimmedValue = value.trim();
+  if (trimmedValue.isEmpty) {
+    return '';
+  }
+
+  final db = FirebaseFirestore.instance;
+  final branchSnapshot =
+      await db.collection('sucursales').doc(trimmedValue).get();
+  if (branchSnapshot.exists) {
+    return trimmedValue;
+  }
+
+  final branchQuery =
+      await db
+          .collection('sucursales')
+          .where('name', isEqualTo: trimmedValue)
+          .limit(1)
+          .get();
+  if (branchQuery.docs.isNotEmpty) {
+    return branchQuery.docs.first.id;
   }
 
   return '';
@@ -1003,6 +1110,10 @@ _StudentBeltTheme _beltThemeForSelection({
   }
 
   final primary = Color(colorValue);
+  if (beltLabel.toLowerCase() == 'blanca' || _isVeryLightColor(colorValue)) {
+    return _beltThemeFromName('blanca');
+  }
+
   final brightness = ThemeData.estimateBrightnessForColor(primary);
   final onPrimary =
       brightness == Brightness.dark ? Colors.white : const Color(0xFF231F1C);
@@ -1023,14 +1134,21 @@ _StudentBeltTheme _beltThemeForSelection({
   );
 }
 
+bool _isVeryLightColor(int? colorValue) {
+  if (colorValue == null) {
+    return false;
+  }
+  return Color(colorValue).computeLuminance() > 0.88;
+}
+
 _StudentBeltTheme _beltThemeFromName(String belt) {
   switch (belt.toLowerCase()) {
     case 'blanca':
       return const _StudentBeltTheme(
-        primary: Color(0xFFF6F1E7),
-        secondary: Color(0xFFE2D8C8),
-        accent: Color(0xFFB9A88E),
-        onPrimary: Color(0xFF2D261F),
+        primary: Color(0xFFFFFFFF),
+        secondary: Color(0xFFD1C5B4),
+        accent: Color(0xFF7B6448),
+        onPrimary: Color(0xFF241F1A),
       );
     case 'amarilla':
       return const _StudentBeltTheme(

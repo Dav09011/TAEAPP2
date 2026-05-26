@@ -18,7 +18,7 @@ class BarSearch extends StatelessWidget {
       // InputDecoration: decora la caja de texto.
       decoration: InputDecoration(
         // hintText: texto gris que aparece cuando no has escrito nada.
-        hintText: 'Buscar',
+        hintText: hintText,
         // prefixIcon: ícono que aparece al principio (lupa de búsqueda).
         prefixIcon: Icon(Icons.search),
         // filled, fillColor: fondo púrpura claro.

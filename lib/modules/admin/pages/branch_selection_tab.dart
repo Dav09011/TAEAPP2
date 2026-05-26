@@ -9,8 +9,8 @@ import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
 import 'package:tae_app/shared/presentation/color_customization.dart';
 
+import 'admin_branch_calendar_selector.dart';
 import 'group_selection.dart';
-import 'branch_calendar_screen.dart';
 import 'profile_screen.dart';
 import 'wallet_screen.dart';
 
@@ -24,9 +24,9 @@ class MainBranches extends StatefulWidget {
 class _MainBranchesState extends State<MainBranches> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = const [
+  List<Widget> get _screens => const [
     BranchesScreen(),
-    BranchCalendarScreen(),
+    AdminBranchCalendarSelectorScreen(),
     WalletScreen(),
     ProfileScreen(),
   ];
@@ -256,10 +256,7 @@ class _BranchesScreenState extends State<BranchesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              BarSearch(
-                hintText: 'Buscar sucursal',
-                onSearch: _controller.updateSearchQuery,
-              ),
+              _buildBranchesHeaderCard(),
               const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerRight,
@@ -350,6 +347,47 @@ class _BranchesScreenState extends State<BranchesScreen> {
         ),
       ),
       floatingActionButton: NotesButton(),
+    );
+  }
+
+  Widget _buildBranchesHeaderCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.grey.withValues(alpha: 0.20),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Sucursales',
+            style: TextStyle(
+              fontSize: 35,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          BarSearch(
+            hintText: 'Buscar sucursal',
+            onSearch: _controller.updateSearchQuery,
+          ),
+        ],
+      ),
     );
   }
 }

@@ -4,8 +4,8 @@ import 'package:tae_app/features/admin/domain/entities/activity_item.dart';
 import 'package:tae_app/features/admin/domain/entities/belt_section.dart';
 import 'package:tae_app/features/admin/domain/entities/create_activity_request.dart';
 import 'package:tae_app/features/admin/presentation/controllers/activities_controller.dart';
+import 'package:tae_app/modules/admin/pages/admin_branch_calendar_selector.dart';
 import 'package:tae_app/modules/admin/pages/profile_screen.dart';
-import 'package:tae_app/modules/admin/pages/branch_calendar_screen.dart';
 import 'package:tae_app/modules/admin/pages/students_section.dart';
 import 'package:tae_app/modules/admin/pages/wallet_screen.dart';
 import 'package:tae_app/modules/admin/widgets/activities_card.dart';
@@ -44,10 +44,7 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
       branchDocId: widget.branchDocId,
       isReadOnly: widget.isReadOnly,
     ),
-    BranchCalendarScreen(
-      branchId: widget.branchDocId,
-      branchName: widget.branchName,
-    ),
+    const AdminBranchCalendarSelectorScreen(includeScaffold: false),
     const WalletScreen(),
     const ProfileScreen(
       fullName: 'Josepe',
@@ -68,14 +65,6 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
   Widget build(BuildContext context) {
     if (widget.isReadOnly) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(
-            widget.groupName ?? 'Actividades',
-            style: const TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Colors.black,
-          iconTheme: const IconThemeData(color: Colors.white),
-        ),
         body: ActivitiesSectionScreen(
           groupName: widget.groupName,
           groupDocId: widget.groupDocId,
@@ -87,20 +76,12 @@ class _ActivitiesSectionState extends State<ActivitiesSection> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.groupName ?? 'Actividades',
-          style: const TextStyle(color: Colors.white),
-        ),
-        backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
       body: _screens[_selectedIndex],
       bottomNavigationBar: CustomNavigationBarAdmin(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
       ),
-      floatingActionButton: const NotesButton(),
+      floatingActionButton: _selectedIndex == 0 ? const NotesButton() : null,
     );
   }
 }
@@ -610,6 +591,190 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
         .toList();
   }
 
+  Widget _buildActivitiesHeaderCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.grey.withValues(alpha: 0.20),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.branchName ?? 'Actividades',
+            style: const TextStyle(
+              color: Color(0xFF6D645B),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            widget.groupName ?? 'Grupo',
+            style: const TextStyle(
+              fontSize: 31,
+              fontWeight: FontWeight.w900,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          BarSearch(
+            hintText: 'Buscar actividad o cinta',
+            onSearch: _controller.updateSearchQuery,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityActionsRow() {
+    if (widget.isReadOnly) {
+      return const SizedBox.shrink();
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) => StudentsSectionScreen(
+                      groupName: widget.groupName ?? 'Alumnos',
+                      groupDocId: widget.groupDocId,
+                    ),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFB0B4B8)),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Ver alumnos',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                SizedBox(width: 6),
+                Icon(Icons.remove_red_eye, size: 18),
+              ],
+            ),
+          ),
+        ),
+        InkWell(
+          onTap: _controller.isMutating ? null : _showAddBeltSectionDialog,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Agregar Seccion',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.black,
+                  ),
+                ),
+                SizedBox(width: 6),
+                Icon(
+                  Icons.add_circle_outline,
+                  color: Colors.black,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBeltSectionContent(String groupId, BeltSection beltSection) {
+    return StreamBuilder<List<ActivityItem>>(
+      stream: _controller.watchActivitiesBySection(
+        groupId: groupId,
+        beltName: beltSection.name,
+      ),
+      builder: (context, activitySnapshot) {
+        if (activitySnapshot.connectionState == ConnectionState.waiting) {
+          return const LinearProgressIndicator();
+        }
+
+        final activities = activitySnapshot.data ?? const <ActivityItem>[];
+        final filteredActivities = _controller.filterActivities(activities);
+
+        if (_controller.searchQuery.isNotEmpty && filteredActivities.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return ActivitiesCard(
+          group: _mapActivities(
+            _controller.searchQuery.isEmpty ? activities : filteredActivities,
+          ),
+          groupTitle: beltSection.name,
+          groupId: groupId,
+          beltColorValue: beltSection.colorValue,
+          isReadOnly: widget.isReadOnly,
+          onAddActivity:
+              widget.isReadOnly
+                  ? null
+                  : () => _showAddActivityDialog(beltSection.name),
+          onNameChanged: (activityId, newName) {
+            _renameActivity(activityId: activityId, newName: newName);
+          },
+          onDelete: _deleteActivity,
+          onBeltNameChanged: (newName) {
+            _renameBeltSection(beltSection.name, newName);
+          },
+          onBeltColorChanged:
+              widget.isReadOnly
+                  ? null
+                  : (colorValue) => _updateBeltSectionColor(
+                    beltName: beltSection.name,
+                    colorValue: colorValue,
+                  ),
+          onDeleteBeltSection:
+              widget.isReadOnly
+                  ? null
+                  : () => _confirmDeleteBeltSection(beltSection.name),
+          onActivityColorChanged:
+              widget.isReadOnly
+                  ? null
+                  : (activityId, colorValue) => _updateActivityColor(
+                    activityId: activityId,
+                    colorValue: colorValue,
+                  ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final groupId = _groupId;
@@ -622,201 +787,55 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
     return Container(
       color: Colors.white,
       child: SafeArea(
-        child: StreamBuilder<List<BeltSection>>(
-          stream: _controller.watchBeltSections(groupId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            }
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const BackButton(),
+              _buildActivitiesHeaderCard(),
+              if (!widget.isReadOnly) ...[
+                const SizedBox(height: 14),
+                _buildActivityActionsRow(),
+              ],
+              const SizedBox(height: 18),
+              Expanded(
+                child: StreamBuilder<List<BeltSection>>(
+                  stream: _controller.watchBeltSections(groupId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
 
-            final beltNames = snapshot.data ?? const <BeltSection>[];
-
-            return SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    BarSearch(
-                      hintText: 'Buscar actividad o cinta',
-                      onSearch: _controller.updateSearchQuery,
-                    ),
-                    const SizedBox(height: 20),
-                    if (!widget.isReadOnly) ...[
-                      Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            InkWell(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (context) => StudentsSectionScreen(
-                                          groupName: widget.groupName ?? 'Alumnos',
-                                          groupDocId: widget.groupDocId,
-                                        ),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 30,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: const Color.fromARGB(
-                                      255,
-                                      176,
-                                      180,
-                                      184,
-                                    ),
-                                    width: 1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Ver alumnos',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    SizedBox(width: 5),
-                                    Icon(Icons.remove_red_eye, size: 18),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            InkWell(
-                              onTap:
-                                  _controller.isMutating
-                                      ? null
-                                      : _showAddBeltSectionDialog,
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Agregar Seccion',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: Color.fromARGB(255, 0, 0, 0),
-                                      ),
-                                    ),
-                                    SizedBox(width: 5),
-                                    Icon(
-                                      Icons.add_circle_outline,
-                                      color: Color.fromARGB(255, 0, 0, 0),
-                                      size: 18,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                    ...beltNames.map((beltSection) {
-                      return StreamBuilder<List<ActivityItem>>(
-                        stream: _controller.watchActivitiesBySection(
-                          groupId: groupId,
-                          beltName: beltSection.name,
-                        ),
-                        builder: (context, activitySnapshot) {
-                          if (activitySnapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const LinearProgressIndicator();
-                          }
-
-                          final activities = activitySnapshot.data ?? const <ActivityItem>[];
-                          final filteredActivities =
-                              _controller.filterActivities(activities);
-
-                          if (_controller.searchQuery.isNotEmpty &&
-                              filteredActivities.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-
-                          return ActivitiesCard(
-                            group: _mapActivities(
-                              _controller.searchQuery.isEmpty
-                                  ? activities
-                                  : filteredActivities,
-                            ),
-                            groupTitle: beltSection.name,
-                            groupId: groupId,
-                            beltColorValue: beltSection.colorValue,
-                            isReadOnly: widget.isReadOnly,
-                            onAddActivity:
-                                widget.isReadOnly
-                                    ? null
-                                    : () => _showAddActivityDialog(beltSection.name),
-                            onNameChanged: (activityId, newName) {
-                              _renameActivity(
-                                activityId: activityId,
-                                newName: newName,
-                              );
-                            },
-                            onDelete: _deleteActivity,
-                            onBeltNameChanged: (newName) {
-                              _renameBeltSection(beltSection.name, newName);
-                            },
-                            onBeltColorChanged:
-                                widget.isReadOnly
-                                    ? null
-                                    : (colorValue) => _updateBeltSectionColor(
-                                      beltName: beltSection.name,
-                                      colorValue: colorValue,
-                                    ),
-                            onDeleteBeltSection:
-                                widget.isReadOnly
-                                    ? null
-                                    : () => _confirmDeleteBeltSection(
-                                      beltSection.name,
-                                    ),
-                            onActivityColorChanged:
-                                widget.isReadOnly
-                                    ? null
-                                    : (activityId, colorValue) =>
-                                        _updateActivityColor(
-                                          activityId: activityId,
-                                          colorValue: colorValue,
-                                        ),
-                          );
-                        },
-                      );
-                    }),
-                    if (beltNames.isEmpty)
-                      const Center(
+                    final beltNames = snapshot.data ?? const <BeltSection>[];
+                    if (beltNames.isEmpty) {
+                      return const Center(
                         child: Text(
                           'Empieza agregando la primera seccion de cinta.',
                         ),
-                      ),
-                  ],
+                      );
+                    }
+
+                    return ListView(
+                      padding: EdgeInsets.zero,
+                      children:
+                          beltNames
+                              .map(
+                                (beltSection) => _buildBeltSectionContent(
+                                  groupId,
+                                  beltSection,
+                                ),
+                              )
+                              .toList(),
+                    );
+                  },
                 ),
               ),
-            );
-          },
+            ],
+          ),
         ),
       ),
     );

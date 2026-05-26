@@ -22,23 +22,21 @@ class AdaptiveBranchList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final maxCardWidth =
-              constraints.maxWidth > 800 ? 600.0 : constraints.maxWidth * 0.95;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxCardWidth =
+            constraints.maxWidth > 800 ? 600.0 : constraints.maxWidth * 0.95;
 
-          return BranchListView(
-            branches: branches,
-            maxCardWidth: maxCardWidth,
-            icon: icon,
-            onTap: onTap,
-            onRename: onRename,
-            onChangeColor: onChangeColor,
-            onDelete: onDelete,
-          );
-        },
-      ),
+        return BranchListView(
+          branches: branches,
+          maxCardWidth: maxCardWidth,
+          icon: icon,
+          onTap: onTap,
+          onRename: onRename,
+          onChangeColor: onChangeColor,
+          onDelete: onDelete,
+        );
+      },
     );
   }
 }

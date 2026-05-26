@@ -5,8 +5,8 @@ import 'package:tae_app/core/errors/app_exception.dart';
 import 'package:tae_app/features/admin/domain/entities/branch_group.dart';
 import 'package:tae_app/features/admin/domain/entities/create_group_request.dart';
 import 'package:tae_app/features/admin/presentation/controllers/branch_groups_controller.dart';
+import 'package:tae_app/modules/admin/pages/admin_branch_calendar_selector.dart';
 import 'package:tae_app/modules/admin/pages/activities_section.dart';
-import 'package:tae_app/modules/admin/pages/branch_calendar_screen.dart';
 import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 import 'package:tae_app/modules/admin/widgets/custom_navigation_bar_admin.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
@@ -600,110 +600,72 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
 
   Widget _buildGroupsContent() {
     return SafeArea(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              BarSearch(
-                hintText: 'Buscar grupo, cinta o horario',
-                onSearch: _controller.updateSearchQuery,
-              ),
-              if (_visibleSuccessMessage != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2E7D32),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle_outline, color: Colors.white),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _visibleSuccessMessage!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _visibleSuccessMessage = null;
-                          });
-                        },
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        tooltip: 'Cerrar mensaje',
-                      ),
-                    ],
-                  ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const BackButton(),
+            _buildBranchHeaderCard(),
+            if (_visibleSuccessMessage != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
                 ),
-              ],
-              const SizedBox(height: 10),
-              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream:
-                    FirebaseFirestore.instance
-                        .collection('sucursales')
-                        .doc(widget.branchDocId)
-                        .snapshots(),
-                builder: (context, snapshot) {
-                  final categories = _parseBranchCategories(snapshot.data?.data());
-                  return Row(
-                    children: [
-                      _buildCategoriesCard(categories),
-                      const Spacer(),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap:
-                              _controller.isMutating
-                                  ? null
-                                  : () => _openAddGroupDialog(context),
-                          borderRadius: BorderRadius.circular(18),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF7F0E8),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: const Color(0xFFE2D2BF),
-                              ),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Agregar Grupo',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                Icon(Icons.add_circle_outline),
-                              ],
-                            ),
-                          ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E7D32),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_outline, color: Colors.white),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _visibleSuccessMessage!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ],
-                  );
-                },
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _visibleSuccessMessage = null;
+                        });
+                      },
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      tooltip: 'Cerrar mensaje',
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 20),
-              StreamBuilder<List<BranchGroup>>(
+            ],
+            const SizedBox(height: 10),
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream:
+                  FirebaseFirestore.instance
+                      .collection('sucursales')
+                      .doc(widget.branchDocId)
+                      .snapshots(),
+              builder: (context, snapshot) {
+                final categories = _parseBranchCategories(snapshot.data?.data());
+                return Row(
+                  children: [
+                    _buildCategoriesCard(categories),
+                    const Spacer(),
+                    _buildAddGroupButton(),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: StreamBuilder<List<BranchGroup>>(
                 stream: _controller.groupsStream,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
@@ -732,7 +694,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                     );
                   }
 
-                  return Column(
+                  return ListView(
+                    padding: EdgeInsets.zero,
                     children:
                         filteredGroups
                             .map((group) => _buildGroupCard(group))
@@ -740,6 +703,89 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                   );
                 },
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBranchHeaderCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.grey.withValues(alpha: 0.20),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Sucursal',
+            style: TextStyle(
+              color: Color(0xFF6D645B),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            widget.branchName,
+            style: const TextStyle(
+              fontSize: 31,
+              fontWeight: FontWeight.w900,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          BarSearch(
+            hintText: 'Buscar grupo, cinta o horario',
+            onSearch: _controller.updateSearchQuery,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAddGroupButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap:
+            _controller.isMutating ? null : () => _openAddGroupDialog(context),
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F0E8),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2D2BF)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Agregar Grupo',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              SizedBox(width: 8),
+              Icon(Icons.add_circle_outline),
             ],
           ),
         ),
@@ -918,10 +964,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
       case 0:
         return _buildGroupsContent();
       case 1:
-        return BranchCalendarScreen(
-          branchId: widget.branchDocId,
-          branchName: widget.branchName,
-        );
+        return const AdminBranchCalendarSelectorScreen(includeScaffold: false);
       case 2:
         return const WalletScreen();
       case 3:
@@ -1097,16 +1140,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(
-          'Grupos en ${widget.branchName}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
       body: _getCurrentScreen(),
-      floatingActionButton: const NotesButton(),
+      floatingActionButton: _selectedIndex == 0 ? const NotesButton() : null,
       bottomNavigationBar: CustomNavigationBarAdmin(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,

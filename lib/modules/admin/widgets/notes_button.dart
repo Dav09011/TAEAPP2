@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:tae_app/features/admin/data/repositories/firebase_notes_repository.dart';
+import 'package:tae_app/features/admin/domain/entities/admin_notes_student.dart';
+import 'package:tae_app/features/admin/presentation/controllers/notes_controller.dart';
 import 'package:tae_app/modules/admin/pages/notes/notes_students.dart';
 
 class NotesButton extends StatefulWidget {
@@ -49,8 +52,10 @@ class _NotesButtonState extends State<NotesButton>
   Future<void> _openCreateNoteDialog() async {
     _toggleMenu();
 
-    final studentController = TextEditingController();
     final noteController = TextEditingController();
+    final notesController = NotesController();
+    final notesRepository = FirebaseNotesRepository();
+    AdminNotesStudent? selectedStudent;
 
     await showDialog<void>(
       context: context,
@@ -61,13 +66,57 @@ class _NotesButtonState extends State<NotesButton>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  controller: studentController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre del alumno',
-                    hintText: 'Ej. Julio Hernandez',
-                  ),
+                FutureBuilder<List<AdminNotesStudent>>(
+                  future: notesRepository.loadStudentsWithNotes(),
+                  builder: (context, snapshot) {
+                    final students = snapshot.data ?? const <AdminNotesStudent>[];
+
+                    return Autocomplete<AdminNotesStudent>(
+                      displayStringForOption: (option) => option.fullName,
+                      optionsBuilder: (TextEditingValue value) {
+                        final query = value.text.trim().toLowerCase();
+                        if (query.isEmpty) {
+                          return const Iterable<AdminNotesStudent>.empty();
+                        }
+                        return students.where((student) {
+                          return student.fullName.toLowerCase().contains(query);
+                        });
+                      },
+                      onSelected: (student) {
+                        selectedStudent = student;
+                      },
+                      fieldViewBuilder: (
+                        context,
+                        textEditingController,
+                        focusNode,
+                        onFieldSubmitted,
+                      ) {
+                        return TextField(
+                          controller: textEditingController,
+                          focusNode: focusNode,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: InputDecoration(
+                            labelText: 'Nombre del alumno',
+                            hintText: 'Ej. Julio Hernandez',
+                            suffixIcon:
+                                snapshot.connectionState == ConnectionState.waiting
+                                    ? const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                    )
+                                    : null,
+                          ),
+                          onChanged: (_) {
+                            selectedStudent = null;
+                          },
+                        );
+                      },
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -89,25 +138,39 @@ class _NotesButtonState extends State<NotesButton>
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () {
-                final studentName = studentController.text.trim();
+              onPressed: () async {
                 final noteContent = noteController.text.trim();
 
-                if (studentName.isEmpty || noteContent.isEmpty) {
+                if (selectedStudent == null || noteContent.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Completa el nombre del alumno y la nota.'),
+                      content: Text('Selecciona un alumno y escribe la nota.'),
                     ),
                   );
                   return;
                 }
 
-                Navigator.of(dialogContext).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Nota preparada para $studentName.'),
-                  ),
-                );
+                try {
+                  await notesController.createEntry(
+                    student: selectedStudent!,
+                    content: noteContent,
+                    isPinned: false,
+                  );
+                  if (context.mounted) {
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Nota creada para ${selectedStudent!.fullName}.'),
+                      ),
+                    );
+                  }
+                } catch (error) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('$error')),
+                    );
+                  }
+                }
               },
               child: const Text('Guardar'),
             ),
@@ -116,8 +179,8 @@ class _NotesButtonState extends State<NotesButton>
       },
     );
 
-    studentController.dispose();
     noteController.dispose();
+    notesController.dispose();
   }
 
   void _openNotesHome() {

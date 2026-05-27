@@ -5,6 +5,8 @@ import 'package:tae_app/core/errors/app_exception.dart';
 import 'package:tae_app/features/auth/domain/entities/registration_request.dart';
 import 'package:tae_app/features/auth/presentation/controllers/register_account_controller.dart';
 
+import '../../revenuecat/revenuecat_sandbox_screen.dart';
+
 /// Student registration screen still rendered from the legacy module tree.
 ///
 /// The Firebase work now lives in the shared auth controller/repository path,
@@ -79,7 +81,11 @@ class _RegisterTeacherStudent extends State<RegisterTeacherStudent> {
           backgroundColor: Colors.green,
         ),
       );
+      await RevenueCatPaywallScreen.show(context);
+
+      if (!mounted) return;
       Navigator.pop(context);
+
     } on AppException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

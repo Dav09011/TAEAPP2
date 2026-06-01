@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
 import 'package:tae_app/features/admin/data/repositories/firebase_profile_repository.dart';
@@ -39,16 +38,40 @@ class ProfileController extends ChangeNotifier {
       throw const AppException('Necesitas ingresar un correo diferente.');
     }
 
-    try {
-      await _runMutation(
-        () => _profileRepository.requestEmailChange(
-          userId: userId,
-          newEmail: normalized,
-        ),
-      );
-    } on FirebaseAuthException catch (error) {
-      throw AppException(_mapEmailChangeError(error));
+    await _runMutation(
+      () => _profileRepository.requestEmailChange(
+        userId: userId,
+        newEmail: normalized,
+      ),
+    );
+  }
+
+  Future<void> changePassword({
+    required String email,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final trimmedEmail = email.trim();
+    final trimmedNewPassword = newPassword.trim();
+    if (trimmedEmail.isEmpty) {
+      throw const AppException('No encontramos el correo actual.');
     }
+    if (currentPassword.isEmpty || trimmedNewPassword.isEmpty) {
+      throw const AppException('Ingresa tu contrasena actual y la nueva.');
+    }
+    if (trimmedNewPassword.length < 6) {
+      throw const AppException(
+        'La nueva contrasena debe tener al menos 6 caracteres.',
+      );
+    }
+
+    await _runMutation(
+      () => _profileRepository.changePassword(
+        email: trimmedEmail,
+        currentPassword: currentPassword,
+        newPassword: trimmedNewPassword,
+      ),
+    );
   }
 
   Future<void> signOut() {
@@ -63,19 +86,6 @@ class ProfileController extends ChangeNotifier {
     } finally {
       _isMutating = false;
       notifyListeners();
-    }
-  }
-
-  String _mapEmailChangeError(FirebaseAuthException error) {
-    switch (error.code) {
-      case 'requires-recent-login':
-        return 'Por seguridad, debes cerrar sesion y volver a entrar para hacer este cambio.';
-      case 'email-already-in-use':
-        return 'Este correo ya esta registrado en otra cuenta.';
-      case 'invalid-email':
-        return 'El formato del correo es invalido.';
-      default:
-        return 'Error al actualizar el correo.';
     }
   }
 }

@@ -15,5 +15,11 @@ abstract class ProfileRepository {
     required String newEmail,
   });
 
+  Future<void> changePassword({
+    required String email,
+    required String currentPassword,
+    required String newPassword,
+  });
+
   Future<void> signOut();
 }

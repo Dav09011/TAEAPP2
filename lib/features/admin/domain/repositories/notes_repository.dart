@@ -1,7 +1,10 @@
 import 'package:tae_app/features/admin/domain/entities/admin_note_entry.dart';
+import 'package:tae_app/features/admin/domain/entities/admin_grouped_student.dart';
 import 'package:tae_app/features/admin/domain/entities/admin_notes_student.dart';
 
 abstract class NotesRepository {
+  Stream<List<AdminGroupedStudent>> watchLegacyStudents();
+
   Future<List<AdminNotesStudent>> loadStudentsWithNotes();
 
   Future<AdminNoteEntry> createEntry({

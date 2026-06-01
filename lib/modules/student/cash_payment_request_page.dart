@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:tae_app/features/student/presentation/controllers/student_cash_payment_controller.dart';
 import 'package:tae_app/modules/revenuecat/revenuecat_sandbox_screen.dart';
 
 const String _entitlementId = 'TAEAPP Pro';
 
-const _blue      = Color(0xFF4A73B8);
-const _blueDark  = Color(0xFF3A5A94);
+const _blue = Color(0xFF4A73B8);
+const _blueDark = Color(0xFF3A5A94);
 const _blueLight = Color(0xFFEBF0FA);
 
 // ─────────────────────────────────────────────
@@ -15,8 +14,8 @@ const _blueLight = Color(0xFFEBF0FA);
 // ─────────────────────────────────────────────
 
 class _Plan {
-  final int    clases;
-  final int    precio;
+  final int clases;
+  final int precio;
   final String nombre;
   final String descripcion;
 
@@ -29,11 +28,36 @@ class _Plan {
 }
 
 const _planes = [
-  _Plan(clases: 1, precio: 500,  nombre: '1 CLASE SEMANAL',     descripcion: 'Acceso al contenido y a 1 clase en la academia'),
-  _Plan(clases: 2, precio: 650,  nombre: '2 CLASES SEMANALES',  descripcion: 'Acceso al contenido y a 2 clases en la academia'),
-  _Plan(clases: 3, precio: 850,  nombre: '3 CLASES SEMANALES',  descripcion: 'Acceso al contenido y a 3 clases en la academia'),
-  _Plan(clases: 4, precio: 900,  nombre: '4 CLASES SEMANALES',  descripcion: 'Acceso al contenido y a 4 clases en la academia'),
-  _Plan(clases: 5, precio: 1050, nombre: '5+ CLASES SEMANALES', descripcion: 'Acceso al contenido y clases ilimitadas en la academia'),
+  _Plan(
+    clases: 1,
+    precio: 500,
+    nombre: '1 CLASE SEMANAL',
+    descripcion: 'Acceso al contenido y a 1 clase en la academia',
+  ),
+  _Plan(
+    clases: 2,
+    precio: 650,
+    nombre: '2 CLASES SEMANALES',
+    descripcion: 'Acceso al contenido y a 2 clases en la academia',
+  ),
+  _Plan(
+    clases: 3,
+    precio: 850,
+    nombre: '3 CLASES SEMANALES',
+    descripcion: 'Acceso al contenido y a 3 clases en la academia',
+  ),
+  _Plan(
+    clases: 4,
+    precio: 900,
+    nombre: '4 CLASES SEMANALES',
+    descripcion: 'Acceso al contenido y a 4 clases en la academia',
+  ),
+  _Plan(
+    clases: 5,
+    precio: 1050,
+    nombre: '5+ CLASES SEMANALES',
+    descripcion: 'Acceso al contenido y clases ilimitadas en la academia',
+  ),
 ];
 
 // ─────────────────────────────────────────────
@@ -115,8 +139,8 @@ class SubscriptionCard extends StatefulWidget {
 }
 
 class _SubscriptionCardState extends State<SubscriptionCard> {
-  bool          _loading = true;
-  String?       _error;
+  bool _loading = true;
+  String? _error;
   CustomerInfo? _customerInfo;
 
   @override
@@ -126,15 +150,24 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
   }
 
   Future<void> _loadSubscription() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       await Purchases.invalidateCustomerInfoCache();
       final info = await Purchases.getCustomerInfo();
       if (!mounted) return;
-      setState(() { _customerInfo = info; _loading = false; });
+      setState(() {
+        _customerInfo = info;
+        _loading = false;
+      });
     } catch (_) {
       if (!mounted) return;
-      setState(() { _error = 'No se pudo cargar la suscripción.'; _loading = false; });
+      setState(() {
+        _error = 'No se pudo cargar la suscripción.';
+        _loading = false;
+      });
     }
   }
 
@@ -145,16 +178,32 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
     if (rawDate == null) return 'Sin fecha';
     try {
       final dt = DateTime.parse(rawDate).toLocal();
-      const m = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      const m = [
+        '',
+        'ene',
+        'feb',
+        'mar',
+        'abr',
+        'may',
+        'jun',
+        'jul',
+        'ago',
+        'sep',
+        'oct',
+        'nov',
+        'dic',
+      ];
       return '${dt.day} ${m[dt.month]} ${dt.year}';
-    } catch (_) { return rawDate; }
+    } catch (_) {
+      return rawDate;
+    }
   }
 
   String _planType(String productId) {
     final id = productId.toLowerCase();
     if (id.contains('annual') || id.contains('year')) return 'Anual';
     if (id.contains('month')) return 'Mensual';
-    if (id.contains('week'))  return 'Semanal';
+    if (id.contains('week')) return 'Semanal';
     return productId;
   }
 
@@ -169,53 +218,61 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
           decoration: BoxDecoration(
             color: _isPremium && !_loading ? _blue : Colors.black,
             borderRadius: const BorderRadius.only(
-              topLeft:  Radius.circular(16),
+              topLeft: Radius.circular(16),
               topRight: Radius.circular(16),
             ),
           ),
-          child: _loading
-              ? const SizedBox(
-            height: 36,
-            child: Center(child: CircularProgressIndicator(color: Colors.white)),
-          )
-              : Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  _isPremium ? Icons.verified_outlined : Icons.lock_outline,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _isPremium ? 'Membresía activa' : 'Sin membresía',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+          child:
+              _loading
+                  ? const SizedBox(
+                    height: 36,
+                    child: Center(
+                      child: CircularProgressIndicator(color: Colors.white),
                     ),
+                  )
+                  : Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          _isPremium
+                              ? Icons.verified_outlined
+                              : Icons.lock_outline,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isPremium ? 'Membresía activa' : 'Sin membresía',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            _isPremium ? 'TAEAPP Pro' : 'Sin plan activo',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: _loadSubscription,
+                        icon: const Icon(Icons.refresh, color: Colors.white),
+                      ),
+                    ],
                   ),
-                  Text(
-                    _isPremium ? 'TAEAPP Pro' : 'Sin plan activo',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: _loadSubscription,
-                icon: const Icon(Icons.refresh, color: Colors.white),
-              ),
-            ],
-          ),
         ),
 
         // Cuerpo
@@ -224,98 +281,121 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.only(
-              bottomLeft:  Radius.circular(16),
+              bottomLeft: Radius.circular(16),
               bottomRight: Radius.circular(16),
             ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: _loading
-                ? const SizedBox.shrink()
-                : _error != null
-                ? Text(_error!, style: const TextStyle(color: Colors.red))
-                : Column(
-              children: [
-                if (_isPremium) ...[
-                  _InfoRow(
-                    icon:  Icons.star_outline,
-                    label: 'Plan',
-                    value: _planType(
-                      _customerInfo!.entitlements.all[_entitlementId]!.productIdentifier,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _InfoRow(
-                    icon:  Icons.calendar_today_outlined,
-                    label: 'Expira',
-                    value: _formatDate(
-                      _customerInfo!.entitlements.all[_entitlementId]?.expirationDate,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.white,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                        ),
-                        builder: (_) => _PaymentHistorySheet(
-                          customerInfo: _customerInfo!,
-                          planType:     _planType,
-                          formatDate:   _formatDate,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Ver historial'),
-                    ),
-                  ),
-                ] else ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: _blueLight,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Column(
+            child:
+                _loading
+                    ? const SizedBox.shrink()
+                    : _error != null
+                    ? Text(_error!, style: const TextStyle(color: Colors.red))
+                    : Column(
                       children: [
-                        Icon(Icons.star_border_rounded, color: _blue, size: 40),
-                        SizedBox(height: 10),
-                        Text(
-                          'No tienes ninguna suscripción activa.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontWeight: FontWeight.w600, color: _blueDark),
-                        ),
+                        if (_isPremium) ...[
+                          _InfoRow(
+                            icon: Icons.star_outline,
+                            label: 'Plan',
+                            value: _planType(
+                              _customerInfo!
+                                  .entitlements
+                                  .all[_entitlementId]!
+                                  .productIdentifier,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _InfoRow(
+                            icon: Icons.calendar_today_outlined,
+                            label: 'Expira',
+                            value: _formatDate(
+                              _customerInfo!
+                                  .entitlements
+                                  .all[_entitlementId]
+                                  ?.expirationDate,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed:
+                                  () => showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    backgroundColor: Colors.white,
+                                    shape: const RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.vertical(
+                                        top: Radius.circular(24),
+                                      ),
+                                    ),
+                                    builder:
+                                        (_) => _PaymentHistorySheet(
+                                          customerInfo: _customerInfo!,
+                                          planType: _planType,
+                                          formatDate: _formatDate,
+                                        ),
+                                  ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.black,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Ver historial'),
+                            ),
+                          ),
+                        ] else ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: _blueLight,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Column(
+                              children: [
+                                Icon(
+                                  Icons.star_border_rounded,
+                                  color: _blue,
+                                  size: 40,
+                                ),
+                                SizedBox(height: 10),
+                                Text(
+                                  'No tienes ninguna suscripción activa.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: _blueDark,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed:
+                                  () => RevenueCatPaywallScreen.show(context),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _blue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.workspace_premium_outlined,
+                              ),
+                              label: const Text('Ver planes premium'),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => RevenueCatPaywallScreen.show(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      icon:  const Icon(Icons.workspace_premium_outlined),
-                      label: const Text('Ver planes premium'),
-                    ),
-                  ),
-                ],
-              ],
-            ),
           ),
         ),
       ],
@@ -328,59 +408,66 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
 // ─────────────────────────────────────────────
 
 class CashPaymentSection extends StatefulWidget {
-  const CashPaymentSection({super.key});
+  const CashPaymentSection({
+    super.key,
+    StudentCashPaymentController? controller,
+  }) : _controller = controller;
+
+  final StudentCashPaymentController? _controller;
 
   @override
   State<CashPaymentSection> createState() => _CashPaymentSectionState();
 }
 
 class _CashPaymentSectionState extends State<CashPaymentSection> {
-  int  _index   = 0;
+  int _index = 0;
   bool _loading = false;
+  late final StudentCashPaymentController _controller;
+  late final Stream<bool> _hasPendingRequestStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = widget._controller ?? StudentCashPaymentController();
+    _hasPendingRequestStream = _controller.watchHasPendingRequest();
+  }
 
   _Plan get _plan => _planes[_index];
 
-  void _prev() { if (_index > 0)                    setState(() => _index--); }
-  void _next() { if (_index < _planes.length - 1)   setState(() => _index++); }
+  void _prev() {
+    if (_index > 0) setState(() => _index--);
+  }
+
+  void _next() {
+    if (_index < _planes.length - 1) setState(() => _index++);
+  }
 
   Future<void> _sendCashRequest() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
     setState(() => _loading = true);
     try {
-      await FirebaseFirestore.instance.collection('cash_payment_requests').add({
-        'uid':        user.uid,
-        'classes':    _plan.clases,
-        'total':      _plan.precio,
-        'status':     'pending',
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      await _controller.createRequest(
+        classes: _plan.clases,
+        total: _plan.precio,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Solicitud enviada correctamente')),
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo enviar la solicitud')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_controller.errorMessage(error))));
     }
     if (mounted) setState(() => _loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('cash_payment_requests')
-          .where('uid',    isEqualTo: user?.uid)
-          .where('status', isEqualTo: 'pending')
-          .snapshots(),
+    return StreamBuilder<bool>(
+      stream: _hasPendingRequestStream,
       builder: (context, snapshot) {
-        final hasPending =
-            snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+        final hasPending = snapshot.data ?? false;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,20 +517,26 @@ class _CashPaymentSectionState extends State<CashPaymentSection> {
                   Row(
                     children: [
                       _ArrowButton(
-                        icon:  Icons.chevron_left,
+                        icon: Icons.chevron_left,
                         onTap: _index > 0 ? _prev : null,
                       ),
                       Expanded(
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 220),
-                          transitionBuilder: (child, anim) => FadeTransition(
-                            opacity: anim,
-                            child: ScaleTransition(scale: anim, child: child),
-                          ),
+                          transitionBuilder:
+                              (child, anim) => FadeTransition(
+                                opacity: anim,
+                                child: ScaleTransition(
+                                  scale: anim,
+                                  child: child,
+                                ),
+                              ),
                           child: Container(
                             key: ValueKey(_index),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 20),
+                              horizontal: 16,
+                              vertical: 20,
+                            ),
                             decoration: BoxDecoration(
                               color: _blueLight,
                               borderRadius: BorderRadius.circular(14),
@@ -474,7 +567,7 @@ class _CashPaymentSectionState extends State<CashPaymentSection> {
                         ),
                       ),
                       _ArrowButton(
-                        icon:  Icons.chevron_right,
+                        icon: Icons.chevron_right,
                         onTap: _index < _planes.length - 1 ? _next : null,
                       ),
                     ],
@@ -486,10 +579,10 @@ class _CashPaymentSectionState extends State<CashPaymentSection> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
                       _planes.length,
-                          (i) => AnimatedContainer(
+                      (i) => AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         margin: const EdgeInsets.symmetric(horizontal: 3),
-                        width:  i == _index ? 18 : 6,
+                        width: i == _index ? 18 : 6,
                         height: 6,
                         decoration: BoxDecoration(
                           color: i == _index ? _blue : Colors.black12,
@@ -547,7 +640,7 @@ class _CashPaymentSectionState extends State<CashPaymentSection> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      icon:  const Icon(Icons.credit_card),
+                      icon: const Icon(Icons.credit_card),
                       label: const Text('Pago con tarjeta'),
                     ),
                   ),
@@ -558,7 +651,8 @@ class _CashPaymentSectionState extends State<CashPaymentSection> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: hasPending || _loading ? null : _sendCashRequest,
+                      onPressed:
+                          hasPending || _loading ? null : _sendCashRequest,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
                         foregroundColor: Colors.white,
@@ -567,14 +661,20 @@ class _CashPaymentSectionState extends State<CashPaymentSection> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      icon: _loading
-                          ? const SizedBox(
-                        width: 18, height: 18,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
-                      )
-                          : const Icon(Icons.payments_outlined),
-                      label: Text(hasPending ? 'Solicitud pendiente' : 'Pago en efectivo'),
+                      icon:
+                          _loading
+                              ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.payments_outlined),
+                      label: Text(
+                        hasPending ? 'Solicitud pendiente' : 'Pago en efectivo',
+                      ),
                     ),
                   ),
                 ],
@@ -592,7 +692,7 @@ class _CashPaymentSectionState extends State<CashPaymentSection> {
 // ─────────────────────────────────────────────
 
 class _ArrowButton extends StatelessWidget {
-  final IconData      icon;
+  final IconData icon;
   final VoidCallback? onTap;
 
   const _ArrowButton({required this.icon, this.onTap});
@@ -608,10 +708,7 @@ class _ArrowButton extends StatelessWidget {
           color: onTap != null ? _blueLight : Colors.black12,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(
-          icon,
-          color: onTap != null ? _blue : Colors.black26,
-        ),
+        child: Icon(icon, color: onTap != null ? _blue : Colors.black26),
       ),
     );
   }
@@ -619,8 +716,8 @@ class _ArrowButton extends StatelessWidget {
 
 class _InfoRow extends StatelessWidget {
   final IconData icon;
-  final String   label;
-  final String   value;
+  final String label;
+  final String value;
 
   const _InfoRow({
     required this.icon,
@@ -641,17 +738,23 @@ class _InfoRow extends StatelessWidget {
           child: Icon(icon, size: 16, color: _blue),
         ),
         const SizedBox(width: 12),
-        Text('$label: ', style: const TextStyle(fontSize: 13, color: Colors.grey)),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(
+          '$label: ',
+          style: const TextStyle(fontSize: 13, color: Colors.grey),
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
       ],
     );
   }
 }
 
 class _PaymentHistorySheet extends StatelessWidget {
-  final CustomerInfo              customerInfo;
-  final String Function(String)   planType;
-  final String Function(String?)  formatDate;
+  final CustomerInfo customerInfo;
+  final String Function(String) planType;
+  final String Function(String?) formatDate;
 
   const _PaymentHistorySheet({
     required this.customerInfo,
@@ -667,7 +770,8 @@ class _PaymentHistorySheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 45, height: 5,
+            width: 45,
+            height: 5,
             decoration: BoxDecoration(
               color: Colors.black12,
               borderRadius: BorderRadius.circular(20),
@@ -680,19 +784,25 @@ class _PaymentHistorySheet extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           ...customerInfo.nonSubscriptionTransactions.map(
-                (t) => _HistoryTile(
+            (t) => _HistoryTile(
               productId: planType(t.productIdentifier),
-              date:      formatDate(t.purchaseDate),
-              isActive:  false,
+              date: formatDate(t.purchaseDate),
+              isActive: false,
             ),
           ),
           if (customerInfo.entitlements.all[_entitlementId] != null)
             _HistoryTile(
               productId: planType(
-                customerInfo.entitlements.all[_entitlementId]!.productIdentifier,
+                customerInfo
+                    .entitlements
+                    .all[_entitlementId]!
+                    .productIdentifier,
               ),
-              date:     formatDate(
-                customerInfo.entitlements.all[_entitlementId]!.latestPurchaseDate,
+              date: formatDate(
+                customerInfo
+                    .entitlements
+                    .all[_entitlementId]!
+                    .latestPurchaseDate,
               ),
               isActive: true,
             ),
@@ -706,7 +816,7 @@ class _PaymentHistorySheet extends StatelessWidget {
 class _HistoryTile extends StatelessWidget {
   final String productId;
   final String date;
-  final bool   isActive;
+  final bool isActive;
 
   const _HistoryTile({
     required this.productId,

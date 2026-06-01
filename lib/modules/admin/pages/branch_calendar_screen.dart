@@ -1,7 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:tae_app/features/admin/domain/entities/admin_branch_calendar_event.dart';
+import 'package:tae_app/features/admin/presentation/controllers/branch_calendar_controller.dart';
 
 class BranchCalendarScreen extends StatefulWidget {
   const BranchCalendarScreen({
@@ -20,6 +21,7 @@ class BranchCalendarScreen extends StatefulWidget {
 }
 
 class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
+  final BranchCalendarController _controller = BranchCalendarController();
   final ValueNotifier<int> _currentTabIndex = ValueNotifier<int>(0);
   final PageController _eventPageController = PageController();
   CalendarFormat _calendarFormat = CalendarFormat.month;
@@ -32,16 +34,7 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
     DateTime.now().add(const Duration(days: 730)),
   );
 
-  CollectionReference<Map<String, dynamic>>? get _eventsCollection {
-    final branchId = widget.branchId?.trim() ?? '';
-    if (branchId.isEmpty) {
-      return null;
-    }
-    return FirebaseFirestore.instance
-        .collection('sucursales')
-        .doc(branchId)
-        .collection('eventos');
-  }
+  String get _branchId => widget.branchId?.trim() ?? '';
 
   @override
   void dispose() {
@@ -104,8 +97,8 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             Future<void> saveEvent() async {
-              final collection = _eventsCollection;
-              if (collection == null || isSaving) return;
+              final branchId = _branchId;
+              if (branchId.isEmpty || isSaving) return;
 
               final title = titleController.text.trim();
               final time = timeController.text.trim();
@@ -121,34 +114,26 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
 
               setDialogState(() => isSaving = true);
               try {
-                final payload = {
-                  'title': title,
-                  'time_label': time,
-                  'notes': notes,
-                  'type': selectedType,
-                  'event_date': Timestamp.fromDate(_normalizeDay(selectedDate)),
-                  'repeat_mode': selectedRepeatMode.name,
-                  'repeat_interval':
-                      selectedRepeatMode == _RepeatMode.custom
-                          ? int.tryParse(intervalController.text.trim()) ?? 1
-                          : _repeatIntervalForMode(selectedRepeatMode),
-                  'repeat_unit':
-                      selectedRepeatMode == _RepeatMode.custom
-                          ? selectedCustomUnit.name
-                          : _repeatUnitForMode(selectedRepeatMode).name,
-                  'updated_at': FieldValue.serverTimestamp(),
-                };
-
-                if (event == null) {
-                  await collection.add({
-                    ...payload,
-                    'created_at': FieldValue.serverTimestamp(),
-                  });
-                } else {
-                  await collection
-                      .doc(event.id)
-                      .set(payload, SetOptions(merge: true));
-                }
+                await _controller.saveEvent(
+                  branchId: branchId,
+                  eventId: event?.id,
+                  request: AdminBranchCalendarEventRequest(
+                    title: title,
+                    type: selectedType,
+                    date: _normalizeDay(selectedDate),
+                    timeLabel: time,
+                    notes: notes,
+                    repeatModeName: selectedRepeatMode.name,
+                    repeatInterval:
+                        selectedRepeatMode == _RepeatMode.custom
+                            ? int.tryParse(intervalController.text.trim()) ?? 1
+                            : _repeatIntervalForMode(selectedRepeatMode),
+                    repeatUnitName:
+                        selectedRepeatMode == _RepeatMode.custom
+                            ? selectedCustomUnit.name
+                            : _repeatUnitForMode(selectedRepeatMode).name,
+                  ),
+                );
 
                 if (dialogContext.mounted) {
                   Navigator.of(dialogContext).pop();
@@ -161,7 +146,7 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
                 );
               } catch (error) {
                 _showSnackBar(
-                  'No pudimos guardar el evento: $error',
+                  _controller.errorMessage(error),
                   backgroundColor: Colors.red,
                 );
               } finally {
@@ -451,8 +436,8 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
   }
 
   Future<void> _deleteEvent(_CalendarEvent event) async {
-    final collection = _eventsCollection;
-    if (collection == null) return;
+    final branchId = _branchId;
+    if (branchId.isEmpty) return;
 
     final shouldDelete = await showDialog<bool>(
       context: context,
@@ -481,11 +466,11 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
     }
 
     try {
-      await collection.doc(event.id).delete();
+      await _controller.deleteEvent(branchId: branchId, eventId: event.id);
       _showSnackBar('Evento eliminado.', backgroundColor: Colors.green);
     } catch (error) {
       _showSnackBar(
-        'No pudimos eliminar el evento: $error',
+        _controller.errorMessage(error),
         backgroundColor: Colors.red,
       );
     }
@@ -493,7 +478,7 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final branchId = widget.branchId?.trim() ?? '';
+    final branchId = _branchId;
 
     if (branchId.isEmpty) {
       return Scaffold(
@@ -555,8 +540,8 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
           ],
         ),
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _eventsCollection!.orderBy('event_date').snapshots(),
+      body: StreamBuilder<List<AdminBranchCalendarEvent>>(
+        stream: _controller.watchEvents(branchId),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(
@@ -569,9 +554,7 @@ class _BranchCalendarScreenState extends State<BranchCalendarScreen> {
           }
 
           final events =
-              snapshot.data?.docs
-                  .map((doc) => _CalendarEvent.fromFirestore(doc))
-                  .toList() ??
+              snapshot.data?.map(_CalendarEvent.fromEntity).toList() ??
               const <_CalendarEvent>[];
           final eventsByDay = _groupEventsByDay(events);
 
@@ -1090,22 +1073,17 @@ class _CalendarEvent {
     required this.repeatUnit,
   });
 
-  factory _CalendarEvent.fromFirestore(
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
-    final data = doc.data();
+  factory _CalendarEvent.fromEntity(AdminBranchCalendarEvent event) {
     return _CalendarEvent(
-      id: doc.id,
-      title: data['title']?.toString() ?? 'Evento',
-      type: data['type']?.toString() ?? 'Otro',
-      date: _normalizeDay(
-        (data['event_date'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      ),
-      timeLabel: data['time_label']?.toString() ?? '',
-      notes: data['notes']?.toString() ?? '',
-      repeatMode: _repeatModeFromString(data['repeat_mode']?.toString()),
-      repeatInterval: (data['repeat_interval'] as num?)?.toInt() ?? 0,
-      repeatUnit: _repeatUnitFromString(data['repeat_unit']?.toString()),
+      id: event.id,
+      title: event.title,
+      type: event.type,
+      date: _normalizeDay(event.date),
+      timeLabel: event.timeLabel,
+      notes: event.notes,
+      repeatMode: _repeatModeFromString(event.repeatModeName),
+      repeatInterval: event.repeatInterval,
+      repeatUnit: _repeatUnitFromString(event.repeatUnitName),
     );
   }
 

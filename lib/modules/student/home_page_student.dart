@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:tae_app/features/student/domain/entities/student_group_data.dart';
+import 'package:tae_app/features/student/presentation/controllers/student_home_controller.dart';
 import 'package:tae_app/modules/admin/pages/activities_section.dart';
 import 'package:tae_app/modules/student/branch_calendar_student_screen.dart';
 import 'package:tae_app/modules/student/profile_screen_student.dart';
@@ -72,101 +72,94 @@ class _StudentHomeScreen extends StatelessWidget {
   }
 }
 
-class _StudentGroupView extends StatelessWidget {
-  const _StudentGroupView();
+class _StudentGroupView extends StatefulWidget {
+  const _StudentGroupView({StudentHomeController? controller})
+    : _controller = controller;
+
+  final StudentHomeController? _controller;
+
+  @override
+  State<_StudentGroupView> createState() => _StudentGroupViewState();
+}
+
+class _StudentGroupViewState extends State<_StudentGroupView> {
+  late final StudentHomeController _controller;
+  late final Stream<List<StudentGroupData>> _groupsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = widget._controller ?? StudentHomeController();
+    _groupsStream = _controller.watchCurrentStudentGroups();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return const Center(child: Text('No hay una sesion activa.'));
-    }
-
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream:
-          FirebaseFirestore.instance
-              .collection('usuarios')
-              .doc(user.uid)
-              .snapshots(),
-      builder: (context, userSnapshot) {
-        if (userSnapshot.connectionState == ConnectionState.waiting) {
+    return StreamBuilder<List<StudentGroupData>>(
+      stream: _groupsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (userSnapshot.hasError) {
-          return const _NoGroupAssignedState(
-            message:
-                'No se pudo cargar tu grupo. Si ya escaneaste tu QR, intenta entrar de nuevo.',
+        if (snapshot.hasError) {
+          return _NoGroupAssignedState(
+            message: _controller.errorMessage(snapshot.error),
           );
         }
 
-        return FutureBuilder<List<_StudentGroupData>>(
-          future: _loadStudentGroups(user.uid, userSnapshot.data?.data()),
-          builder: (context, groupSnapshot) {
-            if (groupSnapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+        final resolvedGroups = snapshot.data ?? const <StudentGroupData>[];
+        if (resolvedGroups.isEmpty) {
+          return const _NoGroupAssignedState();
+        }
 
-            if (groupSnapshot.hasError) {
-              return const _NoGroupAssignedState(
-                message:
-                    'No se pudo cargar tu grupo. Si ya escaneaste tu QR, intenta entrar de nuevo.',
-              );
-            }
-
-            final resolvedGroups =
-                groupSnapshot.data ?? const <_StudentGroupData>[];
-            if (resolvedGroups.isEmpty) {
-              return const _NoGroupAssignedState();
-            }
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    resolvedGroups.length == 1 ? 'Tu grupo' : 'Tus grupos',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ...resolvedGroups.map(
-                    (resolvedGroup) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: _StudentGroupCard(
-                        uid: user.uid,
-                        group: resolvedGroup,
-                      ),
-                    ),
-                  ),
-                ],
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                resolvedGroups.length == 1 ? 'Tu grupo' : 'Tus grupos',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            );
-          },
+              const SizedBox(height: 12),
+              ...resolvedGroups.map(
+                (resolvedGroup) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _StudentGroupCard(
+                    controller: _controller,
+                    group: resolvedGroup,
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
 }
 
-class _StudentGroupCard extends StatelessWidget {
-  final String uid;
-  final _StudentGroupData group;
+class _StudentGroupCard extends StatefulWidget {
+  const _StudentGroupCard({required this.controller, required this.group});
 
-  const _StudentGroupCard({required this.uid, required this.group});
+  final StudentHomeController controller;
+  final StudentGroupData group;
+
+  @override
+  State<_StudentGroupCard> createState() => _StudentGroupCardState();
+}
+
+class _StudentGroupCardState extends State<_StudentGroupCard> {
+  bool _missingRemovalRequested = false;
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream:
-          FirebaseFirestore.instance
-              .collection('grupos')
-              .doc(group.groupId)
-              .snapshots(),
+    return StreamBuilder<StudentGroupDetails>(
+      stream: widget.controller.watchGroupDetails(widget.group),
       builder: (context, liveGroupSnapshot) {
         if (liveGroupSnapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -181,43 +174,23 @@ class _StudentGroupCard extends StatelessWidget {
           );
         }
 
-        final groupExists = liveGroupSnapshot.data?.exists ?? false;
-        if (!groupExists) {
-          _removeGroupFromProfile(uid, group.groupId);
+        final groupDetails = liveGroupSnapshot.data;
+        if (groupDetails == null) {
+          return const _InlineGroupMessage(
+            message: 'No pudimos cargar uno de tus grupos.',
+          );
+        }
+
+        if (!groupDetails.exists) {
+          _requestMissingGroupRemoval();
           return const _InlineGroupMessage(
             message: 'Un grupo fue eliminado y ya no aparece en tu lista.',
           );
         }
 
-        final groupData = liveGroupSnapshot.data?.data() ?? group.cachedData;
-        final groupName =
-            (groupData['nombre_grupo'] as String?)?.trim().isNotEmpty == true
-                ? groupData['nombre_grupo'] as String
-                : group.groupName;
-        final branchName =
-            (groupData['nombre_sucursal'] as String?)?.trim().isNotEmpty == true
-                ? groupData['nombre_sucursal'] as String
-                : (group.cachedData['nombre_sucursal'] as String?)
-                        ?.trim()
-                        .isNotEmpty ==
-                    true
-                ? group.cachedData['nombre_sucursal'] as String
-                : (groupData['id_sucursal'] as String?) ??
-                    'Sucursal no disponible';
-        final beltType =
-            (groupData['tipo_cinta'] as String?) ?? 'Sin cinta asignada';
-        final schedule =
-            (groupData['horario'] as String?) ?? 'Horario pendiente';
-        final totalStudents = groupData['total_alumnos'] ?? 0;
-        final branchColorValue =
-            (groupData['color_sucursal'] as num?)?.toInt() ??
-            (group.cachedData['color_sucursal'] as num?)?.toInt();
-        final groupColorValue =
-            (groupData['group_card_color'] as num?)?.toInt() ??
-            (group.cachedData['group_card_color'] as num?)?.toInt();
         final backgroundColor = resolveCardColor(
-          groupColorValue,
-          fallback: resolveCardColor(branchColorValue),
+          groupDetails.groupColorValue,
+          fallback: resolveCardColor(groupDetails.branchColorValue),
         );
         final foregroundColor = resolveOnColor(backgroundColor);
 
@@ -243,7 +216,7 @@ class _StudentGroupCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      groupName,
+                      groupDetails.groupName,
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -254,18 +227,33 @@ class _StudentGroupCard extends StatelessWidget {
                   PopupMenuButton<String>(
                     icon: Icon(Icons.more_vert, color: foregroundColor),
                     onSelected: (value) async {
-                      if (value == 'leave_group') {
-                        final shouldLeave = await _showLeaveGroupDialog(
-                          context,
-                        );
+                      if (value != 'leave_group') return;
+
+                      final shouldLeave = await _showLeaveGroupDialog(context);
+                      if (!context.mounted || shouldLeave != true) return;
+
+                      try {
+                        final removedEnrollment = await widget.controller
+                            .leaveGroup(widget.group.groupId);
                         if (!context.mounted) return;
-                        if (shouldLeave == true) {
-                          await _leaveGroup(
-                            context: context,
-                            uid: uid,
-                            groupId: group.groupId,
-                          );
-                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              widget.controller.leaveGroupMessage(
+                                removedEnrollment,
+                              ),
+                            ),
+                          ),
+                        );
+                      } catch (error) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              widget.controller.errorMessage(error),
+                            ),
+                          ),
+                        );
                       }
                     },
                     itemBuilder:
@@ -281,22 +269,22 @@ class _StudentGroupCard extends StatelessWidget {
               const SizedBox(height: 12),
               _InfoRow(
                 label: 'Sucursal',
-                value: branchName,
+                value: groupDetails.branchName,
                 textColor: foregroundColor,
               ),
               _InfoRow(
                 label: 'Cinta',
-                value: beltType,
+                value: groupDetails.beltType,
                 textColor: foregroundColor,
               ),
               _InfoRow(
                 label: 'Horario',
-                value: schedule,
+                value: groupDetails.schedule,
                 textColor: foregroundColor,
               ),
               _InfoRow(
                 label: 'Integrantes',
-                value: '$totalStudents',
+                value: '${groupDetails.totalStudents}',
                 textColor: foregroundColor,
               ),
               const SizedBox(height: 20),
@@ -312,17 +300,14 @@ class _StudentGroupCard extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
-                    final miRol = group.cachedData['rol_en_grupo'] ?? 'alumno';
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder:
                             (context) => ActivitiesSection(
-                              groupName: groupName,
-                              groupDocId: group.groupId,
-                              // Si el rol NO ES 'moderador', entonces isReadOnly será true (bloqueado).
-                              // Si SÍ ES 'moderador', isReadOnly será false (desbloqueado).
-                              isReadOnly: miRol != 'moderador',
+                              groupName: groupDetails.groupName,
+                              groupDocId: groupDetails.groupId,
+                              isReadOnly: groupDetails.role != 'moderador',
                             ),
                       ),
                     );
@@ -336,190 +321,15 @@ class _StudentGroupCard extends StatelessWidget {
       },
     );
   }
-}
 
-Future<List<_StudentGroupData>> _loadStudentGroups(
-  String uid,
-  Map<String, dynamic>? userData,
-) async {
-  final db = FirebaseFirestore.instance;
-  final safeUserData = userData ?? {};
-  final savedGroups = _parseGroupsFromUserData(safeUserData);
+  void _requestMissingGroupRemoval() {
+    if (_missingRemovalRequested) return;
 
-  if (savedGroups.isNotEmpty) {
-    return savedGroups;
+    _missingRemovalRequested = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.controller.removeMissingGroup(widget.group.groupId);
+    });
   }
-
-  final savedGroupId = (safeUserData['grupo_id'] as String?)?.trim();
-  if (savedGroupId != null && savedGroupId.isNotEmpty) {
-    return [
-      _StudentGroupData(
-        groupId: savedGroupId,
-        groupName:
-            (safeUserData['grupo_nombre'] as String?)?.trim().isNotEmpty == true
-                ? safeUserData['grupo_nombre'] as String
-                : savedGroupId,
-        cachedData: {
-          'nombre_grupo': safeUserData['grupo_nombre'],
-          'nombre_sucursal': safeUserData['grupo_sucursal'],
-          'id_sucursal': safeUserData['grupo_sucursal'],
-          'tipo_cinta': safeUserData['grupo_cinta'],
-          'horario': safeUserData['grupo_horario'],
-          'color_sucursal': safeUserData['grupo_color_sucursal'],
-          'group_card_color': safeUserData['grupo_color'],
-        },
-      ),
-    ];
-  }
-
-  try {
-    final studentQuery =
-        await db.collectionGroup('alumnos').where('uid', isEqualTo: uid).get();
-
-    if (studentQuery.docs.isEmpty) {
-      return const [];
-    }
-
-    final resolvedGroups = <_StudentGroupData>[];
-    for (final studentDoc in studentQuery.docs) {
-      final groupRef = studentDoc.reference.parent.parent;
-      if (groupRef == null) {
-        continue;
-      }
-
-      final groupDoc = await groupRef.get();
-      final groupData = groupDoc.data() ?? {};
-      final groupName =
-          (groupData['nombre_grupo'] as String?)?.trim().isNotEmpty == true
-              ? groupData['nombre_grupo'] as String
-              : groupRef.id;
-
-      resolvedGroups.add(
-        _StudentGroupData(
-          groupId: groupRef.id,
-          groupName: groupName,
-          cachedData: groupData,
-        ),
-      );
-    }
-
-    if (resolvedGroups.isEmpty) {
-      return const [];
-    }
-
-    await _saveGroupsToProfile(uid, resolvedGroups);
-    return resolvedGroups;
-  } catch (_) {
-    return const [];
-  }
-}
-
-List<_StudentGroupData> _parseGroupsFromUserData(
-  Map<String, dynamic> userData,
-) {
-  final rawGroups = userData['grupos'];
-  if (rawGroups is! List) {
-    return const [];
-  }
-
-  return rawGroups
-      .whereType<Map>()
-      .map((rawGroup) {
-        final groupMap = Map<String, dynamic>.from(rawGroup);
-        final groupId = (groupMap['groupId'] as String?)?.trim();
-        if (groupId == null || groupId.isEmpty) {
-          return null;
-        }
-
-        final groupName =
-            (groupMap['groupName'] as String?)?.trim().isNotEmpty == true
-                ? groupMap['groupName'] as String
-                : groupId;
-
-        return _StudentGroupData(
-          groupId: groupId,
-          groupName: groupName,
-          cachedData: {
-            'nombre_grupo': groupMap['groupName'],
-            'nombre_sucursal': groupMap['branchName'],
-            'id_sucursal': groupMap['branchId'] ?? groupMap['branchName'],
-            'tipo_cinta': groupMap['beltType'],
-            'horario': groupMap['schedule'],
-            'color_sucursal': groupMap['branchColorValue'],
-            'group_card_color': groupMap['groupColorValue'],
-            'rol_en_grupo': groupMap['rol_en_grupo'],
-          },
-        );
-      })
-      .whereType<_StudentGroupData>()
-      .toList();
-}
-
-Future<void> _saveGroupsToProfile(String uid, List<_StudentGroupData> groups) {
-  final payload =
-      groups
-          .map(
-            (group) => {
-              'groupId': group.groupId,
-              'groupName': group.groupName,
-              'branchName':
-                  group.cachedData['nombre_sucursal'] ??
-                  group.cachedData['id_sucursal'] ??
-                  '',
-              'branchId':
-                  group.cachedData['id_sucursal'] ?? '',
-              'beltType': group.cachedData['tipo_cinta'] ?? '',
-              'schedule': group.cachedData['horario'] ?? '',
-              'branchColorValue': group.cachedData['color_sucursal'],
-              'groupColorValue': group.cachedData['group_card_color'],
-              'rol_en_grupo': group.cachedData['rol_en_grupo'] ?? 'alumno',
-            },
-          )
-          .toList();
-
-  return FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
-    'grupos': payload,
-    if (groups.isNotEmpty) ...{
-      'grupo_id': groups.first.groupId,
-      'grupo_nombre': groups.first.groupName,
-      'grupo_sucursal':
-          groups.first.cachedData['nombre_sucursal'] ??
-          groups.first.cachedData['id_sucursal'] ??
-          '',
-      'grupo_cinta': groups.first.cachedData['tipo_cinta'] ?? '',
-      'grupo_horario': groups.first.cachedData['horario'] ?? '',
-      'grupo_color_sucursal': groups.first.cachedData['color_sucursal'],
-      'grupo_color': groups.first.cachedData['group_card_color'],
-    },
-  }, SetOptions(merge: true));
-}
-
-Future<void> _removeGroupFromProfile(String uid, String groupId) async {
-  final db = FirebaseFirestore.instance;
-  final userDoc = await db.collection('usuarios').doc(uid).get();
-  final currentGroups = _parseGroupsFromUserData(userDoc.data() ?? {});
-  final remainingGroups =
-      currentGroups.where((group) => group.groupId != groupId).toList();
-
-  if (remainingGroups.isEmpty) {
-    await _clearSavedGroups(uid);
-    return;
-  }
-
-  await _saveGroupsToProfile(uid, remainingGroups);
-}
-
-Future<void> _clearSavedGroups(String uid) {
-  return FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
-    'grupos': FieldValue.delete(),
-    'grupo_id': FieldValue.delete(),
-    'grupo_nombre': FieldValue.delete(),
-    'grupo_sucursal': FieldValue.delete(),
-    'grupo_cinta': FieldValue.delete(),
-    'grupo_horario': FieldValue.delete(),
-    'grupo_color_sucursal': FieldValue.delete(),
-    'grupo_color': FieldValue.delete(),
-  }, SetOptions(merge: true));
 }
 
 Future<bool?> _showLeaveGroupDialog(BuildContext context) {
@@ -549,79 +359,10 @@ Future<bool?> _showLeaveGroupDialog(BuildContext context) {
   );
 }
 
-Future<void> _leaveGroup({
-  required BuildContext context,
-  required String uid,
-  required String groupId,
-}) async {
-  final db = FirebaseFirestore.instance;
-
-  try {
-    final studentDocs =
-        await db
-            .collection('grupos')
-            .doc(groupId)
-            .collection('alumnos')
-            .where('uid', isEqualTo: uid)
-            .get();
-
-    for (final doc in studentDocs.docs) {
-      await doc.reference.delete();
-    }
-
-    if (studentDocs.docs.isNotEmpty) {
-      // ✅ 1. Consultar a qué sucursal pertenece este grupo
-      final grupoSnap = await db.collection('grupos').doc(groupId).get();
-      final idSucursal = grupoSnap.data()?['id_sucursal'] as String?;
-      final alumnosBorrados = studentDocs.docs.length;
-
-      // ✅ 2. Restar alumnos del GRUPO
-      await db.collection('grupos').doc(groupId).update({
-        'total_alumnos': FieldValue.increment(-alumnosBorrados),
-      });
-
-      // ✅ 3. Restar participantes de la SUCURSAL
-      if (idSucursal != null && idSucursal.isNotEmpty) {
-        await db.collection('sucursales').doc(idSucursal).update({
-          'participants': FieldValue.increment(-alumnosBorrados),
-        });
-      }
-    }
-
-    await _removeGroupFromProfile(uid, groupId);
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tu grupo ya no aparece en tu pantalla.')),
-      );
-    }
-  } catch (_) {
-    await _removeGroupFromProfile(uid, groupId);
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Se quito el grupo de tu pantalla.')),
-      );
-    }
-  }
-}
-
-class _StudentGroupData {
-  final String groupId;
-  final String groupName;
-  final Map<String, dynamic> cachedData;
-
-  const _StudentGroupData({
-    required this.groupId,
-    required this.groupName,
-    required this.cachedData,
-  });
-}
-
 class _InlineGroupMessage extends StatelessWidget {
-  final String message;
-
   const _InlineGroupMessage({required this.message});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -638,15 +379,11 @@ class _InlineGroupMessage extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value, this.textColor});
+
   final String label;
   final String value;
   final Color? textColor;
-
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    this.textColor,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -675,12 +412,12 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _NoGroupAssignedState extends StatelessWidget {
-  final String message;
-
   const _NoGroupAssignedState({
     this.message =
         'Aun no estas inscrito en un grupo. Escanea el QR o escribe el codigo que te comparta tu administrador.',
   });
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {

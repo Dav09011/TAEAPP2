@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tae_app/core/services/auth_service.dart';
 import 'package:tae_app/core/services/firestore_service.dart';
+import 'package:tae_app/features/admin/domain/entities/admin_grouped_student.dart';
 import 'package:tae_app/features/admin/domain/entities/admin_note_entry.dart';
 import 'package:tae_app/features/admin/domain/entities/admin_notes_student.dart';
 import 'package:tae_app/features/admin/domain/repositories/notes_repository.dart';
@@ -16,6 +17,21 @@ class FirebaseNotesRepository implements NotesRepository {
   final AuthService _authService;
 
   FirebaseFirestore get _db => _firestoreService.instance;
+
+  @override
+  Stream<List<AdminGroupedStudent>> watchLegacyStudents() {
+    return _db.collection('alumnos').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return AdminGroupedStudent(
+          id: doc.id,
+          name: data['nombre']?.toString() ?? '',
+          group: data['grupo']?.toString() ?? '',
+          avatarUrl: data['avatarUrl']?.toString(),
+        );
+      }).toList();
+    });
+  }
 
   @override
   Future<List<AdminNotesStudent>> loadStudentsWithNotes() async {
@@ -55,7 +71,8 @@ class FirebaseNotesRepository implements NotesRepository {
       }
 
       final branchName = group['branchName']?.toString().trim() ?? '';
-      if (branchName.isNotEmpty && allowedBranchNamesEffective.contains(branchName)) {
+      if (branchName.isNotEmpty &&
+          allowedBranchNamesEffective.contains(branchName)) {
         return true;
       }
 
@@ -70,7 +87,8 @@ class FirebaseNotesRepository implements NotesRepository {
     // Notes can exist even if group membership data is incomplete. We always
     // include students already present in `notas_alumnos` as a fallback source.
     final notesSummarySnapshot = await notesRoot.get();
-    final fallbackStudentIds = notesSummarySnapshot.docs.map((doc) => doc.id).toSet();
+    final fallbackStudentIds =
+        notesSummarySnapshot.docs.map((doc) => doc.id).toSet();
 
     final groupsSnapshot = await _db.collection('grupos').get();
     final accessibleGroups =
@@ -85,7 +103,9 @@ class FirebaseNotesRepository implements NotesRepository {
 
     final aggregatedStudents = <String, _StudentAccumulator>{};
     final studentSubcollections = await Future.wait(
-      accessibleGroups.map((groupDoc) => groupDoc.reference.collection('alumnos').get()),
+      accessibleGroups.map(
+        (groupDoc) => groupDoc.reference.collection('alumnos').get(),
+      ),
     );
 
     for (var index = 0; index < accessibleGroups.length; index++) {
@@ -109,7 +129,8 @@ class FirebaseNotesRepository implements NotesRepository {
           () => _StudentAccumulator(studentId: studentId),
         );
 
-        accumulator.nameHint = studentData['nombre']?.toString().trim() ?? accumulator.nameHint;
+        accumulator.nameHint =
+            studentData['nombre']?.toString().trim() ?? accumulator.nameHint;
         accumulator.branchIds.add(branchId);
         accumulator.branchNames.add(branchName);
         accumulator.groupIds.add(groupId);
@@ -123,13 +144,13 @@ class FirebaseNotesRepository implements NotesRepository {
       }
     }
 
-    final studentIds = <String>{
-      ...aggregatedStudents.keys,
-      ...fallbackStudentIds,
-    }.toList();
+    final studentIds =
+        <String>{...aggregatedStudents.keys, ...fallbackStudentIds}.toList();
 
     final userSnapshots = await Future.wait(
-      studentIds.map((studentId) => _db.collection('usuarios').doc(studentId).get()),
+      studentIds.map(
+        (studentId) => _db.collection('usuarios').doc(studentId).get(),
+      ),
     );
 
     final summaryByStudentId = {
@@ -147,7 +168,9 @@ class FirebaseNotesRepository implements NotesRepository {
     for (var index = 0; index < userSnapshots.length; index++) {
       final userSnapshot = userSnapshots[index];
       final studentId = userSnapshot.id;
-      final accumulator = aggregatedStudents[studentId] ?? _StudentAccumulator(studentId: studentId);
+      final accumulator =
+          aggregatedStudents[studentId] ??
+          _StudentAccumulator(studentId: studentId);
 
       final userData = userSnapshot.data() ?? const <String, dynamic>{};
       final firstName = userData['nombre']?.toString().trim();
@@ -229,7 +252,11 @@ class FirebaseNotesRepository implements NotesRepository {
                   ? summaryBranchNamesRaw
                   : accumulator.branchNames.toList())
               .map((value) => value.toString().trim())
-              .where((value) => value.isNotEmpty && allowedBranchNamesEffective.contains(value))
+              .where(
+                (value) =>
+                    value.isNotEmpty &&
+                    allowedBranchNamesEffective.contains(value),
+              )
               .toSet()
               .toList()
             ..sort();
@@ -238,7 +265,11 @@ class FirebaseNotesRepository implements NotesRepository {
                   ? summaryGroupNamesRaw
                   : accumulator.groupNames.toList())
               .map((value) => value.toString().trim())
-              .where((value) => value.isNotEmpty && allowedGroupNamesEffective.contains(value))
+              .where(
+                (value) =>
+                    value.isNotEmpty &&
+                    allowedGroupNamesEffective.contains(value),
+              )
               .toSet()
               .toList()
             ..sort();
@@ -254,13 +285,23 @@ class FirebaseNotesRepository implements NotesRepository {
                   : 'Sin nombre',
           fullName: fullName.isNotEmpty ? fullName : 'Sin nombre',
           branchIds:
-              (accumulator.branchIds.isEmpty ? branchIdsFromUser : accumulator.branchIds.toList())
+              (accumulator.branchIds.isEmpty
+                    ? branchIdsFromUser
+                    : accumulator.branchIds.toList())
                 ..sort(),
-          branchNames: resolvedBranchNames.isNotEmpty ? resolvedBranchNames : branchNamesFromUser,
+          branchNames:
+              resolvedBranchNames.isNotEmpty
+                  ? resolvedBranchNames
+                  : branchNamesFromUser,
           groupIds:
-              (accumulator.groupIds.isEmpty ? groupIdsFromUser : accumulator.groupIds.toList())
+              (accumulator.groupIds.isEmpty
+                    ? groupIdsFromUser
+                    : accumulator.groupIds.toList())
                 ..sort(),
-          groupNames: resolvedGroupNames.isNotEmpty ? resolvedGroupNames : groupNamesFromUser,
+          groupNames:
+              resolvedGroupNames.isNotEmpty
+                  ? resolvedGroupNames
+                  : groupNamesFromUser,
           entries: sortedEntries,
           isActive: (summaryData?['alumno_activo'] as bool?) ?? true,
         ),
@@ -268,8 +309,14 @@ class FirebaseNotesRepository implements NotesRepository {
     }
 
     result.sort((a, b) {
-      final aDate = a.entries.isEmpty ? DateTime.fromMillisecondsSinceEpoch(0) : a.entries.first.updatedAt;
-      final bDate = b.entries.isEmpty ? DateTime.fromMillisecondsSinceEpoch(0) : b.entries.first.updatedAt;
+      final aDate =
+          a.entries.isEmpty
+              ? DateTime.fromMillisecondsSinceEpoch(0)
+              : a.entries.first.updatedAt;
+      final bDate =
+          b.entries.isEmpty
+              ? DateTime.fromMillisecondsSinceEpoch(0)
+              : b.entries.first.updatedAt;
       return bDate.compareTo(aDate);
     });
 
@@ -296,10 +343,14 @@ class FirebaseNotesRepository implements NotesRepository {
       'contenido': content,
       'importante': isPinned,
       'activa': true,
-      'contexto_grupo_id': student.groupIds.isEmpty ? null : student.groupIds.first,
-      'contexto_grupo_nombre': student.groupNames.isEmpty ? null : student.groupNames.first,
-      'contexto_sucursal_id': student.branchIds.isEmpty ? null : student.branchIds.first,
-      'contexto_sucursal_nombre': student.branchNames.isEmpty ? null : student.branchNames.first,
+      'contexto_grupo_id':
+          student.groupIds.isEmpty ? null : student.groupIds.first,
+      'contexto_grupo_nombre':
+          student.groupNames.isEmpty ? null : student.groupNames.first,
+      'contexto_sucursal_id':
+          student.branchIds.isEmpty ? null : student.branchIds.first,
+      'contexto_sucursal_nombre':
+          student.branchNames.isEmpty ? null : student.branchNames.first,
       'created_at': Timestamp.fromDate(now),
       'updated_at': Timestamp.fromDate(now),
       'deleted_at': null,
@@ -316,9 +367,12 @@ class FirebaseNotesRepository implements NotesRepository {
       isPinned: isPinned,
       isActive: true,
       contextGroupId: student.groupIds.isEmpty ? null : student.groupIds.first,
-      contextGroupName: student.groupNames.isEmpty ? null : student.groupNames.first,
-      contextBranchId: student.branchIds.isEmpty ? null : student.branchIds.first,
-      contextBranchName: student.branchNames.isEmpty ? null : student.branchNames.first,
+      contextGroupName:
+          student.groupNames.isEmpty ? null : student.groupNames.first,
+      contextBranchId:
+          student.branchIds.isEmpty ? null : student.branchIds.first,
+      contextBranchName:
+          student.branchNames.isEmpty ? null : student.branchNames.first,
     );
   }
 
@@ -332,23 +386,17 @@ class FirebaseNotesRepository implements NotesRepository {
     final adminId = _requireAdminId();
     final now = DateTime.now();
 
-    await _notesRoot(adminId)
-        .doc(student.id)
-        .collection('entradas')
-        .doc(entry.id)
-        .update({
-          'contenido': content,
-          'importante': isPinned,
-          'updated_at': Timestamp.fromDate(now),
-        });
+    await _notesRoot(
+      adminId,
+    ).doc(student.id).collection('entradas').doc(entry.id).update({
+      'contenido': content,
+      'importante': isPinned,
+      'updated_at': Timestamp.fromDate(now),
+    });
 
     await _refreshStudentSummary(adminId: adminId, student: student);
 
-    return entry.copyWith(
-      content: content,
-      isPinned: isPinned,
-      updatedAt: now,
-    );
+    return entry.copyWith(content: content, isPinned: isPinned, updatedAt: now);
   }
 
   @override
@@ -358,14 +406,12 @@ class FirebaseNotesRepository implements NotesRepository {
     required bool isPinned,
   }) async {
     final adminId = _requireAdminId();
-    await _notesRoot(adminId)
-        .doc(student.id)
-        .collection('entradas')
-        .doc(entry.id)
-        .update({
-          'importante': isPinned,
-          'updated_at': FieldValue.serverTimestamp(),
-        });
+    await _notesRoot(
+      adminId,
+    ).doc(student.id).collection('entradas').doc(entry.id).update({
+      'importante': isPinned,
+      'updated_at': FieldValue.serverTimestamp(),
+    });
 
     await _refreshStudentSummary(adminId: adminId, student: student);
   }
@@ -376,15 +422,13 @@ class FirebaseNotesRepository implements NotesRepository {
     required AdminNoteEntry entry,
   }) async {
     final adminId = _requireAdminId();
-    await _notesRoot(adminId)
-        .doc(student.id)
-        .collection('entradas')
-        .doc(entry.id)
-        .update({
-          'activa': false,
-          'deleted_at': FieldValue.serverTimestamp(),
-          'updated_at': FieldValue.serverTimestamp(),
-        });
+    await _notesRoot(
+      adminId,
+    ).doc(student.id).collection('entradas').doc(entry.id).update({
+      'activa': false,
+      'deleted_at': FieldValue.serverTimestamp(),
+      'updated_at': FieldValue.serverTimestamp(),
+    });
 
     await _refreshStudentSummary(adminId: adminId, student: student);
   }
@@ -395,15 +439,13 @@ class FirebaseNotesRepository implements NotesRepository {
     required AdminNoteEntry entry,
   }) async {
     final adminId = _requireAdminId();
-    await _notesRoot(adminId)
-        .doc(student.id)
-        .collection('entradas')
-        .doc(entry.id)
-        .update({
-          'activa': true,
-          'deleted_at': null,
-          'updated_at': FieldValue.serverTimestamp(),
-        });
+    await _notesRoot(
+      adminId,
+    ).doc(student.id).collection('entradas').doc(entry.id).update({
+      'activa': true,
+      'deleted_at': null,
+      'updated_at': FieldValue.serverTimestamp(),
+    });
 
     await _refreshStudentSummary(adminId: adminId, student: student);
   }
@@ -414,7 +456,10 @@ class FirebaseNotesRepository implements NotesRepository {
 
   Future<_OwnedBranches> _loadOwnedBranches(String adminId) async {
     final snapshot =
-        await _db.collection('sucursales').where('id_usuario', isEqualTo: adminId).get();
+        await _db
+            .collection('sucursales')
+            .where('id_usuario', isEqualTo: adminId)
+            .get();
     final ids = <String>{};
     final names = <String>{};
     for (final doc in snapshot.docs) {
@@ -442,7 +487,8 @@ class FirebaseNotesRepository implements NotesRepository {
       studentId: data['alumno_id']?.toString() ?? '',
       content: data['contenido']?.toString() ?? '',
       createdAt: (data['created_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updated_at'] as Timestamp?)?.toDate() ??
+      updatedAt:
+          (data['updated_at'] as Timestamp?)?.toDate() ??
           (data['created_at'] as Timestamp?)?.toDate() ??
           DateTime.now(),
       isPinned: data['importante'] as bool? ?? false,
@@ -514,7 +560,9 @@ class FirebaseNotesRepository implements NotesRepository {
       'sucursales_ids': student.branchIds,
       'sucursales_nombres': student.branchNames,
       'ultima_nota_fecha':
-          latestEntry == null ? null : Timestamp.fromDate(latestEntry.updatedAt),
+          latestEntry == null
+              ? null
+              : Timestamp.fromDate(latestEntry.updatedAt),
       'ultima_nota_preview': latestEntry?.content ?? '',
       'updated_at': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));

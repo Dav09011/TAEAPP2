@@ -2,19 +2,37 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
+import 'package:tae_app/core/services/auth_service.dart';
 import 'package:tae_app/core/services/firestore_service.dart';
+import 'package:tae_app/features/admin/domain/entities/branch_category_option.dart';
 import 'package:tae_app/features/admin/domain/entities/branch_group.dart';
 import 'package:tae_app/features/admin/domain/entities/create_group_request.dart';
 import 'package:tae_app/features/admin/domain/repositories/group_repository.dart';
 
 class FirebaseGroupRepository implements GroupRepository {
-  FirebaseGroupRepository({FirestoreService? firestoreService})
-    : _firestoreService = firestoreService ?? FirestoreService();
+  FirebaseGroupRepository({
+    AuthService? authService,
+    FirestoreService? firestoreService,
+  }) : _authService = authService ?? AuthService(),
+       _firestoreService = firestoreService ?? FirestoreService();
 
   static final Random _random = Random.secure();
+  final AuthService _authService;
   final FirestoreService _firestoreService;
 
   FirebaseFirestore get _db => _firestoreService.instance;
+
+  @override
+  Future<String?> getCurrentUserRole() async {
+    final user = _authService.currentUser;
+    if (user == null) {
+      return null;
+    }
+
+    final userSnapshot = await _firestoreService.users().doc(user.uid).get();
+    final data = userSnapshot.data() ?? const <String, dynamic>{};
+    return data['role']?.toString() ?? data['tipo']?.toString();
+  }
 
   @override
   Stream<List<BranchGroup>> watchGroupsByBranch(String branchId) {
@@ -30,9 +48,11 @@ class FirebaseGroupRepository implements GroupRepository {
                     (doc) => BranchGroup(
                       id: doc.id,
                       branchId: doc.data()['id_sucursal'] as String? ?? '',
-                      name: doc.data()['nombre_grupo'] as String? ?? 'Sin Nombre',
+                      name:
+                          doc.data()['nombre_grupo'] as String? ?? 'Sin Nombre',
                       beltType: doc.data()['tipo_cinta'] as String? ?? 'N/A',
-                      schedule: doc.data()['horario'] as String? ?? 'Sin horario',
+                      schedule:
+                          doc.data()['horario'] as String? ?? 'Sin horario',
                       totalStudents:
                           (doc.data()['total_alumnos'] as num?)?.toInt() ?? 0,
                       cardColorValue:
@@ -41,6 +61,15 @@ class FirebaseGroupRepository implements GroupRepository {
                   )
                   .toList(),
         );
+  }
+
+  @override
+  Stream<List<BranchCategoryOption>> watchBranchCategories(String branchId) {
+    return _firestoreService.branches().doc(branchId).snapshots().map((
+      snapshot,
+    ) {
+      return _parseBranchCategories(snapshot.data()?['available_belts']);
+    });
   }
 
   @override
@@ -77,6 +106,24 @@ class FirebaseGroupRepository implements GroupRepository {
     await _db.collection('sucursales').doc(request.branchId).update({
       'classes': FieldValue.increment(1),
     });
+  }
+
+  @override
+  Future<void> saveBranchCategories({
+    required String branchId,
+    required List<BranchCategoryOption> categories,
+  }) {
+    return _firestoreService.branches().doc(branchId).set({
+      'available_belts':
+          categories
+              .map(
+                (category) => {
+                  'label': category.label,
+                  'color_value': category.colorValue,
+                },
+              )
+              .toList(),
+    }, SetOptions(merge: true));
   }
 
   @override
@@ -130,8 +177,24 @@ class FirebaseGroupRepository implements GroupRepository {
     }
   }
 
+  @override
+  Future<String> generateGroupAccessCode({
+    required String groupId,
+    required bool privileged,
+  }) async {
+    final fieldName = privileged ? 'codigo_privilegiado' : 'codigo_alumno';
+    final code = await _generateUniqueAccessCode(fieldName);
+
+    await _db.collection('grupos').doc(groupId).set({
+      fieldName: code,
+    }, SetOptions(merge: true));
+
+    return code;
+  }
+
   Future<int?> _resolveBranchColorValue(String branchId) async {
-    final branchSnapshot = await _db.collection('sucursales').doc(branchId).get();
+    final branchSnapshot =
+        await _db.collection('sucursales').doc(branchId).get();
     return (branchSnapshot.data()?['card_color'] as num?)?.toInt();
   }
 
@@ -166,9 +229,7 @@ class FirebaseGroupRepository implements GroupRepository {
     );
 
     if (newGroupId == groupId) {
-      await currentGroupRef.update({
-        'nombre_grupo': newName.trim(),
-      });
+      await currentGroupRef.update({'nombre_grupo': newName.trim()});
     } else {
       final newGroupRef = _db.collection('grupos').doc(newGroupId);
       await newGroupRef.set({
@@ -409,6 +470,35 @@ class FirebaseGroupRepository implements GroupRepository {
     }
   }
 
+  List<BranchCategoryOption> _parseBranchCategories(Object? saved) {
+    if (saved is! List || saved.isEmpty) {
+      return const <BranchCategoryOption>[];
+    }
+
+    final categories = <BranchCategoryOption>[];
+    for (final item in saved) {
+      if (item is Map) {
+        final label = item['label']?.toString().trim() ?? '';
+        if (label.isEmpty) continue;
+        categories.add(
+          BranchCategoryOption(
+            label: label,
+            colorValue: (item['color_value'] as num?)?.toInt() ?? 0xFFD9D0C3,
+          ),
+        );
+        continue;
+      }
+
+      final label = item.toString().trim();
+      if (label.isEmpty) continue;
+      categories.add(
+        BranchCategoryOption(label: label, colorValue: 0xFFD9D0C3),
+      );
+    }
+
+    return categories;
+  }
+
   Future<String> _resolveBranchName({
     required String branchId,
     required Map<String, dynamic> groupData,
@@ -438,12 +528,11 @@ class FirebaseGroupRepository implements GroupRepository {
   }
 
   String _slugify(String value) {
-    final cleaned =
-        value
-            .trim()
-            .toLowerCase()
-            .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
-            .replaceAll(RegExp(r'^-+|-+$'), '');
+    final cleaned = value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
 
     return cleaned.isEmpty ? 'grupo' : cleaned;
   }

@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
+import 'package:tae_app/features/admin/domain/entities/branch_category_option.dart';
 import 'package:tae_app/features/admin/domain/entities/branch_group.dart';
 import 'package:tae_app/features/admin/domain/entities/create_group_request.dart';
 import 'package:tae_app/features/admin/presentation/controllers/branch_groups_controller.dart';
@@ -11,7 +11,6 @@ import 'package:tae_app/modules/admin/widgets/add_group_dialog.dart';
 import 'package:tae_app/modules/admin/widgets/custom_navigation_bar_admin.dart';
 import 'package:tae_app/modules/admin/widgets/notes_button.dart';
 import 'package:tae_app/modules/admin/widgets/search_bar.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tae_app/shared/presentation/color_customization.dart';
 import 'dart:async';
 import 'profile_screen.dart';
@@ -47,23 +46,15 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     _controller.addListener(_handleControllerChanged);
     _controller.initialize(widget.branchDocId);
     _visibleSuccessMessage = widget.successMessage;
-    _buscarMiRolEnFirebase();
+    _loadCurrentUserRole();
   }
 
-  Future<void> _buscarMiRolEnFirebase() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
+  Future<void> _loadCurrentUserRole() async {
     try {
-      final userDoc =
-          await FirebaseFirestore.instance
-              .collection('usuarios')
-              .doc(user.uid)
-              .get();
-
+      final role = await _controller.loadCurrentUserRole();
       if (mounted) {
         setState(() {
-          _miRolGlobal = userDoc.data()?['role'] as String?;
+          _miRolGlobal = role;
         });
       }
     } catch (e) {
@@ -283,20 +274,10 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
       setState(() {
         _isSavingCategories = true;
       });
-      await FirebaseFirestore.instance
-          .collection('sucursales')
-          .doc(widget.branchDocId)
-          .set({
-            'available_belts':
-                categories
-                    .map(
-                      (category) => {
-                        'label': category.label,
-                        'color_value': category.colorValue,
-                      },
-                    )
-                    .toList(),
-          }, SetOptions(merge: true));
+      await _controller.saveBranchCategories(
+        branchId: widget.branchDocId,
+        categories: categories.map(_categoryToOption).toList(),
+      );
       _showSnackBar(
         'Categorias actualizadas para ${widget.branchName}.',
         backgroundColor: Colors.green,
@@ -655,15 +636,11 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
               ),
             ],
             const SizedBox(height: 10),
-            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream:
-                  FirebaseFirestore.instance
-                      .collection('sucursales')
-                      .doc(widget.branchDocId)
-                      .snapshots(),
+            StreamBuilder<List<BranchCategoryOption>>(
+              stream: _controller.watchBranchCategories(widget.branchDocId),
               builder: (context, snapshot) {
-                final categories = _parseBranchCategories(
-                  snapshot.data?.data(),
+                final categories = _branchCategoriesFromOptions(
+                  snapshot.data ?? const <BranchCategoryOption>[],
                 );
                 return Row(
                   children: [
@@ -1092,6 +1069,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             group: group,
             branchName: widget.branchName,
             esPrivilegiado: esPrivilegiado,
+            controller: _controller,
           ),
     );
   }
@@ -1110,38 +1088,35 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
   }
 }
 
-List<_BranchCategory> _parseBranchCategories(Map<String, dynamic>? data) {
-  final saved = data?['available_belts'];
-  if (saved is! List || saved.isEmpty) {
+List<_BranchCategory> _branchCategoriesFromOptions(
+  List<BranchCategoryOption> options,
+) {
+  if (options.isEmpty) {
     return const <_BranchCategory>[];
   }
 
   final parsed = <_BranchCategory>[];
-  for (final item in saved) {
-    if (item is Map) {
-      final label = item['label']?.toString().trim() ?? '';
-      if (label.isEmpty) continue;
-      parsed.add(
-        _BranchCategory(
-          label: label,
-          colorValue:
-              (item['color_value'] as num?)?.toInt() ??
-              _defaultColorValueForLabel(label),
-        ),
-      );
-      continue;
-    }
-
-    final label = item.toString().trim();
+  for (final option in options) {
+    final label = option.label.trim();
     if (label.isEmpty) continue;
     parsed.add(
       _BranchCategory(
         label: label,
-        colorValue: _defaultColorValueForLabel(label),
+        colorValue:
+            option.colorValue == 0xFFD9D0C3
+                ? _defaultColorValueForLabel(label)
+                : option.colorValue,
       ),
     );
   }
   return _sortBranchCategories(parsed);
+}
+
+BranchCategoryOption _categoryToOption(_BranchCategory category) {
+  return BranchCategoryOption(
+    label: category.label,
+    colorValue: category.colorValue,
+  );
 }
 
 List<_BranchCategory> _sortBranchCategories(List<_BranchCategory> categories) {
@@ -1203,11 +1178,13 @@ class _DynamicQRDialog extends StatefulWidget {
   final BranchGroup group;
   final String branchName;
   final bool esPrivilegiado;
+  final BranchGroupsController controller;
 
   const _DynamicQRDialog({
     required this.group,
     required this.branchName,
     required this.esPrivilegiado,
+    required this.controller,
   });
 
   @override
@@ -1249,29 +1226,21 @@ class _DynamicQRDialogState extends State<_DynamicQRDialog> {
     if (mounted) setState(() => _isLoading = true);
 
     // 1. Fabricamos un código de 6 dígitos aleatorio basado en el tiempo
-    final millis = DateTime.now().millisecondsSinceEpoch;
-    final int seed = widget.esPrivilegiado ? 1 : 0;
-    final nuevoCodigo = (100000 + ((millis + seed) % 900000)).toString();
-
-    // 2. Lo guardamos inmediatamente en Firebase
-    final groupRef = FirebaseFirestore.instance
-        .collection('grupos')
-        .doc(widget.group.id);
-    final campoActualizar =
-        widget.esPrivilegiado ? 'codigo_privilegiado' : 'codigo_alumno';
-
-    await groupRef.set({
-      campoActualizar: nuevoCodigo,
-      // Opcional: Podrías guardar la fecha de expiración si el scanner lo necesita
-      // 'expiracion_$campoActualizar': DateTime.now().add(const Duration(minutes: 2)).toIso8601String(),
-    }, SetOptions(merge: true));
-
-    // 3. Actualizamos la pantalla con el nuevo código
-    if (mounted) {
-      setState(() {
-        _currentCode = nuevoCodigo;
-        _isLoading = false;
-      });
+    try {
+      final nuevoCodigo = await widget.controller.generateAccessCode(
+        groupId: widget.group.id,
+        privileged: widget.esPrivilegiado,
+      );
+      if (mounted) {
+        setState(() {
+          _currentCode = nuevoCodigo;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

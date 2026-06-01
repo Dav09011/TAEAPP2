@@ -58,15 +58,55 @@ class FirebaseStudentRepository implements StudentRepository {
     required String groupId,
     required List<String> studentIds,
   }) async {
-    final batch = _db.batch();
+    final groupRef = _db.collection('grupos').doc(groupId);
+    final groupSnapshot = await groupRef.get();
+    final branchId = groupSnapshot.data()?['id_sucursal'] as String?;
+
+    var deletedStudents = 0;
     for (final studentId in studentIds) {
-      final docRef = _db
-          .collection('grupos')
-          .doc(groupId)
-          .collection('alumnos')
-          .doc(studentId);
-      batch.delete(docRef);
+      final studentRef = groupRef.collection('alumnos').doc(studentId);
+      final studentSnapshot = await studentRef.get();
+
+      if (!studentSnapshot.exists) {
+        continue;
+      }
+
+      final studentUid = studentSnapshot.data()?['uid'] as String?;
+      await studentRef.delete();
+      deletedStudents++;
+
+      if (studentUid == null || studentUid.isEmpty) {
+        continue;
+      }
+
+      final userRef = _db.collection('usuarios').doc(studentUid);
+      final userSnapshot = await userRef.get();
+      final groups = userSnapshot.data()?['grupos'];
+      if (groups is List) {
+        final cleanedGroups =
+            groups.where((group) {
+              if (group is! Map) {
+                return true;
+              }
+              return group['groupId'] != groupId;
+            }).toList();
+
+        await userRef.update({'grupos': cleanedGroups});
+      }
     }
-    await batch.commit();
+
+    if (deletedStudents == 0) {
+      return;
+    }
+
+    await groupRef.update({
+      'total_alumnos': FieldValue.increment(-deletedStudents),
+    });
+
+    if (branchId != null && branchId.isNotEmpty) {
+      await _firestoreService.branches().doc(branchId).update({
+        'participants': FieldValue.increment(-deletedStudents),
+      });
+    }
   }
 }

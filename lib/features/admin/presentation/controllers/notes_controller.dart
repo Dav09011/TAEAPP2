@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:tae_app/features/admin/data/repositories/firebase_notes_repository.dart';
+import 'package:tae_app/features/admin/domain/entities/admin_grouped_student.dart';
 import 'package:tae_app/features/admin/domain/entities/admin_note_entry.dart';
 import 'package:tae_app/features/admin/domain/entities/admin_notes_student.dart';
 import 'package:tae_app/features/admin/domain/repositories/notes_repository.dart';
@@ -19,6 +20,10 @@ class NotesController extends ChangeNotifier {
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
   List<AdminNotesStudent> get students => _students;
+
+  Stream<List<AdminGroupedStudent>> watchLegacyStudents() {
+    return _notesRepository.watchLegacyStudents();
+  }
 
   Future<void> load() async {
     _isLoading = true;
@@ -50,13 +55,14 @@ class NotesController extends ChangeNotifier {
         content: content,
         isPinned: isPinned,
       );
-      _students = _students.map((item) {
-        if (item.id != student.id) {
-          return item;
-        }
-        final entries = [created, ...item.entries]..sort(_sortEntries);
-        return item.copyWith(entries: entries);
-      }).toList();
+      _students =
+          _students.map((item) {
+            if (item.id != student.id) {
+              return item;
+            }
+            final entries = [created, ...item.entries]..sort(_sortEntries);
+            return item.copyWith(entries: entries);
+          }).toList();
       return created;
     } finally {
       _isSaving = false;
@@ -79,17 +85,20 @@ class NotesController extends ChangeNotifier {
         content: content,
         isPinned: isPinned,
       );
-      _students = _students.map((item) {
-        if (item.id != student.id) {
-          return item;
-        }
-        final entries =
-            item.entries
-                .map((current) => current.id == entry.id ? updated : current)
-                .toList()
-              ..sort(_sortEntries);
-        return item.copyWith(entries: entries);
-      }).toList();
+      _students =
+          _students.map((item) {
+            if (item.id != student.id) {
+              return item;
+            }
+            final entries =
+                item.entries
+                    .map(
+                      (current) => current.id == entry.id ? updated : current,
+                    )
+                    .toList()
+                  ..sort(_sortEntries);
+            return item.copyWith(entries: entries);
+          }).toList();
       return updated;
     } finally {
       _isSaving = false;
@@ -109,24 +118,26 @@ class NotesController extends ChangeNotifier {
         entry: entry,
         isPinned: !entry.isPinned,
       );
-      _students = _students.map((item) {
-        if (item.id != student.id) {
-          return item;
-        }
-        final entries =
-            item.entries
-                .map(
-                  (current) => current.id == entry.id
-                      ? current.copyWith(
-                          isPinned: !current.isPinned,
-                          updatedAt: DateTime.now(),
-                        )
-                      : current,
-                )
-                .toList()
-              ..sort(_sortEntries);
-        return item.copyWith(entries: entries);
-      }).toList();
+      _students =
+          _students.map((item) {
+            if (item.id != student.id) {
+              return item;
+            }
+            final entries =
+                item.entries
+                    .map(
+                      (current) =>
+                          current.id == entry.id
+                              ? current.copyWith(
+                                isPinned: !current.isPinned,
+                                updatedAt: DateTime.now(),
+                              )
+                              : current,
+                    )
+                    .toList()
+                  ..sort(_sortEntries);
+            return item.copyWith(entries: entries);
+          }).toList();
     } finally {
       _isSaving = false;
       notifyListeners();
@@ -141,15 +152,16 @@ class NotesController extends ChangeNotifier {
     notifyListeners();
     try {
       await _notesRepository.deleteEntry(student: student, entry: entry);
-      _students = _students.map((item) {
-        if (item.id != student.id) {
-          return item;
-        }
-        final entries =
-            item.entries.where((current) => current.id != entry.id).toList()
-              ..sort(_sortEntries);
-        return item.copyWith(entries: entries);
-      }).toList();
+      _students =
+          _students.map((item) {
+            if (item.id != student.id) {
+              return item;
+            }
+            final entries =
+                item.entries.where((current) => current.id != entry.id).toList()
+                  ..sort(_sortEntries);
+            return item.copyWith(entries: entries);
+          }).toList();
     } finally {
       _isSaving = false;
       notifyListeners();
@@ -164,13 +176,14 @@ class NotesController extends ChangeNotifier {
     notifyListeners();
     try {
       await _notesRepository.restoreEntry(student: student, entry: entry);
-      _students = _students.map((item) {
-        if (item.id != student.id) {
-          return item;
-        }
-        final entries = [entry, ...item.entries]..sort(_sortEntries);
-        return item.copyWith(entries: entries);
-      }).toList();
+      _students =
+          _students.map((item) {
+            if (item.id != student.id) {
+              return item;
+            }
+            final entries = [entry, ...item.entries]..sort(_sortEntries);
+            return item.copyWith(entries: entries);
+          }).toList();
     } finally {
       _isSaving = false;
       notifyListeners();

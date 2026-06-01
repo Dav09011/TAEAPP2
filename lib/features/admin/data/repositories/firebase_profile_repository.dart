@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
 import 'package:tae_app/core/services/auth_service.dart';
 import 'package:tae_app/core/services/firestore_service.dart';
@@ -25,17 +26,13 @@ class FirebaseProfileRepository implements ProfileRepository {
       throw const AppException('No hay sesion activa.');
     }
 
-    return _firestoreService
-        .users()
-        .doc(uid)
-        .snapshots()
-        .map((snapshot) {
-          final data = snapshot.data();
-          if (data == null) {
-            throw const AppException('No se encontro el perfil.');
-          }
-          return _mapProfile(uid, data);
-        });
+    return _firestoreService.users().doc(uid).snapshots().map((snapshot) {
+      final data = snapshot.data();
+      if (data == null) {
+        throw const AppException('No se encontro el perfil.');
+      }
+      return _mapProfile(uid, data);
+    });
   }
 
   @override
@@ -74,10 +71,35 @@ class FirebaseProfileRepository implements ProfileRepository {
       throw const AppException('No hay sesion activa.');
     }
 
-    await user.verifyBeforeUpdateEmail(newEmail);
-    await _firestoreService.users().doc(userId).update({
-      'correo': newEmail,
-    });
+    try {
+      await user.verifyBeforeUpdateEmail(newEmail);
+      await _firestoreService.users().doc(userId).update({'correo': newEmail});
+    } on FirebaseAuthException catch (error) {
+      throw AppException(_mapEmailChangeError(error));
+    }
+  }
+
+  @override
+  Future<void> changePassword({
+    required String email,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _authService.currentUser;
+    if (user == null) {
+      throw const AppException('No hay sesion activa.');
+    }
+
+    try {
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+    } on FirebaseAuthException catch (error) {
+      throw AppException(_mapPasswordChangeError(error));
+    }
   }
 
   @override
@@ -96,5 +118,32 @@ class FirebaseProfileRepository implements ProfileRepository {
       role: data['tipo'] as String? ?? 'Sin rol',
       imageUrl: data['imagen'] as String? ?? '',
     );
+  }
+
+  String _mapEmailChangeError(FirebaseAuthException error) {
+    switch (error.code) {
+      case 'requires-recent-login':
+        return 'Por seguridad, debes cerrar sesion y volver a entrar para hacer este cambio.';
+      case 'email-already-in-use':
+        return 'Este correo ya esta registrado en otra cuenta.';
+      case 'invalid-email':
+        return 'El formato del correo es invalido.';
+      default:
+        return 'Error al actualizar el correo.';
+    }
+  }
+
+  String _mapPasswordChangeError(FirebaseAuthException error) {
+    switch (error.code) {
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'La contrasena actual es incorrecta.';
+      case 'weak-password':
+        return 'La nueva contrasena debe tener al menos 6 caracteres.';
+      case 'requires-recent-login':
+        return 'Por seguridad, debes cerrar sesion y volver a entrar para hacer este cambio.';
+      default:
+        return 'Error al cambiar la contrasena.';
+    }
   }
 }

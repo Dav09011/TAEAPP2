@@ -1,11 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:tae_app/features/student/domain/entities/student_group_join_result.dart';
+import 'package:tae_app/features/student/presentation/controllers/student_group_join_controller.dart';
 
 class QRScannerPage extends StatefulWidget {
-  const QRScannerPage({super.key});
+  const QRScannerPage({super.key, StudentGroupJoinController? controller})
+    : _controller = controller;
+
+  final StudentGroupJoinController? _controller;
 
   @override
   State<QRScannerPage> createState() => _QRScannerPageState();
@@ -14,7 +17,14 @@ class QRScannerPage extends StatefulWidget {
 class _QRScannerPageState extends State<QRScannerPage> {
   final MobileScannerController _cameraController = MobileScannerController();
   final TextEditingController _manualCodeController = TextEditingController();
+  late final StudentGroupJoinController _joinController;
   bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _joinController = widget._controller ?? StudentGroupJoinController();
+  }
 
   @override
   void dispose() {
@@ -24,54 +34,7 @@ class _QRScannerPageState extends State<QRScannerPage> {
   }
 
   Future<void> _processQR(String rawValue) async {
-    final payload = _parseQrPayload(rawValue);
-    if (payload == null) {
-      _showError('QR invalido. Escanea el codigo correcto.');
-      return;
-    }
-
-    if (payload.type != 'ALUMNO' && payload.type != 'PRIVILEGIADO') {
-      _showError('Este QR no es valido para unirse a grupos.');
-      return;
-    }
-
-    final rolAsignado = payload.type == 'PRIVILEGIADO' ? 'moderador' : 'alumno';
-
-    await _joinGroupById(
-      payload.groupId,
-      fallbackGroupName: payload.groupName,
-      assignedRole: rolAsignado,
-    );
-  }
-
-  _ParsedQrPayload? _parseQrPayload(String rawValue) {
-    final parts = rawValue.split('|');
-    if (parts.length < 2) {
-      return null;
-    }
-
-    final type = parts.first.trim();
-    final groupIdEntry = parts.where((part) => part.startsWith('GrupoId:'));
-    final groupNameEntry = parts.where((part) => part.startsWith('Grupo:'));
-    if (groupIdEntry.isEmpty) {
-      return null;
-    }
-
-    final groupId = groupIdEntry.first.replaceFirst('GrupoId:', '').trim();
-    if (groupId.isEmpty) {
-      return null;
-    }
-
-    final groupName =
-        groupNameEntry.isNotEmpty
-            ? groupNameEntry.first.replaceFirst('Grupo:', '').trim()
-            : '';
-
-    return _ParsedQrPayload(
-      type: type,
-      groupId: groupId,
-      groupName: groupName,
-    );
+    await _runJoin(() => _joinController.joinFromQr(rawValue));
   }
 
   Future<void> _openManualCodeDialog() async {
@@ -134,196 +97,23 @@ class _QRScannerPageState extends State<QRScannerPage> {
   }
 
   Future<void> _joinGroupByCode(String rawCode) async {
-    final accessCode = _normalizeAccessCode(rawCode);
-    if (accessCode.isEmpty) {
-      _showError('Ingresa un codigo de 6 digitos.');
-      return;
-    }
+    await _runJoin(() => _joinController.joinByManualCode(rawCode));
+  }
 
+  Future<void> _runJoin(
+    Future<StudentGroupJoinResult> Function() joinAction,
+  ) async {
     if (!await _startProcessing()) {
       return;
     }
 
     try {
-      final db = FirebaseFirestore.instance;
-
-      final groupQueryAlumno = await db.collection('grupos')
-              .where('codigo_alumno', isEqualTo: accessCode)
-              .limit(1)
-              .get();
-
-      final groupQueryPrivilegiado = await db.collection('grupos')
-              .where('codigo_privilegiado', isEqualTo: accessCode)
-              .limit(1)
-              .get();
-
-      if (groupQueryAlumno.docs.isNotEmpty) {
-        await _joinGroupFromSnapshot(groupQueryAlumno.docs.first, assignedRole: 'alumno');
-      } else if (groupQueryPrivilegiado.docs.isNotEmpty) {
-        await _joinGroupFromSnapshot(groupQueryPrivilegiado.docs.first, assignedRole: 'moderador');
-      } else {
-        _showError('No encontramos un grupo con ese codigo o ya expiro.');
-      }
+      final result = await joinAction();
+      if (!mounted) return;
+      _showSuccess(result.groupName);
     } catch (error) {
-      _showError('Error inesperado: $error');
+      _showError(_joinController.errorMessage(error));
     }
-  }
-
-  Future<void> _joinGroupById(
-    String groupId, {
-    String? fallbackGroupName,
-    required String assignedRole,
-  }) async {
-    if (!await _startProcessing()) {
-      return;
-    }
-
-    try {
-      final groupSnapshot =
-          await FirebaseFirestore.instance.collection('grupos').doc(groupId).get();
-
-      if (!groupSnapshot.exists) {
-        _showError('El grupo ya no esta disponible. Pide un QR actualizado.');
-        return;
-      }
-
-      await _joinGroupFromSnapshot(
-        groupSnapshot,
-        fallbackGroupName: fallbackGroupName,
-        assignedRole: assignedRole,
-      );
-    } catch (error) {
-      _showError('Error inesperado: $error');
-    }
-  }
-
-  Future<void> _joinGroupFromSnapshot(
-    DocumentSnapshot<Map<String, dynamic>> groupSnapshot, {
-    String? fallbackGroupName,
-    required String assignedRole,
-  }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      _showError('No hay sesion activa.');
-      return;
-    }
-
-    final db = FirebaseFirestore.instance;
-    final groupId = groupSnapshot.id;
-    final groupData = groupSnapshot.data() ?? const <String, dynamic>{};
-    final groupName =
-        (groupData['nombre_grupo'] as String?)?.trim().isNotEmpty == true
-            ? (groupData['nombre_grupo'] as String).trim()
-            : (fallbackGroupName?.trim().isNotEmpty == true
-                ? fallbackGroupName!.trim()
-                : groupId);
-
-    final enrolledStudent =
-        await db
-            .collection('grupos')
-            .doc(groupId)
-            .collection('alumnos')
-            .where('uid', isEqualTo: user.uid)
-            .limit(1)
-            .get();
-
-    if (enrolledStudent.docs.isNotEmpty) {
-      _showError('Ya estas inscrito en el grupo "$groupName".');
-      return;
-    }
-
-    final userSnapshot = await db.collection('usuarios').doc(user.uid).get();
-    final userData = userSnapshot.data() ?? const <String, dynamic>{};
-    final studentName =
-        '${userData['nombre'] ?? ''} ${userData['ap'] ?? ''}'.trim();
-    final beltType = groupData['tipo_cinta']?.toString() ?? '';
-    final branchId = groupData['id_sucursal']?.toString() ?? '';
-    final schedule = groupData['horario']?.toString() ?? '';
-    final branchColorValue = (groupData['color_sucursal'] as num?)?.toInt();
-    final groupColorValue = (groupData['group_card_color'] as num?)?.toInt();
-    final branchName = await _resolveBranchName(
-      db: db,
-      groupId: groupId,
-      groupData: groupData,
-    );
-
-    await db.collection('grupos').doc(groupId).collection('alumnos').add({
-      'uid': user.uid,
-      'nombre': studentName,
-      'cinta': beltType,
-      'imagen': userData['imagen'] ?? '',
-      'fecha_ingreso': FieldValue.serverTimestamp(),
-    });
-
-    await db.collection('grupos').doc(groupId).update({
-      'total_alumnos': FieldValue.increment(1),
-    });
-
-    if (branchId.isNotEmpty) {
-      await db.collection('sucursales').doc(branchId).update({
-        'participants': FieldValue.increment(1),
-      });
-    }
-
-    // Aquí guardamos el rol y limpiamos el documento
-    await db.collection('usuarios').doc(user.uid).set({
-      'grupos': FieldValue.arrayUnion([
-        {
-          'groupId': groupId,
-          'groupName': groupName,
-          'branchName': branchName,
-          'branchId': branchId,
-          'beltType': beltType,
-          'schedule': schedule,
-          'branchColorValue': branchColorValue,
-          'groupColorValue': groupColorValue,
-          'rol_en_grupo': assignedRole,
-        },
-      ]),
-      'grupo_id': groupId,
-      'grupo_nombre': groupName,
-      'grupo_sucursal': branchName,
-      'grupo_cinta': beltType,
-      'grupo_horario': schedule,
-      'grupo_color_sucursal': branchColorValue,
-      'grupo_color': groupColorValue,
-    }, SetOptions(merge: true));
-
-    if (mounted) {
-      _showSuccess(groupName);
-    }
-  }
-
-  Future<String> _resolveBranchName({
-    required FirebaseFirestore db,
-    required String groupId,
-    required Map<String, dynamic> groupData,
-  }) async {
-    final savedBranchName = groupData['nombre_sucursal']?.toString().trim();
-    if (savedBranchName != null && savedBranchName.isNotEmpty) {
-      return savedBranchName;
-    }
-
-    final branchId = groupData['id_sucursal']?.toString().trim() ?? '';
-    if (branchId.isEmpty) {
-      return 'Sucursal no disponible';
-    }
-
-    final branchSnapshot = await db.collection('sucursales').doc(branchId).get();
-    final branchName = branchSnapshot.data()?['name']?.toString().trim() ?? '';
-
-    if (branchName.isNotEmpty) {
-      await db.collection('grupos').doc(groupId).set({
-        'nombre_sucursal': branchName,
-      }, SetOptions(merge: true));
-      return branchName;
-    }
-
-    return branchId;
-  }
-
-  String _normalizeAccessCode(String rawCode) {
-    return rawCode.replaceAll(RegExp(r'[^0-9]'), '').trim();
   }
 
   Future<bool> _startProcessing() async {
@@ -424,10 +214,7 @@ class _QRScannerPageState extends State<QRScannerPage> {
           TextButton.icon(
             onPressed: _openManualCodeDialog,
             icon: const Icon(Icons.pin_outlined, color: Colors.white),
-            label: const Text(
-              'Codigo',
-              style: TextStyle(color: Colors.white),
-            ),
+            label: const Text('Codigo', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -504,16 +291,4 @@ class _QRScannerPageState extends State<QRScannerPage> {
       ),
     );
   }
-}
-
-class _ParsedQrPayload {
-  const _ParsedQrPayload({
-    required this.type,
-    required this.groupId,
-    required this.groupName,
-  });
-
-  final String type;
-  final String groupId;
-  final String groupName;
 }

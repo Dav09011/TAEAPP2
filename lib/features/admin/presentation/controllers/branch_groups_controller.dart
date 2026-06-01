@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:tae_app/features/admin/data/repositories/firebase_group_repository.dart';
+import 'package:tae_app/features/admin/domain/entities/branch_category_option.dart';
 import 'package:tae_app/features/admin/domain/entities/branch_group.dart';
 import 'package:tae_app/features/admin/domain/entities/create_group_request.dart';
 import 'package:tae_app/features/admin/domain/repositories/group_repository.dart';
@@ -22,6 +23,14 @@ class BranchGroupsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<String?> loadCurrentUserRole() {
+    return _groupRepository.getCurrentUserRole();
+  }
+
+  Stream<List<BranchCategoryOption>> watchBranchCategories(String branchId) {
+    return _groupRepository.watchBranchCategories(branchId);
+  }
+
   void updateSearchQuery(String query) {
     _searchQuery = query;
     notifyListeners();
@@ -39,6 +48,18 @@ class BranchGroupsController extends ChangeNotifier {
 
   Future<void> createGroup(CreateGroupRequest request) {
     return _runMutation(() => _groupRepository.createGroup(request));
+  }
+
+  Future<void> saveBranchCategories({
+    required String branchId,
+    required List<BranchCategoryOption> categories,
+  }) {
+    return _runMutation(
+      () => _groupRepository.saveBranchCategories(
+        branchId: branchId,
+        categories: categories,
+      ),
+    );
   }
 
   Future<void> renameGroup(BranchGroup group, String newName) {
@@ -67,6 +88,16 @@ class BranchGroupsController extends ChangeNotifier {
         branchId: group.branchId,
         groupId: group.id,
       ),
+    );
+  }
+
+  Future<String> generateAccessCode({
+    required String groupId,
+    required bool privileged,
+  }) {
+    return _groupRepository.generateGroupAccessCode(
+      groupId: groupId,
+      privileged: privileged,
     );
   }
 

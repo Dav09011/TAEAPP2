@@ -1,57 +1,62 @@
 import 'dart:ui';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:tae_app/core/errors/app_exception.dart';
+import 'package:tae_app/features/student/domain/entities/student_belt_option.dart';
+import 'package:tae_app/features/student/domain/entities/student_profile.dart';
+import 'package:tae_app/features/student/domain/entities/update_student_profile_request.dart';
+import 'package:tae_app/features/student/presentation/controllers/student_profile_controller.dart';
 
 import '../../shared/presentation/color_customization.dart';
 
-class ProfileScreenStudent extends StatelessWidget {
+class ProfileScreenStudent extends StatefulWidget {
   const ProfileScreenStudent({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+  State<ProfileScreenStudent> createState() => _ProfileScreenStudentState();
+}
 
-    if (user == null) {
+class _ProfileScreenStudentState extends State<ProfileScreenStudent> {
+  late final StudentProfileController _controller;
+  late final Stream<StudentProfile> _profileStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = StudentProfileController();
+    _profileStream = _controller.watchCurrentProfile();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller.currentUserId == null) {
       return const Scaffold(body: Center(child: Text('No hay sesion activa.')));
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F4EF),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream:
-            FirebaseFirestore.instance
-                .collection('usuarios')
-                .doc(user.uid)
-                .snapshots(),
+      body: StreamBuilder<StudentProfile>(
+        stream: _profileStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+              child: Text('Error: ${_controller.errorMessage(snapshot.error)}'),
+            );
           }
 
-          if (!snapshot.hasData || !snapshot.data!.exists) {
+          if (!snapshot.hasData) {
             return const Center(child: Text('No se encontro el perfil.'));
           }
 
-          final data = snapshot.data!.data() ?? {};
-          final fullName =
-              '${data['nombre'] ?? ''} ${data['ap'] ?? ''} ${data['am'] ?? ''}'
-                  .trim();
-          final email = data['correo'] ?? user.email ?? 'Sin correo';
-          final phone = data['telefono'] ?? 'Sin telefono';
-          final belt = _normalizeBeltName(data['cinta_personal']);
-          final beltColorValue =
-              (data['cinta_personal_color'] as num?)?.toInt();
-          final role = data['tipo'] ?? 'alumno';
-          final imageUrl = data['imagen'] ?? '';
+          final profile = snapshot.data!;
+          final belt = _normalizeBeltName(profile.personalBelt);
           final beltTheme = _beltThemeForSelection(
             beltLabel: belt,
-            colorValue: beltColorValue,
+            colorValue: profile.personalBeltColorValue,
           );
           final beltLabel = belt.isEmpty ? 'Sin cinta' : belt;
 
@@ -106,9 +111,9 @@ class ProfileScreenStudent extends StatelessWidget {
                     children: [
                       _buildHeroCard(
                         context: context,
-                        fullName: fullName,
-                        role: role.toString(),
-                        imageUrl: imageUrl.toString(),
+                        fullName: profile.fullName,
+                        role: profile.role,
+                        imageUrl: profile.imageUrl,
                         beltLabel: beltLabel,
                         beltTheme: beltTheme,
                       ),
@@ -140,14 +145,14 @@ class ProfileScreenStudent extends StatelessWidget {
                                 _InfoCard(
                                   icon: Icons.email_outlined,
                                   title: 'Correo',
-                                  value: email,
+                                  value: profile.email,
                                   tintColor: beltTheme.primary,
                                 ),
                                 const SizedBox(height: 12),
                                 _InfoCard(
                                   icon: Icons.phone_outlined,
                                   title: 'Telefono',
-                                  value: phone,
+                                  value: profile.phone,
                                   tintColor: beltTheme.secondary,
                                 ),
                                 const SizedBox(height: 12),
@@ -212,15 +217,16 @@ class ProfileScreenStudent extends StatelessWidget {
                             ),
                           ),
                           onPressed: () async {
-                            final availableBelts =
-                                await _loadAvailableBeltsForStudent(data);
+                            final availableBelts = _normalizeAvailableBelts(
+                              await _controller.loadAvailableBelts(profile),
+                            );
                             if (!context.mounted) {
                               return;
                             }
                             await _showEditProfileDialog(
                               context: context,
-                              user: user,
-                              data: data,
+                              controller: _controller,
+                              profile: profile,
                               availableBelts: availableBelts,
                             );
                           },
@@ -248,7 +254,7 @@ class ProfileScreenStudent extends StatelessWidget {
                             ),
                           ),
                           onPressed: () async {
-                            await FirebaseAuth.instance.signOut();
+                            await _controller.signOut();
                             if (context.mounted) {
                               Navigator.of(
                                 context,
@@ -465,29 +471,19 @@ class ProfileScreenStudent extends StatelessWidget {
 
 Future<void> _showEditProfileDialog({
   required BuildContext context,
-  required User user,
-  required Map<String, dynamic> data,
-  required List<_StudentBeltOption> availableBelts,
+  required StudentProfileController controller,
+  required StudentProfile profile,
+  required List<StudentBeltOption> availableBelts,
 }) async {
   final formKey = GlobalKey<FormState>();
-  final nombreController = TextEditingController(
-    text: (data['nombre'] ?? '').toString(),
-  );
-  final apController = TextEditingController(
-    text: (data['ap'] ?? '').toString(),
-  );
-  final amController = TextEditingController(
-    text: (data['am'] ?? '').toString(),
-  );
-  final telefonoController = TextEditingController(
-    text: (data['telefono'] ?? '').toString(),
-  );
-  final correoController = TextEditingController(
-    text: (data['correo'] ?? user.email ?? '').toString(),
-  );
-  final normalizedInitialBelt = _normalizeBeltName(data['cinta_personal']);
+  final nombreController = TextEditingController(text: profile.firstName);
+  final apController = TextEditingController(text: profile.lastName);
+  final amController = TextEditingController(text: profile.middleName);
+  final telefonoController = TextEditingController(text: profile.editablePhone);
+  final correoController = TextEditingController(text: profile.editableEmail);
+  final normalizedInitialBelt = _normalizeBeltName(profile.personalBelt);
   String selectedBelt = normalizedInitialBelt;
-  int? selectedBeltColorValue = (data['cinta_personal_color'] as num?)?.toInt();
+  int? selectedBeltColorValue = profile.personalBeltColorValue;
   for (final option in availableBelts) {
     if (option.label.toLowerCase() == normalizedInitialBelt.toLowerCase()) {
       selectedBeltColorValue ??= option.colorValue;
@@ -510,22 +506,17 @@ Future<void> _showEditProfileDialog({
             final trimmedEmail = correoController.text.trim();
 
             try {
-              await FirebaseFirestore.instance
-                  .collection('usuarios')
-                  .doc(user.uid)
-                  .set({
-                    'nombre': nombreController.text.trim(),
-                    'ap': apController.text.trim(),
-                    'am': amController.text.trim(),
-                    'telefono': telefonoController.text.trim(),
-                    'cinta_personal': selectedBelt,
-                    'cinta_personal_color': selectedBeltColorValue,
-                    'correo': trimmedEmail,
-                  }, SetOptions(merge: true));
-
-              if (trimmedEmail.isNotEmpty && trimmedEmail != user.email) {
-                await user.verifyBeforeUpdateEmail(trimmedEmail);
-              }
+              final result = await controller.updateProfile(
+                UpdateStudentProfileRequest(
+                  firstName: nombreController.text.trim(),
+                  lastName: apController.text.trim(),
+                  middleName: amController.text.trim(),
+                  phone: telefonoController.text.trim(),
+                  personalBelt: selectedBelt,
+                  personalBeltColorValue: selectedBeltColorValue,
+                  email: trimmedEmail,
+                ),
+              );
 
               if (dialogContext.mounted) {
                 Navigator.of(dialogContext).pop();
@@ -533,23 +524,18 @@ Future<void> _showEditProfileDialog({
 
               if (context.mounted) {
                 final emailMessage =
-                    trimmedEmail != user.email
+                    result.emailVerificationSent
                         ? ' Revisa tu correo para confirmar el cambio de email.'
                         : '';
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Perfil actualizado.$emailMessage')),
                 );
               }
-            } on FirebaseAuthException catch (e) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Se guardaron tus datos, pero no se pudo actualizar el correo: ${e.message}',
-                    ),
-                  ),
-                );
-              }
+            } on AppException catch (error) {
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(error.message)));
             } catch (e) {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -642,7 +628,7 @@ Future<void> _showEditProfileDialog({
                         ),
                       ],
                       onChanged: (value) {
-                        _StudentBeltOption? matchedOption;
+                        StudentBeltOption? matchedOption;
                         for (final option in _mergeSelectedBeltWithAvailable(
                           availableBelts,
                           selectedBelt,
@@ -778,187 +764,40 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
-Future<List<_StudentBeltOption>> _loadAvailableBeltsForStudent(
-  Map<String, dynamic> userData,
-) async {
-  final branchIds = await _resolveStudentBranchIds(userData);
-  if (branchIds.isEmpty) {
-    return const <_StudentBeltOption>[];
-  }
+List<StudentBeltOption> _normalizeAvailableBelts(
+  List<StudentBeltOption> belts,
+) {
+  final beltsByName = <String, StudentBeltOption>{};
+  for (final belt in belts) {
+    final label = _normalizeBeltName(belt.label);
+    if (label.isEmpty) continue;
 
-  final beltsByName = <String, _StudentBeltOption>{};
-  for (final branchId in branchIds) {
-    final branchSnapshot =
-        await FirebaseFirestore.instance
-            .collection('sucursales')
-            .doc(branchId)
-            .get();
-    final branchData = branchSnapshot.data();
-    final savedBelts = branchData?['available_belts'];
-
-    for (final belt in _parseStudentBeltOptions(savedBelts)) {
-      final key = belt.label.trim().toLowerCase();
-      final existing = beltsByName[key];
-      if (existing == null ||
-          (existing.colorValue == null && belt.colorValue != null)) {
-        beltsByName[key] = belt;
-      }
-    }
-  }
-
-  final belts = beltsByName.values.toList();
-  return belts.isEmpty
-      ? const <_StudentBeltOption>[]
-      : _sortStudentBelts(belts);
-}
-
-List<_StudentBeltOption> _parseStudentBeltOptions(Object? savedBelts) {
-  if (savedBelts is! List) {
-    return const <_StudentBeltOption>[];
-  }
-
-  final belts = <_StudentBeltOption>[];
-  for (final value in savedBelts) {
-    if (value is Map) {
-      final label = _normalizeBeltName(value['label']);
-      if (label.isEmpty) continue;
-      belts.add(
-        _StudentBeltOption(
-          label: label,
-          colorValue: (value['color_value'] as num?)?.toInt(),
-        ),
-      );
-    } else {
-      final label = _normalizeBeltName(value);
-      if (label.isEmpty) continue;
-      belts.add(
-        _StudentBeltOption(
-          label: label,
-          colorValue: _defaultStudentBeltColorValue(label),
-        ),
-      );
-    }
-  }
-  return belts;
-}
-
-Future<List<String>> _resolveStudentBranchIds(
-  Map<String, dynamic> userData,
-) async {
-  final branchIds = <String>[];
-  final seenBranchIds = <String>{};
-
-  Future<void> addBranchId(String branchId) async {
-    final resolvedBranchId = await _resolveBranchIdFromPossibleIdOrName(
-      branchId,
+    final normalizedBelt = StudentBeltOption(
+      label: label,
+      colorValue: belt.colorValue ?? _defaultStudentBeltColorValue(label),
     );
-    if (resolvedBranchId.isEmpty) return;
-    final key = resolvedBranchId.toLowerCase();
-    if (seenBranchIds.add(key)) {
-      branchIds.add(resolvedBranchId);
+    final key = label.toLowerCase();
+    final existing = beltsByName[key];
+    if (existing == null ||
+        (existing.colorValue == null && normalizedBelt.colorValue != null)) {
+      beltsByName[key] = normalizedBelt;
     }
   }
 
-  Future<bool> addBranchFromGroupId(String groupId) async {
-    if (groupId.isEmpty) return false;
-    final groupSnapshot =
-        await FirebaseFirestore.instance
-            .collection('grupos')
-            .doc(groupId)
-            .get();
-    final branchId =
-        groupSnapshot.data()?['id_sucursal']?.toString().trim() ?? '';
-    if (branchId.isNotEmpty) {
-      await addBranchId(branchId);
-      return true;
-    }
-    return false;
-  }
-
-  final currentGroupId = userData['grupo_id']?.toString().trim() ?? '';
-  if (currentGroupId.isNotEmpty) {
-    await addBranchFromGroupId(currentGroupId);
-  }
-
-  final savedGroups = userData['grupos'];
-  if (savedGroups is List) {
-    for (final group in savedGroups) {
-      if (group is! Map) continue;
-      final groupMap = Map<String, dynamic>.from(group);
-      final groupId = groupMap['groupId']?.toString().trim() ?? '';
-      if (groupId.isNotEmpty) {
-        final resolvedFromGroup = await addBranchFromGroupId(groupId);
-        if (resolvedFromGroup) {
-          continue;
-        }
-      }
-
-      final branchId = groupMap['branchId']?.toString().trim() ?? '';
-      if (branchId.isNotEmpty) {
-        await addBranchId(branchId);
-        continue;
-      }
-
-      final branchName = groupMap['branchName']?.toString().trim() ?? '';
-      if (branchName.isNotEmpty) {
-        await addBranchId(branchName);
-      }
-    }
-  }
-
-  final branchName = userData['grupo_sucursal']?.toString().trim() ?? '';
-  if (branchName.isNotEmpty) {
-    final branchQuery =
-        await FirebaseFirestore.instance
-            .collection('sucursales')
-            .where('name', isEqualTo: branchName)
-            .limit(1)
-            .get();
-    if (branchQuery.docs.isNotEmpty) {
-      await addBranchId(branchQuery.docs.first.id);
-    }
-  }
-
-  return branchIds;
+  return _sortStudentBelts(beltsByName.values.toList());
 }
 
-Future<String> _resolveBranchIdFromPossibleIdOrName(String value) async {
-  final trimmedValue = value.trim();
-  if (trimmedValue.isEmpty) {
-    return '';
-  }
-
-  final db = FirebaseFirestore.instance;
-  final branchSnapshot =
-      await db.collection('sucursales').doc(trimmedValue).get();
-  if (branchSnapshot.exists) {
-    return trimmedValue;
-  }
-
-  final branchQuery =
-      await db
-          .collection('sucursales')
-          .where('name', isEqualTo: trimmedValue)
-          .limit(1)
-          .get();
-  if (branchQuery.docs.isNotEmpty) {
-    return branchQuery.docs.first.id;
-  }
-
-  return '';
-}
-
-List<_StudentBeltOption> _mergeSelectedBeltWithAvailable(
-  List<_StudentBeltOption> availableBelts,
+List<StudentBeltOption> _mergeSelectedBeltWithAvailable(
+  List<StudentBeltOption> availableBelts,
   String selectedBelt,
 ) {
-  final merged = <_StudentBeltOption>[
+  final merged = <StudentBeltOption>[
     ...availableBelts,
     if (selectedBelt.isNotEmpty &&
         !availableBelts.any(
           (value) => value.label.toLowerCase() == selectedBelt.toLowerCase(),
         ))
-      _StudentBeltOption(
+      StudentBeltOption(
         label: selectedBelt,
         colorValue: _defaultStudentBeltColorValue(selectedBelt),
       ),
@@ -966,8 +805,8 @@ List<_StudentBeltOption> _mergeSelectedBeltWithAvailable(
   return _sortStudentBelts(merged);
 }
 
-List<_StudentBeltOption> _sortStudentBelts(List<_StudentBeltOption> belts) {
-  final ordered = <_StudentBeltOption>[];
+List<StudentBeltOption> _sortStudentBelts(List<StudentBeltOption> belts) {
+  final ordered = <StudentBeltOption>[];
   for (final option in kTaeKwonDoBeltColorOptions) {
     for (final belt in belts) {
       if (belt.label.toLowerCase() == option.label.toLowerCase()) {
@@ -1024,13 +863,6 @@ class _StudentBeltTheme {
   final Color secondary;
   final Color accent;
   final Color onPrimary;
-}
-
-class _StudentBeltOption {
-  const _StudentBeltOption({required this.label, this.colorValue});
-
-  final String label;
-  final int? colorValue;
 }
 
 String _normalizeBeltName(Object? beltValue) {

@@ -4,8 +4,8 @@ import 'package:tae_app/modules/revenuecat/revenuecat_sandbox_screen.dart';
 
 const String _entitlementId = 'TAEAPP Pro';
 
-const _blue      = Color(0xFF4A73B8);
-const _blueDark  = Color(0xFF3A5A94);
+const _blue = Color(0xFF4A73B8);
+const _blueDark = Color(0xFF3A5A94);
 const _blueLight = Color(0xFFEBF0FA);
 
 // ─────────────────────────────────────────────
@@ -13,8 +13,8 @@ const _blueLight = Color(0xFFEBF0FA);
 // ─────────────────────────────────────────────
 
 class _Plan {
-  final int    clases;
-  final int    precio;
+  final int clases;
+  final int precio;
   final String nombre;
   final String descripcion;
   final IconData icono;
@@ -29,11 +29,41 @@ class _Plan {
 }
 
 const _planes = [
-  _Plan(clases: 1, precio: 500,  nombre: '1 clase semanal',     descripcion: 'Ideal para empezar a tu ritmo',            icono: Icons.looks_one_outlined),
-  _Plan(clases: 2, precio: 650,  nombre: '2 clases semanales',  descripcion: 'Progreso constante dos veces por semana',   icono: Icons.looks_two_outlined),
-  _Plan(clases: 3, precio: 850,  nombre: '3 clases semanales',  descripcion: 'El favorito de nuestros alumnos',           icono: Icons.looks_3_outlined),
-  _Plan(clases: 4, precio: 900,  nombre: '4 clases semanales',  descripcion: 'Alta frecuencia para mejores resultados',   icono: Icons.looks_4_outlined),
-  _Plan(clases: 5, precio: 1050, nombre: '5+ clases semanales', descripcion: 'Acceso ilimitado a todas las clases',       icono: Icons.all_inclusive),
+  _Plan(
+    clases: 1,
+    precio: 500,
+    nombre: '1 clase semanal',
+    descripcion: 'Ideal para empezar a tu ritmo',
+    icono: Icons.looks_one_outlined,
+  ),
+  _Plan(
+    clases: 2,
+    precio: 650,
+    nombre: '2 clases semanales',
+    descripcion: 'Progreso constante dos veces por semana',
+    icono: Icons.looks_two_outlined,
+  ),
+  _Plan(
+    clases: 3,
+    precio: 850,
+    nombre: '3 clases semanales',
+    descripcion: 'El favorito de nuestros alumnos',
+    icono: Icons.looks_3_outlined,
+  ),
+  _Plan(
+    clases: 4,
+    precio: 900,
+    nombre: '4 clases semanales',
+    descripcion: 'Alta frecuencia para mejores resultados',
+    icono: Icons.looks_4_outlined,
+  ),
+  _Plan(
+    clases: 5,
+    precio: 1050,
+    nombre: '5+ clases semanales',
+    descripcion: 'Acceso ilimitado a todas las clases',
+    icono: Icons.all_inclusive,
+  ),
 ];
 
 // ─────────────────────────────────────────────
@@ -116,8 +146,8 @@ class SubscriptionCard extends StatefulWidget {
 }
 
 class _SubscriptionCardState extends State<SubscriptionCard> {
-  bool          _loading = true;
-  String?       _error;
+  bool _loading = true;
+  String? _error;
   CustomerInfo? _customerInfo;
 
   @override
@@ -129,17 +159,26 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
   // Carga inicial sin invalidar caché — más rápido y estable
   // El botón de refresh sí invalida para forzar actualización
   Future<void> _loadSubscription({bool forceRefresh = false}) async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       if (forceRefresh) {
         await Purchases.invalidateCustomerInfoCache();
       }
       final info = await Purchases.getCustomerInfo();
       if (!mounted) return;
-      setState(() { _customerInfo = info; _loading = false; });
+      setState(() {
+        _customerInfo = info;
+        _loading = false;
+      });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _error = 'No se pudo cargar la suscripción.'; _loading = false; });
+      setState(() {
+        _error = 'No se pudo cargar la suscripción.';
+        _loading = false;
+      });
     }
   }
 
@@ -150,17 +189,33 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
     if (rawDate == null) return 'Sin fecha';
     try {
       final dt = DateTime.parse(rawDate).toLocal();
-      const m = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      const m = [
+        '',
+        'ene',
+        'feb',
+        'mar',
+        'abr',
+        'may',
+        'jun',
+        'jul',
+        'ago',
+        'sep',
+        'oct',
+        'nov',
+        'dic',
+      ];
       return '${dt.day} ${m[dt.month]} ${dt.year}';
-    } catch (_) { return rawDate; }
+    } catch (_) {
+      return rawDate;
+    }
   }
 
   String _planType(String productId) {
     final id = productId.toLowerCase();
     if (id.contains('annual') || id.contains('year')) return 'Plan anual';
     if (id.contains('month')) return 'Plan mensual';
-    if (id.contains('week'))  return 'Plan semanal';
-    if (id.contains('life'))  return 'Plan de por vida';
+    if (id.contains('week')) return 'Plan semanal';
+    if (id.contains('life')) return 'Plan de por vida';
     return productId;
   }
 
@@ -173,7 +228,7 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        final purchases   = _customerInfo?.nonSubscriptionTransactions ?? [];
+        final purchases = _customerInfo?.nonSubscriptionTransactions ?? [];
         final entitlement = _customerInfo?.entitlements.all[_entitlementId];
 
         return SafeArea(
@@ -183,7 +238,8 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 45, height: 5,
+                  width: 45,
+                  height: 5,
                   decoration: BoxDecoration(
                     color: Colors.black12,
                     borderRadius: BorderRadius.circular(20),
@@ -198,14 +254,16 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
                 if (entitlement != null)
                   _HistoryTile(
                     productId: _planType(entitlement.productIdentifier),
-                    date:      _formatDate(entitlement.latestPurchaseDate),
-                    isActive:  _isPremium,
+                    date: _formatDate(entitlement.latestPurchaseDate),
+                    isActive: _isPremium,
                   ),
-                ...purchases.map((t) => _HistoryTile(
-                  productId: _planType(t.productIdentifier),
-                  date:      _formatDate(t.purchaseDate),
-                  isActive:  false,
-                )),
+                ...purchases.map(
+                  (t) => _HistoryTile(
+                    productId: _planType(t.productIdentifier),
+                    date: _formatDate(t.purchaseDate),
+                    isActive: false,
+                  ),
+                ),
                 if (purchases.isEmpty && entitlement == null)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
@@ -231,57 +289,67 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
           decoration: BoxDecoration(
             color: (_isPremium && !_loading) ? _blue : Colors.black,
             borderRadius: const BorderRadius.only(
-              topLeft:  Radius.circular(18),
+              topLeft: Radius.circular(18),
               topRight: Radius.circular(18),
             ),
           ),
-          child: _loading
-              ? const SizedBox(
-            height: 36,
-            child: Center(child: CircularProgressIndicator(color: Colors.white)),
-          )
-              : Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  _isPremium
-                      ? Icons.workspace_premium_outlined
-                      : Icons.lock_outline,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _isPremium ? 'Suscripción activa' : 'Sin suscripción',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+          child:
+              _loading
+                  ? const SizedBox(
+                    height: 36,
+                    child: Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
+                  )
+                  : Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          _isPremium
+                              ? Icons.workspace_premium_outlined
+                              : Icons.lock_outline,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    Text(
-                      _isPremium ? 'TAEAPP Pro' : 'Obtén acceso premium',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              // Refresh fuerza invalidación
-              IconButton(
-                onPressed: () => _loadSubscription(forceRefresh: true),
-                icon: const Icon(Icons.refresh, color: Colors.white),
-              ),
-            ],
-          ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isPremium
+                                  ? 'Suscripción activa'
+                                  : 'Sin suscripción',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              _isPremium
+                                  ? 'TAEAPP Pro'
+                                  : 'Obtén acceso premium',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Refresh fuerza invalidación
+                      IconButton(
+                        onPressed: () => _loadSubscription(forceRefresh: true),
+                        icon: const Icon(Icons.refresh, color: Colors.white),
+                      ),
+                    ],
+                  ),
         ),
 
         // ── Cuerpo ──
@@ -291,33 +359,32 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.only(
-              bottomLeft:  Radius.circular(18),
+              bottomLeft: Radius.circular(18),
               bottomRight: Radius.circular(18),
             ),
           ),
-          child: _loading
-              ? const SizedBox.shrink()
-              : _error != null
-              ? Column(
-            children: [
-              Text(_error!, style: const TextStyle(color: Colors.red)),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => _loadSubscription(forceRefresh: true),
-                child: const Text('Reintentar'),
-              ),
-            ],
-          )
-              : _isPremium
-              ? _ActiveBody(
-            customerInfo:  _customerInfo!,
-            formatDate:    _formatDate,
-            planType:      _planType,
-            onShowHistory: _showPaymentHistory,
-          )
-              : _NoSubscriptionBody(
-            onShowHistory: _showPaymentHistory,
-          ),
+          child:
+              _loading
+                  ? const SizedBox.shrink()
+                  : _error != null
+                  ? Column(
+                    children: [
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: () => _loadSubscription(forceRefresh: true),
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  )
+                  : _isPremium
+                  ? _ActiveBody(
+                    customerInfo: _customerInfo!,
+                    formatDate: _formatDate,
+                    planType: _planType,
+                    onShowHistory: _showPaymentHistory,
+                  )
+                  : _NoSubscriptionBody(onShowHistory: _showPaymentHistory),
         ),
       ],
     );
@@ -326,10 +393,10 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
 
 // ── Tiene suscripción ──
 class _ActiveBody extends StatelessWidget {
-  final CustomerInfo             customerInfo;
+  final CustomerInfo customerInfo;
   final String Function(String?) formatDate;
-  final String Function(String)  planType;
-  final VoidCallback             onShowHistory;
+  final String Function(String) planType;
+  final VoidCallback onShowHistory;
 
   const _ActiveBody({
     required this.customerInfo,
@@ -344,9 +411,17 @@ class _ActiveBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _InfoRow(icon: Icons.star_outline,             label: 'Plan',   value: planType(ent.productIdentifier)),
+        _InfoRow(
+          icon: Icons.star_outline,
+          label: 'Plan',
+          value: planType(ent.productIdentifier),
+        ),
         const SizedBox(height: 12),
-        _InfoRow(icon: Icons.calendar_today_outlined,  label: 'Expira', value: formatDate(ent.expirationDate)),
+        _InfoRow(
+          icon: Icons.calendar_today_outlined,
+          label: 'Expira',
+          value: formatDate(ent.expirationDate),
+        ),
         const SizedBox(height: 20),
         SizedBox(
           width: double.infinity,
@@ -355,10 +430,15 @@ class _ActiveBody extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               side: const BorderSide(color: Colors.black12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
-            icon:  const Icon(Icons.history, color: Colors.black54),
-            label: const Text('Ver historial de pagos', style: TextStyle(color: Colors.black54)),
+            icon: const Icon(Icons.history, color: Colors.black54),
+            label: const Text(
+              'Ver historial de pagos',
+              style: TextStyle(color: Colors.black54),
+            ),
           ),
         ),
       ],
@@ -383,7 +463,7 @@ class _NoSubscriptionBody extends StatelessWidget {
             gradient: const LinearGradient(
               colors: [Color(0xFF3A5A94), Color(0xFF4A73B8)],
               begin: Alignment.topLeft,
-              end:   Alignment.bottomRight,
+              end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
           ),
@@ -391,7 +471,10 @@ class _NoSubscriptionBody extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white24,
                   borderRadius: BorderRadius.circular(20),
@@ -417,11 +500,20 @@ class _NoSubscriptionBody extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              _BenefitRow(icon: Icons.check_circle_outline, text: 'Acceso a todo el contenido digital'),
+              _BenefitRow(
+                icon: Icons.check_circle_outline,
+                text: 'Acceso a todo el contenido digital',
+              ),
               const SizedBox(height: 8),
-              _BenefitRow(icon: Icons.check_circle_outline, text: 'Clases presenciales en academia'),
+              _BenefitRow(
+                icon: Icons.check_circle_outline,
+                text: 'Clases presenciales en academia',
+              ),
               const SizedBox(height: 8),
-              _BenefitRow(icon: Icons.check_circle_outline, text: 'Seguimiento personalizado'),
+              _BenefitRow(
+                icon: Icons.check_circle_outline,
+                text: 'Seguimiento personalizado',
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -431,7 +523,9 @@ class _NoSubscriptionBody extends StatelessWidget {
                     backgroundColor: Colors.white,
                     foregroundColor: _blueDark,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     elevation: 0,
                   ),
                   child: const Text(
@@ -448,8 +542,11 @@ class _NoSubscriptionBody extends StatelessWidget {
           width: double.infinity,
           child: TextButton.icon(
             onPressed: onShowHistory,
-            icon:  const Icon(Icons.history, size: 18, color: Colors.black38),
-            label: const Text('Ver historial de pagos', style: TextStyle(color: Colors.black38, fontSize: 13)),
+            icon: const Icon(Icons.history, size: 18, color: Colors.black38),
+            label: const Text(
+              'Ver historial de pagos',
+              style: TextStyle(color: Colors.black38, fontSize: 13),
+            ),
           ),
         ),
       ],
@@ -459,7 +556,7 @@ class _NoSubscriptionBody extends StatelessWidget {
 
 class _BenefitRow extends StatelessWidget {
   final IconData icon;
-  final String   text;
+  final String text;
   const _BenefitRow({required this.icon, required this.text});
 
   @override
@@ -510,7 +607,10 @@ class CashPaymentCard extends StatelessWidget {
                   color: Colors.green.shade100,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.payments_outlined, color: Colors.green.shade700),
+                child: Icon(
+                  Icons.payments_outlined,
+                  color: Colors.green.shade700,
+                ),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -519,7 +619,10 @@ class CashPaymentCard extends StatelessWidget {
                   children: [
                     Text(
                       'Pago en efectivo',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
+                      ),
                     ),
                     SizedBox(height: 4),
                     Text(
@@ -544,11 +647,23 @@ class CashPaymentCard extends StatelessWidget {
             ),
             child: const Column(
               children: [
-                _CashInfoRow(icon: Icons.storefront_outlined,    title: 'Sucursal',     value: 'Paga directamente con administración'),
+                _CashInfoRow(
+                  icon: Icons.storefront_outlined,
+                  title: 'Sucursal',
+                  value: 'Paga directamente con administración',
+                ),
                 SizedBox(height: 10),
-                _CashInfoRow(icon: Icons.receipt_long_outlined,  title: 'Comprobante',  value: 'Tu pago será validado manualmente'),
+                _CashInfoRow(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Comprobante',
+                  value: 'Tu pago será validado manualmente',
+                ),
                 SizedBox(height: 10),
-                _CashInfoRow(icon: Icons.access_time_outlined,   title: 'Activación',   value: 'La membresía se refleja después de validarse'),
+                _CashInfoRow(
+                  icon: Icons.access_time_outlined,
+                  title: 'Activación',
+                  value: 'La membresía se refleja después de validarse',
+                ),
               ],
             ),
           ),
@@ -563,11 +678,16 @@ class CashPaymentCard extends StatelessWidget {
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 elevation: 0,
               ),
-              icon:  const Icon(Icons.attach_money),
-              label: const Text('Pago en efectivo', style: TextStyle(fontWeight: FontWeight.bold)),
+              icon: const Icon(Icons.attach_money),
+              label: const Text(
+                'Pago en efectivo',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ],
@@ -592,12 +712,17 @@ class _PlanSelectorSheetState extends State<_PlanSelectorSheet> {
 
   _Plan get _plan => _planes[_index];
 
-  void _prev() { if (_index > 0)                  setState(() => _index--); }
-  void _next() { if (_index < _planes.length - 1) setState(() => _index++); }
+  void _prev() {
+    if (_index > 0) setState(() => _index--);
+  }
+
+  void _next() {
+    if (_index < _planes.length - 1) setState(() => _index++);
+  }
 
   void _confirm() {
     final planName = _plan.nombre;
-    final precio   = _plan.precio;
+    final precio = _plan.precio;
 
     Navigator.pop(context);
 
@@ -631,7 +756,8 @@ class _PlanSelectorSheetState extends State<_PlanSelectorSheet> {
         children: [
           // Handle
           Container(
-            width: 40, height: 4,
+            width: 40,
+            height: 4,
             decoration: BoxDecoration(
               color: Colors.black12,
               borderRadius: BorderRadius.circular(10),
@@ -661,18 +787,25 @@ class _PlanSelectorSheetState extends State<_PlanSelectorSheet> {
           // Carrusel
           Row(
             children: [
-              _ArrowButton(icon: Icons.chevron_left,  onTap: _index > 0 ? _prev : null),
+              _ArrowButton(
+                icon: Icons.chevron_left,
+                onTap: _index > 0 ? _prev : null,
+              ),
               Expanded(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 220),
-                  transitionBuilder: (child, anim) => FadeTransition(
-                    opacity: anim,
-                    child: ScaleTransition(scale: anim, child: child),
-                  ),
+                  transitionBuilder:
+                      (child, anim) => FadeTransition(
+                        opacity: anim,
+                        child: ScaleTransition(scale: anim, child: child),
+                      ),
                   child: _PlanCard(key: ValueKey(_index), plan: _plan),
                 ),
               ),
-              _ArrowButton(icon: Icons.chevron_right, onTap: _index < _planes.length - 1 ? _next : null),
+              _ArrowButton(
+                icon: Icons.chevron_right,
+                onTap: _index < _planes.length - 1 ? _next : null,
+              ),
             ],
           ),
 
@@ -682,10 +815,10 @@ class _PlanSelectorSheetState extends State<_PlanSelectorSheet> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
               _planes.length,
-                  (i) => AnimatedContainer(
+              (i) => AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.symmetric(horizontal: 3),
-                width:  i == _index ? 18 : 6,
+                width: i == _index ? 18 : 6,
                 height: 6,
                 decoration: BoxDecoration(
                   color: i == _index ? _blue : Colors.black12,
@@ -714,7 +847,9 @@ class _PlanSelectorSheetState extends State<_PlanSelectorSheet> {
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 elevation: 0,
               ),
               child: const Text(
@@ -781,7 +916,7 @@ class _SelectedPlanSummary extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFF5F3F3),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _blue.withOpacity(0.2)),
+        border: Border.all(color: _blue.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -798,11 +933,17 @@ class _SelectedPlanSummary extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Plan seleccionado', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                const Text(
+                  'Plan seleccionado',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   plan.nombre,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
@@ -810,10 +951,17 @@ class _SelectedPlanSummary extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text('Total', style: TextStyle(fontSize: 11, color: Colors.grey)),
+              const Text(
+                'Total',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
               Text(
                 '\$${plan.precio} MXN',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: _blueDark),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: _blueDark,
+                ),
               ),
             ],
           ),
@@ -828,7 +976,7 @@ class _SelectedPlanSummary extends StatelessWidget {
 // ─────────────────────────────────────────────
 
 class _ArrowButton extends StatelessWidget {
-  final IconData      icon;
+  final IconData icon;
   final VoidCallback? onTap;
   const _ArrowButton({required this.icon, this.onTap});
 
@@ -851,9 +999,13 @@ class _ArrowButton extends StatelessWidget {
 
 class _InfoRow extends StatelessWidget {
   final IconData icon;
-  final String   label;
-  final String   value;
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  final String label;
+  final String value;
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -861,13 +1013,22 @@ class _InfoRow extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(color: _blueLight, borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(
+            color: _blueLight,
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Icon(icon, size: 16, color: _blue),
         ),
         const SizedBox(width: 12),
-        Text('$label: ', style: const TextStyle(fontSize: 13, color: Colors.grey)),
+        Text(
+          '$label: ',
+          style: const TextStyle(fontSize: 13, color: Colors.grey),
+        ),
         Expanded(
-          child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );
@@ -876,9 +1037,13 @@ class _InfoRow extends StatelessWidget {
 
 class _CashInfoRow extends StatelessWidget {
   final IconData icon;
-  final String   title;
-  final String   value;
-  const _CashInfoRow({required this.icon, required this.title, required this.value});
+  final String title;
+  final String value;
+  const _CashInfoRow({
+    required this.icon,
+    required this.title,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -891,9 +1056,18 @@ class _CashInfoRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(
+                value,
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
             ],
           ),
         ),
@@ -905,8 +1079,12 @@ class _CashInfoRow extends StatelessWidget {
 class _HistoryTile extends StatelessWidget {
   final String productId;
   final String date;
-  final bool   isActive;
-  const _HistoryTile({required this.productId, required this.date, required this.isActive});
+  final bool isActive;
+  const _HistoryTile({
+    required this.productId,
+    required this.date,
+    required this.isActive,
+  });
 
   @override
   Widget build(BuildContext context) {

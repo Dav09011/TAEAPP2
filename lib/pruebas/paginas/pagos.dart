@@ -1,39 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Pagos App',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        fontFamily: 'Roboto',
-      ),
-      home: const PagosScreen(),
-    );
-  }
-}
-
 class PagosScreen extends StatefulWidget {
   const PagosScreen({super.key});
 
   @override
-  _PagosScreenState createState() => _PagosScreenState();
+  State<PagosScreen> createState() => _PagosScreenState();
 }
 
 class _PagosScreenState extends State<PagosScreen> {
   final List<Map<String, dynamic>> pagos = [
     {'monto': 500.0, 'fecha': DateTime.now(), 'estado': 'Pagado'},
-    {'monto': 300.0, 'fecha': DateTime.now().subtract(const Duration(days: 3)), 'estado': 'Pendiente'},
-    {'monto': 700.0, 'fecha': DateTime.now().subtract(const Duration(days: 7)), 'estado': 'Pagado'},
+    {
+      'monto': 300.0,
+      'fecha': DateTime.now().subtract(const Duration(days: 3)),
+      'estado': 'Pendiente',
+    },
+    {
+      'monto': 700.0,
+      'fecha': DateTime.now().subtract(const Duration(days: 7)),
+      'estado': 'Pagado',
+    },
   ];
 
   String formatFecha(DateTime fecha) {
@@ -44,7 +31,10 @@ class _PagosScreenState extends State<PagosScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Historial de Pagos', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Historial de Pagos',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.blueAccent,
         elevation: 4,
       ),
@@ -59,27 +49,42 @@ class _PagosScreenState extends State<PagosScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(15),
                 boxShadow: [
-                  BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 3))
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 5,
+                    offset: Offset(0, 3),
+                  ),
                 ],
                 gradient: LinearGradient(
-                  colors: pago['estado'] == 'Pagado'
-                      ? [Colors.greenAccent.shade100, Colors.green.shade400]
-                      : [Colors.redAccent.shade100, Colors.red.shade400],
+                  colors:
+                      pago['estado'] == 'Pagado'
+                          ? [Colors.greenAccent.shade100, Colors.green.shade400]
+                          : [Colors.redAccent.shade100, Colors.red.shade400],
                 ),
               ),
               child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 leading: CircleAvatar(
                   backgroundColor: Colors.white,
                   child: Icon(
-                    pago['estado'] == 'Pagado' ? Icons.check_circle : Icons.error,
-                    color: pago['estado'] == 'Pagado' ? Colors.green : Colors.red,
+                    pago['estado'] == 'Pagado'
+                        ? Icons.check_circle
+                        : Icons.error,
+                    color:
+                        pago['estado'] == 'Pagado' ? Colors.green : Colors.red,
                     size: 28,
                   ),
                 ),
                 title: Text(
                   '\$${pago['monto']}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
                 subtitle: Text(
                   'Fecha: ${formatFecha(pago['fecha'])}',
@@ -87,7 +92,11 @@ class _PagosScreenState extends State<PagosScreen> {
                 ),
                 trailing: Text(
                   pago['estado'],
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             );

@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 class AddGroupDialog extends StatefulWidget {
   final Function(Map<String, dynamic>) onSave;
 
-  const AddGroupDialog({
-    super.key,
-    required this.onSave,
-  });
+  const AddGroupDialog({super.key, required this.onSave});
 
   @override
   State<AddGroupDialog> createState() => _AddGroupDialogState();
@@ -23,9 +20,7 @@ class _AddGroupDialogState extends State<AddGroupDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text(
         'Agregar un nuevo grupo',
         style: TextStyle(fontWeight: FontWeight.bold),
@@ -41,9 +36,11 @@ class _AddGroupDialogState extends State<AddGroupDialog> {
                 labelText: 'Nombre del Grupo de cintas',
                 labelStyle: TextStyle(color: Colors.blueGrey),
                 border: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue)),
+                  borderSide: BorderSide(color: Colors.blue),
+                ),
                 focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue, width: 2)),
+                  borderSide: BorderSide(color: Colors.blue, width: 2),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -55,9 +52,11 @@ class _AddGroupDialogState extends State<AddGroupDialog> {
                 labelText: 'Listado de cintas',
                 labelStyle: TextStyle(color: Colors.blueGrey),
                 border: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue)),
+                  borderSide: BorderSide(color: Colors.blue),
+                ),
                 focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue, width: 2)),
+                  borderSide: BorderSide(color: Colors.blue, width: 2),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -69,9 +68,11 @@ class _AddGroupDialogState extends State<AddGroupDialog> {
                 labelText: 'Horario',
                 labelStyle: TextStyle(color: Colors.blueGrey),
                 border: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue)),
+                  borderSide: BorderSide(color: Colors.blue),
+                ),
                 focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue, width: 2)),
+                  borderSide: BorderSide(color: Colors.blue, width: 2),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -82,9 +83,10 @@ class _AddGroupDialogState extends State<AddGroupDialog> {
               decoration: InputDecoration(
                 labelText: 'Participantes',
                 border: const OutlineInputBorder(),
-                hintText: availableAlumns != null
-                    ? '$availableAlumns'
-                    : 'Por defecto tendrá 0 alumnos',
+                hintText:
+                    availableAlumns != null
+                        ? '$availableAlumns'
+                        : 'Por defecto tendrá 0 alumnos',
               ),
             ),
           ],
@@ -113,7 +115,8 @@ class _AddGroupDialogState extends State<AddGroupDialog> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                      'Por favor llena el nombre, cintas y el horario'),
+                    'Por favor llena el nombre, cintas y el horario',
+                  ),
                 ),
               );
               return;
@@ -132,7 +135,7 @@ class _AddGroupDialogState extends State<AddGroupDialog> {
             widget.onSave(newGroupData);
             Navigator.of(context).pop(newGroupData); //  retorna al showDialog
 
-            print("Sucursal agregada: $name ($schedule clases)");
+            debugPrint("Sucursal agregada: $name ($schedule clases)");
           },
           child: const Text('Guardar'),
         ),

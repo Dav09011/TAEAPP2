@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:tae_app/app/router/app_router.dart';
 import 'package:tae_app/app/router/app_routes.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
 import 'package:tae_app/core/models/app_user_role.dart';
@@ -7,34 +6,10 @@ import 'package:tae_app/features/auth/presentation/controllers/login_controller.
 import 'package:tae_app/modules/admin/pages/branch_selection_tab.dart';
 import 'package:tae_app/modules/student/home_page_student.dart';
 
-/// Legacy entrypoint kept temporarily for compatibility while the project
-/// migrates to `lib/main.dart`.
-///
-/// New work should use the centralized bootstrap and router under `app/`.
-void main() {
-  runApp(const WelcomeTaeApp());
-}
-
-/// Transitional app shell.
-///
-/// This wrapper now delegates route creation to the new centralized router
-/// so we do not maintain route definitions in two places.
-class WelcomeTaeApp extends StatelessWidget {
-  const WelcomeTaeApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'TAE App',
-      debugShowCheckedModeBanner: false,
-      initialRoute: AppRoutes.login,
-      onGenerateRoute: AppRouter.onGenerateRoute,
-    );
-  }
-}
-
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.loginController});
+
+  final LoginController? loginController;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -43,20 +18,24 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final LoginController _loginController = LoginController();
+  late LoginController _loginController;
+  late bool _ownsLoginController;
   bool _obscureText = true;
 
   @override
   void initState() {
     super.initState();
+    _loginController = widget.loginController ?? LoginController();
+    _ownsLoginController = widget.loginController == null;
     _loginController.addListener(_handleControllerChanged);
   }
 
   @override
   void dispose() {
-    _loginController
-      ..removeListener(_handleControllerChanged)
-      ..dispose();
+    _loginController.removeListener(_handleControllerChanged);
+    if (_ownsLoginController) {
+      _loginController.dispose();
+    }
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();

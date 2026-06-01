@@ -32,11 +32,10 @@ dependencies:
     sdk: flutter
   provider: ^6.1.2  # para gestión de estado (opcional pero recomendado)
   intl: ^0.20.2  # Usa la última versión disponible
-  google_fonts:
+  google_fonts: ^6.3.2
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  postgres: ^3.5.4
   table_calendar: ^3.0.9
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.0
@@ -49,7 +48,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   purchases_flutter: ^10.0.1
 
-  path_provider: any
+  path_provider: ^2.1.5
   purchases_ui_flutter: ^10.0.1
 dev_dependencies:
   flutter_test:

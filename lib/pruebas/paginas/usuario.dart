@@ -1,25 +1,5 @@
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Taekwondo App',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      home: const UsuarioPage(),
-    );
-  }
-}
-
 class UsuarioPage extends StatelessWidget {
   const UsuarioPage({super.key});
 
@@ -51,16 +31,16 @@ class UsuarioPage extends StatelessWidget {
   Widget _buildUserInfo() {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             const CircleAvatar(
               radius: 50,
-              backgroundImage: AssetImage('assets/gatito.jpg'), // Agrega una imagen de perfil
+              backgroundImage: AssetImage(
+                'assets/gatito.jpg',
+              ), // Agrega una imagen de perfil
             ),
             const SizedBox(height: 10),
             const Text(
@@ -94,10 +74,7 @@ class UsuarioPage extends StatelessWidget {
           value,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        Text(
-          label,
-          style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-        ),
+        Text(label, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
       ],
     );
   }
@@ -105,9 +82,7 @@ class UsuarioPage extends StatelessWidget {
   Widget _buildStatistics() {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -133,10 +108,7 @@ class UsuarioPage extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-          ),
+          Text(label, style: TextStyle(fontSize: 16, color: Colors.grey[700])),
           Text(
             value,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -149,9 +121,7 @@ class UsuarioPage extends StatelessWidget {
   Widget _buildQuickActions() {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -174,10 +144,7 @@ class UsuarioPage extends StatelessWidget {
   Widget _buildActionButton(String label, IconData icon) {
     return ListTile(
       leading: Icon(icon, color: Colors.black),
-      title: Text(
-        label,
-        style: const TextStyle(fontSize: 16),
-      ),
+      title: Text(label, style: const TextStyle(fontSize: 16)),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
       onTap: () {
         // Acción al presionar el botón

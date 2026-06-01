@@ -55,10 +55,11 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     if (user == null) return;
 
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .get();
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(user.uid)
+              .get();
 
       if (mounted) {
         setState(() {
@@ -66,9 +67,10 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
         });
       }
     } catch (e) {
-      print('Error al buscar rol: $e');
+      debugPrint('Error al buscar rol: $e');
     }
   }
+
   @override
   void dispose() {
     _controller
@@ -160,7 +162,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
               ),
               ElevatedButton(
                 onPressed:
-                    () => Navigator.of(dialogContext).pop(controller.text.trim()),
+                    () =>
+                        Navigator.of(dialogContext).pop(controller.text.trim()),
                 child: const Text('Guardar'),
               ),
             ],
@@ -312,11 +315,12 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     }
   }
 
-  Future<void> _showCategoriesPopup(List<_BranchCategory> initialCategories) async {
+  Future<void> _showCategoriesPopup(
+    List<_BranchCategory> initialCategories,
+  ) async {
     final nameController = TextEditingController();
-    var draftCategories = initialCategories
-        .map((category) => category.copyWith())
-        .toList();
+    var draftCategories =
+        initialCategories.map((category) => category.copyWith()).toList();
     var draftColorValue = 0xFFF4D03F;
 
     await showDialog<void>(
@@ -329,7 +333,9 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
               if (mounted && dialogContext.mounted) {
                 setDialogState(() {
                   draftCategories =
-                      categories.map((category) => category.copyWith()).toList();
+                      categories
+                          .map((category) => category.copyWith())
+                          .toList();
                 });
               }
             }
@@ -399,7 +405,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                                     _isSavingCategories
                                         ? null
                                         : () => _pickCategoryColor(
-                                          selectedColorValue: category.colorValue,
+                                          selectedColorValue:
+                                              category.colorValue,
                                           onSelected: (colorValue) async {
                                             final updated =
                                                 draftCategories
@@ -429,7 +436,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                                               draftCategories
                                                   .where(
                                                     (item) =>
-                                                        item.label.toLowerCase() !=
+                                                        item.label
+                                                            .toLowerCase() !=
                                                         category.label
                                                             .toLowerCase(),
                                                   )
@@ -510,7 +518,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                                     _isSavingCategories
                                         ? null
                                         : () async {
-                                          final label = nameController.text.trim();
+                                          final label =
+                                              nameController.text.trim();
                                           if (label.isEmpty) {
                                             _showSnackBar(
                                               'Escribe el nombre de la cinta.',
@@ -519,8 +528,8 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                                             return;
                                           }
 
-                                          final alreadyExists =
-                                              draftCategories.any(
+                                          final alreadyExists = draftCategories
+                                              .any(
                                                 (item) =>
                                                     item.label.toLowerCase() ==
                                                     label.toLowerCase(),
@@ -653,7 +662,9 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                       .doc(widget.branchDocId)
                       .snapshots(),
               builder: (context, snapshot) {
-                final categories = _parseBranchCategories(snapshot.data?.data());
+                final categories = _parseBranchCategories(
+                  snapshot.data?.data(),
+                );
                 return Row(
                   children: [
                     _buildCategoriesCard(categories),
@@ -779,10 +790,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             children: [
               Text(
                 'Agregar Grupo',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               SizedBox(width: 8),
               Icon(Icons.add_circle_outline),
@@ -811,10 +819,7 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
             children: [
               Text(
                 'Categorias',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               SizedBox(width: 8),
               Icon(Icons.open_in_new_rounded),
@@ -887,21 +892,21 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
-                            color: foregroundColor.withOpacity(0.82),
+                            color: foregroundColor.withValues(alpha: 0.82),
                           ),
                         ),
                         Text(
                           'Horario: ${group.schedule}',
                           style: TextStyle(
                             fontSize: 18,
-                            color: foregroundColor.withOpacity(0.68),
+                            color: foregroundColor.withValues(alpha: 0.68),
                           ),
                         ),
                         Text(
                           'Alumnos: ${group.totalStudents} participantes',
                           style: TextStyle(
                             fontSize: 18,
-                            color: foregroundColor.withOpacity(0.68),
+                            color: foregroundColor.withValues(alpha: 0.68),
                           ),
                         ),
                       ],
@@ -922,21 +927,22 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
                         _confirmDeleteGroup(group);
                       }
                     },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem<String>(
-                        value: 'rename',
-                        child: Text('Cambiar nombre'),
-                      ),
-                      const PopupMenuItem<String>(
-                        value: 'color',
-                        child: Text('Cambiar color'),
-                      ),
-                      if (_miRolGlobal == 'admin')
-                        const PopupMenuItem<String>(
-                          value: 'delete',
-                          child: Text('Borrar grupo'),
-                        ),
-                    ],
+                    itemBuilder:
+                        (context) => [
+                          const PopupMenuItem<String>(
+                            value: 'rename',
+                            child: Text('Cambiar nombre'),
+                          ),
+                          const PopupMenuItem<String>(
+                            value: 'color',
+                            child: Text('Cambiar color'),
+                          ),
+                          if (_miRolGlobal == 'admin')
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Text('Borrar grupo'),
+                            ),
+                        ],
                   ),
                 ),
                 Positioned(
@@ -1081,59 +1087,13 @@ class _BranchGroupsScreenState extends State<BranchGroupsScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _DynamicQRDialog(
-        group: group,
-        branchName: widget.branchName,
-        esPrivilegiado: esPrivilegiado,
-      ),
+      builder:
+          (context) => _DynamicQRDialog(
+            group: group,
+            branchName: widget.branchName,
+            esPrivilegiado: esPrivilegiado,
+          ),
     );
-  }
-
-  Future<_GroupAccessCodes> _ensureGroupAccessCodes(BranchGroup group) async {
-    final groupRef = FirebaseFirestore.instance.collection('grupos').doc(
-      group.id,
-    );
-    final snapshot = await groupRef.get();
-    final data = snapshot.data() ?? const <String, dynamic>{};
-
-    final studentCode = _normalizeAccessCode(data['codigo_alumno']);
-    final privilegedCode = _normalizeAccessCode(data['codigo_privilegiado']);
-    final resolvedStudentCode =
-        studentCode.isNotEmpty ? studentCode : _generateFallbackAccessCode();
-    final resolvedPrivilegedCode =
-        privilegedCode.isNotEmpty
-            ? privilegedCode
-            : _generateFallbackAccessCode(seed: group.id.length);
-
-    if (studentCode != resolvedStudentCode ||
-        privilegedCode != resolvedPrivilegedCode) {
-      await groupRef.set({
-        'codigo_alumno': resolvedStudentCode,
-        'codigo_privilegiado': resolvedPrivilegedCode,
-      }, SetOptions(merge: true));
-    }
-
-    return _GroupAccessCodes(
-      studentCode: resolvedStudentCode,
-      privilegedCode: resolvedPrivilegedCode,
-    );
-  }
-
-  String _normalizeAccessCode(Object? rawCode) {
-    final normalized = rawCode?.toString().replaceAll(RegExp(r'[^0-9]'), '');
-    return normalized ?? '';
-  }
-
-  String _generateFallbackAccessCode({int seed = 0}) {
-    final millis = DateTime.now().millisecondsSinceEpoch + seed;
-    return (100000 + (millis % 900000)).toString();
-  }
-
-  String _formatAccessCode(String code) {
-    if (code.length != 6) {
-      return code;
-    }
-    return '${code.substring(0, 3)} ${code.substring(3, 6)}';
   }
 
   @override
@@ -1223,33 +1183,17 @@ final List<PresetColorOption> _categoryPaletteOptions = [
 ];
 
 class _BranchCategory {
-  const _BranchCategory({
-    required this.label,
-    required this.colorValue,
-  });
+  const _BranchCategory({required this.label, required this.colorValue});
 
   final String label;
   final int colorValue;
 
-  _BranchCategory copyWith({
-    String? label,
-    int? colorValue,
-  }) {
+  _BranchCategory copyWith({String? label, int? colorValue}) {
     return _BranchCategory(
       label: label ?? this.label,
       colorValue: colorValue ?? this.colorValue,
     );
   }
-}
-
-class _GroupAccessCodes {
-  const _GroupAccessCodes({
-    required this.studentCode,
-    required this.privilegedCode,
-  });
-
-  final String studentCode;
-  final String privilegedCode;
 }
 
 // ============================================================
@@ -1310,8 +1254,11 @@ class _DynamicQRDialogState extends State<_DynamicQRDialog> {
     final nuevoCodigo = (100000 + ((millis + seed) % 900000)).toString();
 
     // 2. Lo guardamos inmediatamente en Firebase
-    final groupRef = FirebaseFirestore.instance.collection('grupos').doc(widget.group.id);
-    final campoActualizar = widget.esPrivilegiado ? 'codigo_privilegiado' : 'codigo_alumno';
+    final groupRef = FirebaseFirestore.instance
+        .collection('grupos')
+        .doc(widget.group.id);
+    final campoActualizar =
+        widget.esPrivilegiado ? 'codigo_privilegiado' : 'codigo_alumno';
 
     await groupRef.set({
       campoActualizar: nuevoCodigo,
@@ -1342,9 +1289,10 @@ class _DynamicQRDialogState extends State<_DynamicQRDialog> {
   @override
   Widget build(BuildContext context) {
     // Generamos la cadena exacta que leerá tu escáner
-    final qrData = widget.esPrivilegiado
-        ? 'PRIVILEGIADO|GrupoId:${widget.group.id}|Grupo:${widget.group.name}|Sucursal:${widget.branchName}|Codigo:$_currentCode'
-        : 'ALUMNO|GrupoId:${widget.group.id}|Grupo:${widget.group.name}|Sucursal:${widget.branchName}|Codigo:$_currentCode';
+    final qrData =
+        widget.esPrivilegiado
+            ? 'PRIVILEGIADO|GrupoId:${widget.group.id}|Grupo:${widget.group.name}|Sucursal:${widget.branchName}|Codigo:$_currentCode'
+            : 'ALUMNO|GrupoId:${widget.group.id}|Grupo:${widget.group.name}|Sucursal:${widget.branchName}|Codigo:$_currentCode';
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1363,34 +1311,54 @@ class _DynamicQRDialogState extends State<_DynamicQRDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    widget.esPrivilegiado ? Icons.admin_panel_settings_outlined : Icons.school_outlined,
+                    widget.esPrivilegiado
+                        ? Icons.admin_panel_settings_outlined
+                        : Icons.school_outlined,
                     color: Colors.white,
                     size: 16,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     widget.esPrivilegiado ? 'Usuario Privilegiado' : 'Alumno',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-            Text(widget.group.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            Text(widget.branchName, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+            Text(
+              widget.group.name,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              widget.branchName,
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
             const SizedBox(height: 15),
 
             // === EL RELOJ TEMPORIZADOR ===
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: _timeLeft <= 10 ? Colors.red[50] : Colors.grey[100], // Se pone rojo en los últimos 10 seg
+                color:
+                    _timeLeft <= 10
+                        ? Colors.red[50]
+                        : Colors
+                            .grey[100], // Se pone rojo en los últimos 10 seg
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.timer_outlined, size: 18, color: _timeLeft <= 10 ? Colors.red : Colors.grey[700]),
+                  Icon(
+                    Icons.timer_outlined,
+                    size: 18,
+                    color: _timeLeft <= 10 ? Colors.red : Colors.grey[700],
+                  ),
                   const SizedBox(width: 5),
                   Text(
                     'Expira en: ${_formatTime(_timeLeft)}',
@@ -1407,7 +1375,12 @@ class _DynamicQRDialogState extends State<_DynamicQRDialog> {
 
             // === EL QR Y EL CÓDIGO ===
             if (_isLoading)
-              const SizedBox(height: 220, child: Center(child: CircularProgressIndicator(color: Colors.black)))
+              const SizedBox(
+                height: 220,
+                child: Center(
+                  child: CircularProgressIndicator(color: Colors.black),
+                ),
+              )
             else ...[
               QrImageView(
                 data: qrData,
@@ -1416,11 +1389,19 @@ class _DynamicQRDialogState extends State<_DynamicQRDialog> {
                 backgroundColor: Colors.white,
               ),
               const SizedBox(height: 12),
-              Text('O ingresa el codigo:', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+              Text(
+                'O ingresa el codigo:',
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+              ),
               const SizedBox(height: 4),
               Text(
                 _formatAccessCode(_currentCode),
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2.0, color: Colors.black87),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2.0,
+                  color: Colors.black87,
+                ),
               ),
             ],
 
@@ -1435,7 +1416,10 @@ class _DynamicQRDialogState extends State<_DynamicQRDialog> {
             const SizedBox(height: 16),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cerrar', style: TextStyle(color: Colors.black, fontSize: 16)),
+              child: const Text(
+                'Cerrar',
+                style: TextStyle(color: Colors.black, fontSize: 16),
+              ),
             ),
           ],
         ),

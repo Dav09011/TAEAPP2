@@ -107,7 +107,8 @@ class ActivitiesSectionScreen extends StatefulWidget {
   final bool isReadOnly;
 
   @override
-  State<ActivitiesSectionScreen> createState() => _ActivitiesSectionScreenState();
+  State<ActivitiesSectionScreen> createState() =>
+      _ActivitiesSectionScreenState();
 }
 
 class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
@@ -138,10 +139,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
   void _showSnackBar(String message, {Color? backgroundColor}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: backgroundColor,
-      ),
+      SnackBar(content: Text(message), backgroundColor: backgroundColor),
     );
   }
 
@@ -167,7 +165,9 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                             labelText: 'Nombre de la actividad',
                             labelStyle: const TextStyle(color: Colors.blueGrey),
                             border: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.blue.shade400),
+                              borderSide: BorderSide(
+                                color: Colors.blue.shade400,
+                              ),
                             ),
                             focusedBorder: const OutlineInputBorder(
                               borderSide: BorderSide(
@@ -253,7 +253,9 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                                           backgroundColor: Colors.blue,
                                           foregroundColor: Colors.white,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                         ),
                                         child: const Text('Agregar'),
@@ -319,7 +321,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                             );
                           }
                         }
-                        if (mounted) {
+                        if (ctx.mounted) {
                           Navigator.pop(ctx);
                         }
                       },
@@ -400,7 +402,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                       );
                     }
                   }
-                  if (mounted) {
+                  if (ctx.mounted) {
                     Navigator.pop(ctx);
                   }
                 },
@@ -458,10 +460,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
         backgroundColor: Colors.green,
       );
     } catch (_) {
-      _showSnackBar(
-        'Error al actualizar nombre.',
-        backgroundColor: Colors.red,
-      );
+      _showSnackBar('Error al actualizar nombre.', backgroundColor: Colors.red);
     }
   }
 
@@ -470,7 +469,10 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
     if (groupId == null || groupId.isEmpty) return;
 
     try {
-      await _controller.deleteActivity(groupId: groupId, activityId: activityId);
+      await _controller.deleteActivity(
+        groupId: groupId,
+        activityId: activityId,
+      );
       _showSnackBar(
         'Actividad eliminada con exito.',
         backgroundColor: Colors.green,
@@ -512,10 +514,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
     if (shouldDelete != true) return;
 
     try {
-      await _controller.deleteBeltSection(
-        groupId: groupId,
-        beltName: beltName,
-      );
+      await _controller.deleteBeltSection(groupId: groupId, beltName: beltName);
       _showSnackBar(
         'Seccion "$beltName" eliminada.',
         backgroundColor: Colors.green,
@@ -674,10 +673,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
               children: [
                 Text(
                   'Ver alumnos',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 SizedBox(width: 6),
                 Icon(Icons.remove_red_eye, size: 18),
@@ -702,11 +698,7 @@ class _ActivitiesSectionScreenState extends State<ActivitiesSectionScreen> {
                   ),
                 ),
                 SizedBox(width: 6),
-                Icon(
-                  Icons.add_circle_outline,
-                  color: Colors.black,
-                  size: 18,
-                ),
+                Icon(Icons.add_circle_outline, color: Colors.black, size: 18),
               ],
             ),
           ),

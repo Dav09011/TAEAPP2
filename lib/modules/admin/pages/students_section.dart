@@ -112,7 +112,9 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
                               backgroundImage:
                                   details.imageUrl.isNotEmpty
                                       ? NetworkImage(details.imageUrl)
-                                      : const AssetImage('assets/image/Logo.png')
+                                      : const AssetImage(
+                                            'assets/image/Logo.png',
+                                          )
                                           as ImageProvider,
                               backgroundColor: Colors.white,
                             ),
@@ -208,7 +210,7 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
     try {
       // --- LÓGICA DE LIMPIEZA PROFUNDA DIRECTO EN LA PANTALLA ---
       final db = FirebaseFirestore.instance;
-      
+
       // 1. Obtenemos la sucursal para actualizar su contador
       final groupSnap = await db.collection('grupos').doc(groupId).get();
       final idSucursal = groupSnap.data()?['id_sucursal'] as String?;
@@ -224,7 +226,7 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
             .doc(studentDocId);
 
         final studentSnap = await studentRef.get();
-        
+
         if (studentSnap.exists) {
           final uidDelAlumno = studentSnap.data()?['uid'] as String?;
 
@@ -236,13 +238,12 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
           if (uidDelAlumno != null) {
             final userRef = db.collection('usuarios').doc(uidDelAlumno);
             final userSnap = await userRef.get();
-            
+
             if (userSnap.exists && userSnap.data()?['grupos'] != null) {
               final List<dynamic> gruposActuales = userSnap.data()!['grupos'];
-              final gruposLimpios = gruposActuales
-                  .where((g) => g['groupId'] != groupId)
-                  .toList();
-              
+              final gruposLimpios =
+                  gruposActuales.where((g) => g['groupId'] != groupId).toList();
+
               await userRef.update({'grupos': gruposLimpios});
             }
           }
@@ -322,7 +323,9 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
                               backgroundImage:
                                   student.imageUrl.isNotEmpty
                                       ? NetworkImage(student.imageUrl)
-                                      : const AssetImage('assets/image/Logo.png')
+                                      : const AssetImage(
+                                            'assets/image/Logo.png',
+                                          )
                                           as ImageProvider,
                               backgroundColor: const Color.fromARGB(
                                 255,
@@ -333,7 +336,9 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
                             ),
                             title: Text(
                               student.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             subtitle: Text(
                               student.belt,
@@ -394,10 +399,7 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Atras'),
-        titleTextStyle: const TextStyle(
-          fontSize: 25,
-          color: Colors.white,
-        ),
+        titleTextStyle: const TextStyle(fontSize: 25, color: Colors.white),
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -424,7 +426,8 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
                       onTap:
                           _controller.isMutating
                               ? null
-                              : () => _showDeleteConfirmationDialog(allStudents),
+                              : () =>
+                                  _showDeleteConfirmationDialog(allStudents),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
@@ -473,7 +476,9 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
                     final students = snapshot.data ?? const <AdminStudent>[];
                     if (students.isEmpty) {
                       return const Center(
-                        child: Text('No hay alumnos registrados en este grupo.'),
+                        child: Text(
+                          'No hay alumnos registrados en este grupo.',
+                        ),
                       );
                     }
 
@@ -500,10 +505,9 @@ class _StudentsSectionScreenState extends State<StudentsSectionScreen> {
                                   setState(() {
                                     _selectedStudentIds
                                       ..removeWhere(
-                                        (id) =>
-                                            entry.value.any(
-                                              (student) => student.id == id,
-                                            ),
+                                        (id) => entry.value.any(
+                                          (student) => student.id == id,
+                                        ),
                                       )
                                       ..addAll(selectedIdsFromGroup);
                                   });
@@ -588,10 +592,7 @@ class StudentCard extends StatelessWidget {
                 value: isSelected,
                 onChanged: (value) => onTap(),
                 activeColor: Colors.blue,
-                side: BorderSide(
-                  width: 2,
-                  color: Colors.grey[400]!,
-                ),
+                side: BorderSide(width: 2, color: Colors.grey[400]!),
               ),
             ),
           ),
@@ -683,44 +684,6 @@ class BeltGroup extends StatelessWidget {
         ),
         const SizedBox(height: 16),
       ],
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

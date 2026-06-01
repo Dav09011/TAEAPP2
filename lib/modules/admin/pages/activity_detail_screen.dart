@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -98,20 +97,22 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                     }
                   } on AppException catch (error) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(error.message)),
-                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(error.message)));
                     }
                   } catch (error) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Error al guardar el ejercicio: $error'),
+                          content: Text(
+                            'Error al guardar el ejercicio: $error',
+                          ),
                         ),
                       );
                     }
                   }
-                  if (mounted) {
+                  if (ctx.mounted) {
                     Navigator.pop(ctx);
                   }
                 },
@@ -171,9 +172,9 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                     }
                   } on AppException catch (error) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(error.message)),
-                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(error.message)));
                     }
                   } catch (error) {
                     if (mounted) {
@@ -184,7 +185,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                       );
                     }
                   }
-                  if (mounted) {
+                  if (ctx.mounted) {
                     Navigator.pop(ctx);
                   }
                 },
@@ -222,26 +223,29 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                 onPressed: () async {
                   try {
                     await _controller.deleteExerciseAt(index);
+                    if (!mounted) {
+                      return;
+                    }
                     setState(() {
                       _mediaPerExercise.remove(index);
                     });
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Ejercicio eliminado con exito.'),
-                        ),
-                      );
-                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Ejercicio eliminado con exito.'),
+                      ),
+                    );
                   } catch (error) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Error al eliminar el ejercicio: $error'),
+                          content: Text(
+                            'Error al eliminar el ejercicio: $error',
+                          ),
                         ),
                       );
                     }
                   }
-                  if (mounted) {
+                  if (ctx.mounted) {
                     Navigator.pop(ctx);
                   }
                 },
@@ -546,17 +550,14 @@ class _VideoViewerState extends State<VideoViewer> {
     final videoBytes = widget.videoBytes;
 
     if (kIsWeb) {
-      final videoUrl = Uri.dataFromBytes(
-        videoBytes,
-        mimeType: 'video/mp4',
-      ).toString();
+      final videoUrl =
+          Uri.dataFromBytes(videoBytes, mimeType: 'video/mp4').toString();
 
-      _controller =
-          VideoPlayerController.network(videoUrl)
-            ..initialize().then((_) {
-              setState(() {});
-              _controller!.play();
-            });
+      _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
+        ..initialize().then((_) {
+          setState(() {});
+          _controller!.play();
+        });
     } else {
       _loadVideoFile(videoBytes);
     }
@@ -566,12 +567,11 @@ class _VideoViewerState extends State<VideoViewer> {
     final tempDir = await getTemporaryDirectory();
     final tempFile = File('${tempDir.path}/temp_video.mp4');
     await tempFile.writeAsBytes(bytes);
-    _controller =
-        VideoPlayerController.file(tempFile)
-          ..initialize().then((_) {
-            setState(() {});
-            _controller!.play();
-          });
+    _controller = VideoPlayerController.file(tempFile)
+      ..initialize().then((_) {
+        setState(() {});
+        _controller!.play();
+      });
   }
 
   @override

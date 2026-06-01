@@ -1,25 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tae_app/pruebas/paginas/sesion.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Registro',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: const Registro(),
-    );
-  }
-}
-
 // Cambia StatelessWidget a StatefulWidget
 class Registro extends StatefulWidget {
   const Registro({super.key});
@@ -36,9 +17,7 @@ class _RegistroState extends State<Registro> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Registrarse"),
-      ),
+      appBar: AppBar(title: const Text("Registrarse")),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -56,51 +35,72 @@ class _RegistroState extends State<Registro> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
           registro(),
-          _buildTextField("Nombre", validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Por favor, ingresa tu nombre';
-            }
-            return null;
-          }),
-          _buildTextField("Apellidos", validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Por favor, ingresa tus apellidos';
-            }
-            return null;
-          }),
-          _buildTextField("Usuario", validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Por favor, ingresa un usuario';
-            }
-            return null;
-          }),
-          _buildTextField("Correo", validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Por favor, ingresa tu correo';
-            }
-            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-              return 'Correo no válido';
-            }
-            return null;
-          }),
-          _buildTextField("Edad", validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Por favor, ingresa tu edad';
-            }
-            if (int.tryParse(value) == null) {
-              return 'Edad no válida';
-            }
-            return null;
-          }),
-          _buildTextField("Contraseña", isPassword: true, validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Por favor, ingresa tu contraseña';
-            }
-            if (value.length < 8) {
-              return 'La contraseña debe tener al menos 8 caracteres';
-            }
-            return null;
-          }),
+          _buildTextField(
+            "Nombre",
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Por favor, ingresa tu nombre';
+              }
+              return null;
+            },
+          ),
+          _buildTextField(
+            "Apellidos",
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Por favor, ingresa tus apellidos';
+              }
+              return null;
+            },
+          ),
+          _buildTextField(
+            "Usuario",
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Por favor, ingresa un usuario';
+              }
+              return null;
+            },
+          ),
+          _buildTextField(
+            "Correo",
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Por favor, ingresa tu correo';
+              }
+              if (!RegExp(
+                r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+              ).hasMatch(value)) {
+                return 'Correo no válido';
+              }
+              return null;
+            },
+          ),
+          _buildTextField(
+            "Edad",
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Por favor, ingresa tu edad';
+              }
+              if (int.tryParse(value) == null) {
+                return 'Edad no válida';
+              }
+              return null;
+            },
+          ),
+          _buildTextField(
+            "Contraseña",
+            isPassword: true,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Por favor, ingresa tu contraseña';
+              }
+              if (value.length < 8) {
+                return 'La contraseña debe tener al menos 8 caracteres';
+              }
+              return null;
+            },
+          ),
           const SizedBox(height: 20),
           // DropdownButton para seleccionar el tipo de usuario
           DropdownButton<String>(
@@ -110,13 +110,17 @@ class _RegistroState extends State<Registro> {
                 selectedUserType = newValue!;
               });
             },
-            items: <String>["Admin", "Instructor", "Alumno"]
-                .map<DropdownMenuItem<String>>((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value),
-              );
-            }).toList(),
+            items:
+                <String>[
+                  "Admin",
+                  "Instructor",
+                  "Alumno",
+                ].map<DropdownMenuItem<String>>((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
           ),
           const SizedBox(height: 20),
           registrar(context), // Pasa el context al botón
@@ -141,7 +145,11 @@ class _RegistroState extends State<Registro> {
   }
 
   // Método para construir un campo de texto
-  Widget _buildTextField(String hintText, {bool isPassword = false, String? Function(String?)? validator}) {
+  Widget _buildTextField(
+    String hintText, {
+    bool isPassword = false,
+    String? Function(String?)? validator,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: TextFormField(
@@ -150,10 +158,11 @@ class _RegistroState extends State<Registro> {
           hintText: hintText,
           fillColor: Colors.grey[200],
           filled: true,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10.0),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 15,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         ),
         validator: validator,
       ),
@@ -166,8 +175,8 @@ class _RegistroState extends State<Registro> {
       onPressed: () {
         if (_formKey.currentState!.validate()) {
           // Si todos los campos son válidos, procede con el registro
-          print('Registro exitoso');
-          print('Tipo de usuario seleccionado: $selectedUserType');
+          debugPrint('Registro exitoso');
+          debugPrint('Tipo de usuario seleccionado: $selectedUserType');
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => Sesion()),

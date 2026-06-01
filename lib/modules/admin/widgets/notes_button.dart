@@ -69,7 +69,8 @@ class _NotesButtonState extends State<NotesButton>
                 FutureBuilder<List<AdminNotesStudent>>(
                   future: notesRepository.loadStudentsWithNotes(),
                   builder: (context, snapshot) {
-                    final students = snapshot.data ?? const <AdminNotesStudent>[];
+                    final students =
+                        snapshot.data ?? const <AdminNotesStudent>[];
 
                     return Autocomplete<AdminNotesStudent>(
                       displayStringForOption: (option) => option.fullName,
@@ -99,13 +100,16 @@ class _NotesButtonState extends State<NotesButton>
                             labelText: 'Nombre del alumno',
                             hintText: 'Ej. Julio Hernandez',
                             suffixIcon:
-                                snapshot.connectionState == ConnectionState.waiting
+                                snapshot.connectionState ==
+                                        ConnectionState.waiting
                                     ? const Padding(
                                       padding: EdgeInsets.all(12),
                                       child: SizedBox(
                                         width: 16,
                                         height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       ),
                                     )
                                     : null,
@@ -156,20 +160,26 @@ class _NotesButtonState extends State<NotesButton>
                     content: noteContent,
                     isPinned: false,
                   );
-                  if (context.mounted) {
-                    Navigator.of(dialogContext).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Nota creada para ${selectedStudent!.fullName}.'),
+                  if (!mounted || !dialogContext.mounted) {
+                    return;
+                  }
+
+                  Navigator.of(dialogContext).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Nota creada para ${selectedStudent!.fullName}.',
                       ),
-                    );
-                  }
+                    ),
+                  );
                 } catch (error) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('$error')),
-                    );
+                  if (!mounted) {
+                    return;
                   }
+
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('$error')));
                 }
               },
               child: const Text('Guardar'),
@@ -187,9 +197,7 @@ class _NotesButtonState extends State<NotesButton>
     _toggleMenu();
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const NotasAlumnoScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const NotasAlumnoScreen()),
     );
   }
 

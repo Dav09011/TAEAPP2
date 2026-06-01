@@ -14,9 +14,7 @@ class ProfileScreenStudent extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('No hay sesion activa.')),
-      );
+      return const Scaffold(body: Center(child: Text('No hay sesion activa.')));
     }
 
     return Scaffold(
@@ -237,12 +235,14 @@ class ProfileScreenStudent extends StatelessWidget {
                           style: OutlinedButton.styleFrom(
                             foregroundColor: const Color(0xFF8D1515),
                             side: BorderSide(
-                              color: const Color(0xFF8D1515).withValues(
-                                alpha: 0.25,
-                              ),
+                              color: const Color(
+                                0xFF8D1515,
+                              ).withValues(alpha: 0.25),
                             ),
                             padding: const EdgeInsets.symmetric(vertical: 16),
-                            backgroundColor: Colors.white.withValues(alpha: 0.55),
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.55,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
                             ),
@@ -288,10 +288,7 @@ class ProfileScreenStudent extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            beltTheme.primary,
-            beltTheme.secondary,
-          ],
+          colors: [beltTheme.primary, beltTheme.secondary],
         ),
         borderRadius: BorderRadius.circular(36),
         border: Border.all(
@@ -540,9 +537,7 @@ Future<void> _showEditProfileDialog({
                         ? ' Revisa tu correo para confirmar el cambio de email.'
                         : '';
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Perfil actualizado.$emailMessage'),
-                  ),
+                  SnackBar(content: Text('Perfil actualizado.$emailMessage')),
                 );
               }
             } on FirebaseAuthException catch (e) {
@@ -605,7 +600,7 @@ Future<void> _showEditProfileDialog({
                       keyboardType: TextInputType.phone,
                     ),
                     DropdownButtonFormField<String>(
-                      value: selectedBelt,
+                      initialValue: selectedBelt,
                       decoration: const InputDecoration(labelText: 'Cinta'),
                       items: [
                         const DropdownMenuItem<String>(
@@ -648,11 +643,10 @@ Future<void> _showEditProfileDialog({
                       ],
                       onChanged: (value) {
                         _StudentBeltOption? matchedOption;
-                        for (final option
-                            in _mergeSelectedBeltWithAvailable(
-                              availableBelts,
-                              selectedBelt,
-                            )) {
+                        for (final option in _mergeSelectedBeltWithAvailable(
+                          availableBelts,
+                          selectedBelt,
+                        )) {
                           if (option.label.toLowerCase() ==
                               (value ?? '').toLowerCase()) {
                             matchedOption = option;
@@ -683,9 +677,7 @@ Future<void> _showEditProfileDialog({
             actions: [
               TextButton(
                 onPressed:
-                    isSaving
-                        ? null
-                        : () => Navigator.of(dialogContext).pop(),
+                    isSaving ? null : () => Navigator.of(dialogContext).pop(),
                 child: const Text('Cancelar'),
               ),
               ElevatedButton(
@@ -815,7 +807,9 @@ Future<List<_StudentBeltOption>> _loadAvailableBeltsForStudent(
   }
 
   final belts = beltsByName.values.toList();
-  return belts.isEmpty ? const <_StudentBeltOption>[] : _sortStudentBelts(belts);
+  return belts.isEmpty
+      ? const <_StudentBeltOption>[]
+      : _sortStudentBelts(belts);
 }
 
 List<_StudentBeltOption> _parseStudentBeltOptions(Object? savedBelts) {
@@ -855,8 +849,9 @@ Future<List<String>> _resolveStudentBranchIds(
   final seenBranchIds = <String>{};
 
   Future<void> addBranchId(String branchId) async {
-    final resolvedBranchId =
-        await _resolveBranchIdFromPossibleIdOrName(branchId);
+    final resolvedBranchId = await _resolveBranchIdFromPossibleIdOrName(
+      branchId,
+    );
     if (resolvedBranchId.isEmpty) return;
     final key = resolvedBranchId.toLowerCase();
     if (seenBranchIds.add(key)) {
@@ -871,7 +866,8 @@ Future<List<String>> _resolveStudentBranchIds(
             .collection('grupos')
             .doc(groupId)
             .get();
-    final branchId = groupSnapshot.data()?['id_sucursal']?.toString().trim() ?? '';
+    final branchId =
+        groupSnapshot.data()?['id_sucursal']?.toString().trim() ?? '';
     if (branchId.isNotEmpty) {
       await addBranchId(branchId);
       return true;
@@ -1031,10 +1027,7 @@ class _StudentBeltTheme {
 }
 
 class _StudentBeltOption {
-  const _StudentBeltOption({
-    required this.label,
-    this.colorValue,
-  });
+  const _StudentBeltOption({required this.label, this.colorValue});
 
   final String label;
   final int? colorValue;

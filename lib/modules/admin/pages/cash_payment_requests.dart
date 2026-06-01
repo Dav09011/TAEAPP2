@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 class CashPaymentRequestsScreen extends StatefulWidget {
   const CashPaymentRequestsScreen({super.key});
 
@@ -37,7 +36,6 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
 
   late List<Map<String, String>> _alumnosMostrados;
   final Set<String> _alumnosSeleccionados = {};
-  String _busqueda = '';
 
   @override
   void initState() {
@@ -47,7 +45,6 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
 
   void _filtrarAlumnos(String query) {
     setState(() {
-      _busqueda = query;
       _alumnosMostrados =
           query.isEmpty
               ? List.from(_todosLosAlumnos)
@@ -179,12 +176,12 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(alpha: 0.2),
                   width: 2.0,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -243,7 +240,7 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Bandeja de entrada',
                   style: TextStyle(
                     fontSize: 18,
@@ -251,10 +248,10 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
                     color: Colors.black87,
                   ),
                 ),
-                const SizedBox(
+                SizedBox(
                   height: 4,
                 ), // Espacio pequeño entre el título y la instrucción
-                const Text(
+                Text(
                   'Desliza a la derecha para aprobar, a la izquierda para rechazar, o selecciona varios para procesar en bloque.',
                   style: TextStyle(
                     fontSize: 13, // Tamaño compacto para no saturar la vista
@@ -332,12 +329,13 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: seleccionado ? primaryColor : Colors.grey.withOpacity(0.15),
+          color:
+              seleccionado ? primaryColor : Colors.grey.withValues(alpha: 0.15),
           width: seleccionado ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -355,8 +353,8 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
                 decoration: BoxDecoration(
                   color:
                       seleccionado
-                          ? primaryColor.withOpacity(0.1)
-                          : Colors.green.withOpacity(0.1),
+                          ? primaryColor.withValues(alpha: 0.1)
+                          : Colors.green.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(

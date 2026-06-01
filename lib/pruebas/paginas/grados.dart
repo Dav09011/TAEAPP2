@@ -62,39 +62,45 @@ class _ExamenesGradosPageState extends State<ExamenesGradosPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const Text('Programar Examen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              'Programar Examen',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             DropdownButtonFormField<Alumno>(
               decoration: const InputDecoration(labelText: 'Alumno'),
-              items: _alumnos.map((alumno) {
-                return DropdownMenuItem(
-                  value: alumno,
-                  child: Text('${alumno.nombre} (${alumno.cintaActual})'),
-                );
-              }).toList(),
-              onChanged: (alumno) => setState(() => _alumnoSeleccionado = alumno),
+              items:
+                  _alumnos.map((alumno) {
+                    return DropdownMenuItem(
+                      value: alumno,
+                      child: Text('${alumno.nombre} (${alumno.cintaActual})'),
+                    );
+                  }).toList(),
+              onChanged:
+                  (alumno) => setState(() => _alumnoSeleccionado = alumno),
             ),
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(labelText: 'Cinta Objetivo'),
-              items: _tecnicasPorCinta.keys.map((cinta) {
-                return DropdownMenuItem(
-                  value: cinta,
-                  child: Text(cinta),
-                );
-              }).toList(),
+              items:
+                  _tecnicasPorCinta.keys.map((cinta) {
+                    return DropdownMenuItem(value: cinta, child: Text(cinta));
+                  }).toList(),
               onChanged: (cinta) => setState(() => _cintaObjetivo = cinta),
             ),
             ListTile(
               leading: const Icon(Icons.calendar_today),
-              title: Text('Fecha: ${DateFormat('dd/MM/yyyy').format(_fechaExamen)}'),
+              title: Text(
+                'Fecha: ${DateFormat('dd/MM/yyyy').format(_fechaExamen)}',
+              ),
               trailing: IconButton(
                 icon: const Icon(Icons.edit),
                 onPressed: () => _seleccionarFecha(context),
               ),
             ),
             ElevatedButton(
-              onPressed: _alumnoSeleccionado == null || _cintaObjetivo == null
-                  ? null
-                  : () => _guardarExamen(),
+              onPressed:
+                  _alumnoSeleccionado == null || _cintaObjetivo == null
+                      ? null
+                      : () => _guardarExamen(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red[700],
                 foregroundColor: Colors.white,
@@ -121,7 +127,10 @@ class _ExamenesGradosPageState extends State<ExamenesGradosPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Próximos Exámenes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Text(
+          'Próximos Exámenes',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         ...examenes.map((examen) => _buildCardExamen(examen)),
       ],
     );
@@ -141,26 +150,36 @@ class _ExamenesGradosPageState extends State<ExamenesGradosPage> {
           child: Center(
             child: Text(
               examen.alumno.cintaActual[0],
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ),
         title: Text(examen.alumno.nombre),
-        subtitle: Text('A ${examen.cintaObjetivo} - ${DateFormat('dd/MM').format(examen.fecha)}'),
+        subtitle: Text(
+          'A ${examen.cintaObjetivo} - ${DateFormat('dd/MM').format(examen.fecha)}',
+        ),
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Técnicas requeridas:', style: TextStyle(fontWeight: FontWeight.bold)),
-                ...examen.tecnicas.map((tecnica) => CheckboxListTile(
-                  title: Text(tecnica),
-                  value: examen.tecnicasEvaluadas[tecnica] ?? false,
-                  onChanged: (value) {
-                    // En una app real, actualizarías el estado del examen
-                  },
-                )),
+                const Text(
+                  'Técnicas requeridas:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                ...examen.tecnicas.map(
+                  (tecnica) => CheckboxListTile(
+                    title: Text(tecnica),
+                    value: examen.tecnicasEvaluadas[tecnica] ?? false,
+                    onChanged: (value) {
+                      // En una app real, actualizarías el estado del examen
+                    },
+                  ),
+                ),
                 const SizedBox(height: 10),
                 ElevatedButton(
                   onPressed: () => _mostrarDetallesExamen(context, examen),
@@ -175,97 +194,89 @@ class _ExamenesGradosPageState extends State<ExamenesGradosPage> {
   }
 
   void _mostrarFormularioExamen(BuildContext context) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Formulario ya visible en la pantalla.')),
-  );
-}
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Formulario ya visible en la pantalla.')),
+    );
+  }
 
-Future<void> _seleccionarFecha(BuildContext context) async {
-  final DateTime? picked = await showDatePicker(
-    context: context,
-    initialDate: _fechaExamen,
-    firstDate: DateTime.now(),
-    lastDate: DateTime(2101),
-  );
-  if (picked != null && picked != _fechaExamen) {
+  Future<void> _seleccionarFecha(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _fechaExamen,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null && picked != _fechaExamen) {
+      setState(() {
+        _fechaExamen = picked;
+      });
+    }
+  }
+
+  void _guardarExamen() {
+    if (_alumnoSeleccionado == null || _cintaObjetivo == null) return;
+
+    // Aquí deberías guardar el examen en una lista o base de datos.
+    // Por ahora mostramos un mensaje.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Examen programado exitosamente')),
+    );
+
     setState(() {
-      _fechaExamen = picked;
+      _alumnoSeleccionado = null;
+      _cintaObjetivo = null;
+      _fechaExamen = DateTime.now();
     });
   }
-}
 
-void _guardarExamen() {
-  if (_alumnoSeleccionado == null || _cintaObjetivo == null) return;
-
-  final nuevoExamen = Examen(
-    alumno: _alumnoSeleccionado!,
-    cintaObjetivo: _cintaObjetivo!,
-    fecha: _fechaExamen,
-    tecnicas: _tecnicasPorCinta[_alumnoSeleccionado!.cintaActual] ?? [],
-  );
-
-  // Aquí deberías guardar el examen en una lista o base de datos.
-  // Por ahora mostramos un mensaje.
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Examen programado exitosamente')),
-  );
-
-  setState(() {
-    _alumnoSeleccionado = null;
-    _cintaObjetivo = null;
-    _fechaExamen = DateTime.now();
-  });
-}
-
-Color _getColorCinta(String cinta) {
-  switch (cinta) {
-    case 'Blanca':
-      return Colors.white;
-    case 'Amarilla':
-      return Colors.yellow[700]!;
-    case 'Verde':
-      return Colors.green;
-    case 'Azul':
-      return Colors.blue;
-    case 'Roja':
-      return Colors.red;
-    case 'Negra':
-      return Colors.black;
-    default:
-      return Colors.grey;
+  Color _getColorCinta(String cinta) {
+    switch (cinta) {
+      case 'Blanca':
+        return Colors.white;
+      case 'Amarilla':
+        return Colors.yellow[700]!;
+      case 'Verde':
+        return Colors.green;
+      case 'Azul':
+        return Colors.blue;
+      case 'Roja':
+        return Colors.red;
+      case 'Negra':
+        return Colors.black;
+      default:
+        return Colors.grey;
+    }
   }
-}
 
-void _mostrarDetallesExamen(BuildContext context, Examen examen) {
-  showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: Text('Detalles del Examen'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Alumno: ${examen.alumno.nombre}'),
-            Text('Cinta actual: ${examen.alumno.cintaActual}'),
-            Text('Cinta objetivo: ${examen.cintaObjetivo}'),
-            Text('Fecha: ${DateFormat('dd/MM/yyyy').format(examen.fecha)}'),
-            const SizedBox(height: 10),
-            const Text('Técnicas:'),
-            ...examen.tecnicas.map((t) => Text('- $t')),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cerrar'),
+  void _mostrarDetallesExamen(BuildContext context, Examen examen) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Detalles del Examen'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Alumno: ${examen.alumno.nombre}'),
+              Text('Cinta actual: ${examen.alumno.cintaActual}'),
+              Text('Cinta objetivo: ${examen.cintaObjetivo}'),
+              Text('Fecha: ${DateFormat('dd/MM/yyyy').format(examen.fecha)}'),
+              const SizedBox(height: 10),
+              const Text('Técnicas:'),
+              ...examen.tecnicas.map((t) => Text('- $t')),
+            ],
           ),
-        ],
-      );
-    },
-  );
-}
-
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 // Modelos de datos

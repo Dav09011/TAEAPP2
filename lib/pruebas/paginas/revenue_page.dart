@@ -3,7 +3,6 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 
 const String _androidApiKey = "goog_TU_CLAVE_AQUI";
-const String _iosApiKey = "appl_TU_CLAVE_AQUI";
 
 class RevenueCatTestScreen extends StatefulWidget {
   const RevenueCatTestScreen({super.key});
@@ -53,9 +52,11 @@ class _RevenueCatTestScreenState extends State<RevenueCatTestScreen> {
         setState(() {
           _isLoading = false;
           if (offerings.current != null) {
-            _statusMessage = "Oferta '${offerings.current!.identifier}' lista para mostrar.";
+            _statusMessage =
+                "Oferta '${offerings.current!.identifier}' lista para mostrar.";
           } else {
-            _statusMessage = "No se encontraron ofertas. Revisa el dashboard de RevenueCat.";
+            _statusMessage =
+                "No se encontraron ofertas. Revisa el dashboard de RevenueCat.";
           }
         });
       }
@@ -74,9 +75,9 @@ class _RevenueCatTestScreenState extends State<RevenueCatTestScreen> {
       await RevenueCatUI.presentPaywall();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error mostrando paywall: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error mostrando paywall: $e")));
       }
     }
   }
@@ -91,8 +92,7 @@ class _RevenueCatTestScreenState extends State<RevenueCatTestScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (_isLoading)
-                const CircularProgressIndicator(),
+              if (_isLoading) const CircularProgressIndicator(),
               const SizedBox(height: 20),
               Text(
                 _statusMessage,
@@ -102,7 +102,8 @@ class _RevenueCatTestScreenState extends State<RevenueCatTestScreen> {
               const SizedBox(height: 30),
               // Botón para probar el paywall
               ElevatedButton(
-                onPressed: (_isConfigured && !_isLoading) ? _presentPaywall : null,
+                onPressed:
+                    (_isConfigured && !_isLoading) ? _presentPaywall : null,
                 child: const Text("Mostrar Paywall de Prueba"),
               ),
             ],
@@ -111,10 +112,4 @@ class _RevenueCatTestScreenState extends State<RevenueCatTestScreen> {
       ),
     );
   }
-}
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MaterialApp(
-    home: RevenueCatTestScreen(),
-  ));
 }

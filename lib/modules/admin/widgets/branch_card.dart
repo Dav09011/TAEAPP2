@@ -85,25 +85,21 @@ class BranchCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
-                            color: foregroundColor.withOpacity(0.82),
+                            color: foregroundColor.withValues(alpha: 0.82),
                           ),
                         ),
                         Text(
                           '${branch.participantsCount} participantes',
                           style: TextStyle(
                             fontSize: 18,
-                            color: foregroundColor.withOpacity(0.68),
+                            color: foregroundColor.withValues(alpha: 0.68),
                           ),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(width: 16),
-                  Icon(
-                    icon,
-                    size: 50,
-                    color: foregroundColor,
-                  ),
+                  Icon(icon, size: 50, color: foregroundColor),
                 ],
               ),
               Positioned(

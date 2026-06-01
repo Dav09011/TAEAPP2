@@ -1,25 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tae_app/pruebas/paginas/adminpage.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Iniciar Sesión',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: const Sesion(),
-    );
-  }
-}
-
 // Cambia StatelessWidget a StatefulWidget
 class Sesion extends StatefulWidget {
   const Sesion({super.key});
@@ -36,9 +17,7 @@ class _SesionState extends State<Sesion> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Iniciar Sesión"),
-      ),
+      appBar: AppBar(title: const Text("Iniciar Sesión")),
       body: Form(
         key: _formKey,
         child: cuerpo(context), // Pasa el context al cuerpo
@@ -65,25 +44,33 @@ class _SesionState extends State<Sesion> {
                   selectedValue = newValue!;
                 });
               },
-              items: <String>["Admin", "Instructor", "Alumno"]
-                  .map<DropdownMenuItem<String>>((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
+              items:
+                  <String>[
+                    "Admin",
+                    "Instructor",
+                    "Alumno",
+                  ].map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
             ),
             const SizedBox(height: 10),
             // Campo de texto para la contraseña
-            _buildTextField("Contraseña", isPassword: true, validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Por favor, ingresa tu contraseña';
-              }
-              if (value.length < 8) {
-                return 'La contraseña debe tener al menos 8 caracteres';
-              }
-              return null;
-            }),
+            _buildTextField(
+              "Contraseña",
+              isPassword: true,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Por favor, ingresa tu contraseña';
+                }
+                if (value.length < 8) {
+                  return 'La contraseña debe tener al menos 8 caracteres';
+                }
+                return null;
+              },
+            ),
             const SizedBox(height: 20),
             // Botón para iniciar sesión
             entrar(context),
@@ -106,7 +93,11 @@ class _SesionState extends State<Sesion> {
   }
 
   // Método para construir un campo de texto
-  Widget _buildTextField(String hintText, {bool isPassword = false, String? Function(String?)? validator}) {
+  Widget _buildTextField(
+    String hintText, {
+    bool isPassword = false,
+    String? Function(String?)? validator,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: TextFormField(
@@ -115,10 +106,11 @@ class _SesionState extends State<Sesion> {
           hintText: hintText,
           fillColor: Colors.grey[200],
           filled: true,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10.0),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 15,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         ),
         validator: validator,
       ),
@@ -131,7 +123,7 @@ class _SesionState extends State<Sesion> {
       onPressed: () {
         if (_formKey.currentState!.validate()) {
           // Si todos los campos son válidos, procede con el inicio de sesión
-          print('Inicio de sesión exitoso');
+          debugPrint('Inicio de sesión exitoso');
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => AdminPage()),

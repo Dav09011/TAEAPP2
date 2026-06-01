@@ -76,14 +76,14 @@ class _WalletScreenState extends State<WalletScreen> {
                               41,
                               53,
                               119,
-                            ).withOpacity(0.5)
-                            : Colors.grey.withOpacity(0.2),
+                            ).withValues(alpha: 0.5)
+                            : Colors.grey.withValues(alpha: 0.2),
                     width: 2.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(
-                        _controller.isPressed ? 0.12 : 0.05,
+                      color: Colors.black.withValues(
+                        alpha: _controller.isPressed ? 0.12 : 0.05,
                       ),
                       blurRadius: _controller.isPressed ? 25 : 15,
                       offset:
@@ -249,14 +249,14 @@ class _WalletScreenState extends State<WalletScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+          border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 28),

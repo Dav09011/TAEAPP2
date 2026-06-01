@@ -13,7 +13,6 @@ class BranchDetailsScreen extends StatelessWidget {
         child: Text(
           'Detalles de la sucursal $branchName',
           style: TextStyle(fontSize: 20),
-          
         ),
       ),
     );

@@ -337,7 +337,7 @@ class _NotasAlumnoScreenState extends State<NotasAlumnoScreen> {
                     radius: 26,
                     backgroundColor: _colorForStudent(
                       student.id,
-                    ).withOpacity(0.18),
+                    ).withValues(alpha: 0.18),
                     child: Text(
                       _initialsFrom(student.fullName),
                       style: TextStyle(
@@ -782,10 +782,10 @@ class _NotasAlumnoScreenState extends State<NotasAlumnoScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (context, setSheetState) {
+          builder: (sheetBuilderContext, setSheetState) {
             return Padding(
               padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
+                bottom: MediaQuery.of(sheetBuilderContext).viewInsets.bottom,
               ),
               child: SafeArea(
                 child: Container(
@@ -858,7 +858,7 @@ class _NotasAlumnoScreenState extends State<NotasAlumnoScreen> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         tileColor: const Color(0xFFF7F8FC),
-                        activeColor: const Color(0xFFB67824),
+                        activeThumbColor: const Color(0xFFB67824),
                         title: const Text(
                           'Marcar como importante',
                           style: TextStyle(fontWeight: FontWeight.w700),
@@ -885,7 +885,7 @@ class _NotasAlumnoScreenState extends State<NotasAlumnoScreen> {
                                     final content = noteController.text.trim();
                                     if (content.isEmpty) {
                                       ScaffoldMessenger.of(
-                                        context,
+                                        sheetBuilderContext,
                                       ).showSnackBar(
                                         const SnackBar(
                                           content: Text(
@@ -912,7 +912,7 @@ class _NotasAlumnoScreenState extends State<NotasAlumnoScreen> {
                                         );
                                       }
 
-                                      if (!mounted) {
+                                      if (!mounted || !sheetContext.mounted) {
                                         return;
                                       }
 
@@ -930,7 +930,7 @@ class _NotasAlumnoScreenState extends State<NotasAlumnoScreen> {
                                         ),
                                       );
                                     } catch (error) {
-                                      if (!mounted) {
+                                      if (!mounted || !sheetContext.mounted) {
                                         return;
                                       }
 
@@ -1061,19 +1061,15 @@ class _NotasAlumnoScreenState extends State<NotasAlumnoScreen> {
     }
 
     final deletedEntryId = entry.id;
-    final snackBarController =
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              duration: const Duration(seconds: 4),
-              content: Text('Nota eliminada de ${student.name}.'),
-              action: SnackBarAction(
-                label: 'Deshacer',
-                onPressed: _undoDeletion,
-              ),
-            ),
-          );
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    final snackBarController = messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 4),
+        content: Text('Nota eliminada de ${student.name}.'),
+        action: SnackBarAction(label: 'Deshacer', onPressed: _undoDeletion),
+      ),
+    );
 
     snackBarController.closed.then((_) {
       if (!mounted) {
@@ -1194,10 +1190,6 @@ class _NotasAlumnoScreenState extends State<NotasAlumnoScreen> {
   }
 }
 
-extension on ScaffoldMessengerState {
-  get closed => null;
-}
-
 class _SheetAction extends StatelessWidget {
   const _SheetAction({
     required this.icon,
@@ -1228,7 +1220,7 @@ class _SheetAction extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.08),
+                color: iconColor.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(icon, color: iconColor),

@@ -42,12 +42,12 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(alpha: 0.2),
                   width: 2.0,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -89,7 +89,7 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
         boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
       ),
       child: Column(
@@ -133,8 +133,8 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
             decoration: BoxDecoration(
               color:
                   configuration.supportsScholarships
-                      ? Colors.green.withOpacity(0.10)
-                      : Colors.orange.withOpacity(0.10),
+                      ? Colors.green.withValues(alpha: 0.10)
+                      : Colors.orange.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(

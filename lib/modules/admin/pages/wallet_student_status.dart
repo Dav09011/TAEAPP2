@@ -60,12 +60,12 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(alpha: 0.2),
                   width: 2.0,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -160,7 +160,7 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -228,25 +228,25 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
     switch (status) {
       case StudentBillingState.upToDate:
         return (
-          Colors.green.withOpacity(0.1),
+          Colors.green.withValues(alpha: 0.1),
           'Pago al corriente',
           Colors.green.shade800,
         );
       case StudentBillingState.pending:
         return (
-          Colors.orange.withOpacity(0.1),
+          Colors.orange.withValues(alpha: 0.1),
           'Pago pendiente',
           Colors.orange.shade800,
         );
       case StudentBillingState.scholarship:
         return (
-          const Color.fromARGB(255, 41, 53, 119).withOpacity(0.1),
+          const Color.fromARGB(255, 41, 53, 119).withValues(alpha: 0.1),
           'Beca aplicada',
           const Color.fromARGB(255, 41, 53, 119),
         );
       default:
         return (
-          Colors.grey.withOpacity(0.1),
+          Colors.grey.withValues(alpha: 0.1),
           'Sin registro',
           Colors.grey.shade800,
         );

@@ -27,7 +27,8 @@ class ActivitiesCard extends StatelessWidget {
   final VoidCallback? onAddActivity;
   final void Function(String activityId, String newName)? onNameChanged;
   final void Function(String activityId)? onDelete;
-  final void Function(String activityId, int colorValue)? onActivityColorChanged;
+  final void Function(String activityId, int colorValue)?
+  onActivityColorChanged;
   final ValueChanged<String>? onBeltNameChanged;
   final ValueChanged<int>? onBeltColorChanged;
   final VoidCallback? onDeleteBeltSection;
@@ -93,7 +94,10 @@ class ActivitiesCard extends StatelessWidget {
           children: [
             if (isReadOnly)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: beltBackgroundColor,
                   borderRadius: BorderRadius.circular(14),
@@ -274,7 +278,11 @@ class GroupHeaderWithMenu extends StatelessWidget {
               value: 'color',
               child: Row(
                 children: [
-                  Icon(Icons.palette_outlined, color: Colors.deepPurple, size: 18),
+                  Icon(
+                    Icons.palette_outlined,
+                    color: Colors.deepPurple,
+                    size: 18,
+                  ),
                   SizedBox(width: 12),
                   Text(
                     'Cambiar color',
@@ -347,7 +355,7 @@ class ActivityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.3),
+            color: Colors.grey.withValues(alpha: 0.3),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -378,7 +386,7 @@ class ActivityCard extends StatelessWidget {
                     '${exercises[index]}',
                     style: TextStyle(
                       fontSize: 14,
-                      color: foregroundColor.withOpacity(0.82),
+                      color: foregroundColor.withValues(alpha: 0.82),
                     ),
                   );
                 },
@@ -556,11 +564,12 @@ class ActivityCard extends StatelessWidget {
                         backgroundColor: const Color(0xFF7E57C2),
                         onPressed: () async {
                           Navigator.of(dialogContext).pop();
-                          final selectedColor = await showPresetColorPickerDialog(
-                            context: context,
-                            title: 'Color para ${group['name']}',
-                            selectedColorValue: group['colorValue'] as int?,
-                          );
+                          final selectedColor =
+                              await showPresetColorPickerDialog(
+                                context: context,
+                                title: 'Color para ${group['name']}',
+                                selectedColorValue: group['colorValue'] as int?,
+                              );
                           if (selectedColor != null) {
                             onColorChanged?.call(selectedColor);
                           }
@@ -598,19 +607,13 @@ class ActivityCard extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: backgroundColor,
           foregroundColor: Colors.white,
-          textStyle: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
         ),
         onPressed: onPressed,
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-        ),
+        child: Text(label, textAlign: TextAlign.center),
       ),
     );
   }

@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
 import 'package:tae_app/features/auth/data/repositories/firebase_auth_repository.dart';
@@ -33,9 +32,7 @@ class LoginController extends ChangeNotifier {
     final normalizedPassword = password.trim();
 
     if (normalizedEmail.isEmpty || normalizedPassword.isEmpty) {
-      throw const AppException(
-        'Por favor, ingresa tu email y contrasena.',
-      );
+      throw const AppException('Por favor, ingresa tu email y contrasena.');
     }
 
     _setLoading(true);
@@ -45,8 +42,6 @@ class LoginController extends ChangeNotifier {
         email: normalizedEmail,
         password: normalizedPassword,
       );
-    } on FirebaseAuthException catch (error) {
-      throw AppException(_mapFirebaseAuthError(error));
     } finally {
       _setLoading(false);
     }
@@ -56,20 +51,5 @@ class LoginController extends ChangeNotifier {
     if (_isLoading == value) return;
     _isLoading = value;
     notifyListeners();
-  }
-
-  String _mapFirebaseAuthError(FirebaseAuthException error) {
-    switch (error.code) {
-      case 'user-not-found':
-      case 'wrong-password':
-      case 'invalid-credential':
-        return 'Email o contrasena incorrectos.';
-      case 'invalid-email':
-        return 'El email no tiene un formato valido.';
-      case 'too-many-requests':
-        return 'Demasiados intentos. Intenta de nuevo mas tarde.';
-      default:
-        return 'Error de autenticacion.';
-    }
   }
 }

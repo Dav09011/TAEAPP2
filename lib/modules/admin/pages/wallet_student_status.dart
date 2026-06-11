@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:tae_app/features/admin/domain/entities/student_billing_status.dart';
+import 'package:tae_app/features/admin/domain/entities/admin_wallet_student_status.dart';
 import 'package:tae_app/features/admin/presentation/controllers/wallet_student_status_controller.dart';
 
 class WalletStudentStatusPage extends StatefulWidget {
@@ -18,6 +18,7 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
   void initState() {
     super.initState();
     _controller.addListener(_handleControllerChanged);
+    _controller.load();
   }
 
   @override
@@ -45,17 +46,10 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- TARJETA DE CABECERA COMPACTA Y ALARGADA ---
           Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14.0,
-              vertical: 8.0,
-            ), // Margen exterior reducido para mayor longitud
+            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 18.0,
-                vertical: 14.0,
-              ), // Relleno interno optimizado
+              padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 14.0),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
@@ -77,16 +71,15 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
                   const Text(
                     'ESTADO DE ALUMNOS',
                     style: TextStyle(
-                      fontSize: 30, // Tamaño balanceado
+                      fontSize: 30,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.8,
                       color: Colors.black,
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // Buscador integrado en la tarjeta
                   Container(
-                    height: 40, // Altura fina y elegante
+                    height: 40,
                     decoration: BoxDecoration(
                       color: const Color(0xfff1f3f6),
                       borderRadius: BorderRadius.circular(12),
@@ -98,12 +91,10 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
-                            onChanged: (value) {
-                              _controller.filterStudents(value);
-                            },
+                            onChanged: _controller.filterStudents,
                             style: const TextStyle(fontSize: 14),
                             decoration: const InputDecoration(
-                              hintText: 'Buscar por nombre o grupo...',
+                              hintText: 'Buscar por nombre, grupo o estado...',
                               border: InputBorder.none,
                               hintStyle: TextStyle(
                                 color: Colors.grey,
@@ -120,7 +111,48 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
               ),
             ),
           ),
-
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilterChip(
+                  label: const Text('Todas las sucursales'),
+                  selected: _controller.selectedBranchId == null,
+                  onSelected: (_) => _controller.clearFilters(),
+                ),
+                ..._controller.branchOptions.map(
+                  (branch) => FilterChip(
+                    label: Text(branch.label),
+                    selected: _controller.selectedBranchId == branch.id,
+                    onSelected: (_) => _controller.setBranchFilter(branch.id),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilterChip(
+                  label: const Text('Todos los grupos'),
+                  selected: _controller.selectedGroupId == null,
+                  onSelected: (_) => _controller.setGroupFilter(null),
+                ),
+                ..._controller.groupOptions.map(
+                  (group) => FilterChip(
+                    label: Text(group.label),
+                    selected: _controller.selectedGroupId == group.id,
+                    onSelected: (_) => _controller.setGroupFilter(group.id),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             child: Text(
@@ -132,27 +164,33 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
               ),
             ),
           ),
-
-          // Lista de alumnos con scroll
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _controller.students.length,
-              itemBuilder: (context, index) {
-                return _buildStudentStatusCard(
-                  _controller.students[index],
-                  primaryColor,
-                );
-              },
-            ),
+            child:
+                _controller.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _controller.students.isEmpty
+                    ? const Center(child: Text('No hay alumnos con ese criterio.'))
+                    : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: _controller.students.length,
+                      itemBuilder: (context, index) {
+                        return _buildStudentStatusCard(
+                          _controller.students[index],
+                          primaryColor,
+                        );
+                      },
+                    ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStudentStatusCard(dynamic student, Color primaryColor) {
-    final statusStyle = _statusStyle(student.state);
+  Widget _buildStudentStatusCard(
+    AdminWalletStudentStatus student,
+    Color primaryColor,
+  ) {
+    final statusStyle = _statusStyle(student.status);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -176,7 +214,7 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
             children: [
               Expanded(
                 child: Text(
-                  student.name,
+                  student.studentName,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -192,6 +230,11 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${student.branchName} · ${student.groupName}',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
           const SizedBox(height: 10),
           Text(
@@ -224,21 +267,21 @@ class _WalletStudentStatusPageState extends State<WalletStudentStatusPage> {
     );
   }
 
-  (Color, String, Color) _statusStyle(StudentBillingState status) {
+  (Color, String, Color) _statusStyle(String status) {
     switch (status) {
-      case StudentBillingState.upToDate:
+      case 'paid':
         return (
           Colors.green.withValues(alpha: 0.1),
           'Pago al corriente',
           Colors.green.shade800,
         );
-      case StudentBillingState.pending:
+      case 'pending':
         return (
           Colors.orange.withValues(alpha: 0.1),
           'Pago pendiente',
           Colors.orange.shade800,
         );
-      case StudentBillingState.scholarship:
+      case 'scholarship':
         return (
           const Color.fromARGB(255, 41, 53, 119).withValues(alpha: 0.1),
           'Beca aplicada',

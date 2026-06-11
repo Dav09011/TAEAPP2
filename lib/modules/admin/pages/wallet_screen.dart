@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tae_app/app/router/app_routes.dart';
-import 'package:tae_app/features/admin/domain/entities/wallet_branch_option.dart';
+import 'package:tae_app/features/admin/domain/entities/admin_wallet_branch_summary.dart';
 import 'package:tae_app/features/admin/presentation/controllers/wallet_controller.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -185,11 +185,26 @@ class _WalletScreenState extends State<WalletScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildSummaryItem('Pagados', '18', Colors.green),
-                      _buildSummaryItem('Pendientes', '7', Colors.orange),
+                      _buildSummaryItem(
+                        'Pagados',
+                        _formatCount(
+                          _controller.selectedBranchSummary?.paidCount ?? 0,
+                        ),
+                        Colors.green,
+                      ),
+                      _buildSummaryItem(
+                        'Pendientes',
+                        _formatCount(
+                          _controller.selectedBranchSummary?.pendingCount ?? 0,
+                        ),
+                        Colors.orange,
+                      ),
                       _buildSummaryItem(
                         'Por Validar',
-                        '\$1,200',
+                        _formatMoney(
+                          _controller.selectedBranchSummary?.totalPendingCents ??
+                              0,
+                        ),
                         const Color.fromARGB(255, 41, 53, 119),
                       ),
                     ],
@@ -201,7 +216,8 @@ class _WalletScreenState extends State<WalletScreen> {
             _buildWalletActionCard(
               context,
               title: 'Pagos en Efectivo',
-              subtitle: '3 solicitudes pendientes por revisar',
+              subtitle:
+                  '${_controller.selectedBranchCashRequestsCount} solicitudes pendientes por revisar',
               icon: Icons.account_balance_wallet_outlined,
               color: Colors.green,
               onTap: () => Navigator.pushNamed(context, AppRoutes.cashPayments),
@@ -304,6 +320,14 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
+  String _formatMoney(int cents) {
+    return '\$${(cents / 100).toStringAsFixed(2)}';
+  }
+
+  String _formatCount(int value) {
+    return value.toString();
+  }
+
   void _showBranchSelector(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -338,8 +362,8 @@ class _WalletScreenState extends State<WalletScreen> {
                 ),
               ),
               Flexible(
-                child: StreamBuilder<List<WalletBranchOption>>(
-                  stream: _controller.watchBranches(),
+                child: StreamBuilder<List<AdminWalletBranchSummary>>(
+                  stream: _controller.watchBranchSummaries(),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return const Padding(
@@ -356,7 +380,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     }
 
                     final branches =
-                        snapshot.data ?? const <WalletBranchOption>[];
+                        snapshot.data ?? const <AdminWalletBranchSummary>[];
 
                     if (branches.isEmpty) {
                       return const Padding(
@@ -376,17 +400,20 @@ class _WalletScreenState extends State<WalletScreen> {
                             color: Color.fromARGB(255, 41, 53, 119),
                           ),
                           title: Text(
-                            branch.name,
+                            branch.branchName,
                             style: const TextStyle(fontWeight: FontWeight.w500),
                           ),
                           trailing: const Icon(Icons.chevron_right, size: 20),
                           onTap: () {
-                            _controller.selectBranch(branch.name);
+                            _controller.selectBranch(
+                              branch.branchId,
+                              branch.branchName,
+                            );
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Viendo finanzas de: ${branch.name}',
+                                  'Viendo finanzas de: ${branch.branchName}',
                                 ),
                                 duration: const Duration(seconds: 1),
                                 behavior: SnackBarBehavior.floating,

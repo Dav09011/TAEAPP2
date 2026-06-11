@@ -1,68 +1,102 @@
-import 'package:flutter/material.dart';
-import 'package:tae_app/features/admin/domain/entities/student_billing_status.dart';
+import 'package:flutter/foundation.dart';
+import 'package:tae_app/features/admin/data/repositories/firebase_admin_wallet_repository.dart';
+import 'package:tae_app/features/admin/domain/entities/admin_wallet_filter_option.dart';
+import 'package:tae_app/features/admin/domain/entities/admin_wallet_student_status.dart';
+import 'package:tae_app/features/admin/domain/repositories/admin_wallet_repository.dart';
 
 class WalletStudentStatusController extends ChangeNotifier {
-  // 1. La lista original (Intocable, funciona como nuestra base de datos local temporal)
-  final List<StudentBillingStatus> _allStudents = [
-    StudentBillingStatus(
-      id: '1',
-      name: 'Maribel Castillo',
-      groupName: 'Cinta Blanca',
-      state: StudentBillingState.upToDate,
-      billingLabel: 'Mensualidad: Pagada',
-      lastPaymentLabel: 'Último pago: hace 2 días',
-    ),
-    StudentBillingStatus(
-      id: '2',
-      name: 'Jose Jose',
-      groupName: 'Cinta Blanca',
-      state: StudentBillingState.pending,
-      billingLabel: 'Mensualidad: Pendiente',
-      lastPaymentLabel: 'Venció hace 5 días',
-    ),
-    StudentBillingStatus(
-      id: '3',
-      name: 'Nancy Herrera',
-      groupName: 'Cinta Amarilla',
-      state: StudentBillingState.scholarship,
-      billingLabel: 'Beca Deportiva (100%)',
-      lastPaymentLabel: 'Ajuste de sistema',
-    ),
-    StudentBillingStatus(
-      id: '4',
-      name: 'Israel García',
-      groupName: 'Cinta Azul',
-      state: StudentBillingState.upToDate,
-      billingLabel: 'Mensualidad: Pagada',
-      lastPaymentLabel: 'Último pago: hace 1 semana',
-    ),
-  ];
+  WalletStudentStatusController({AdminWalletRepository? repository})
+      : _repository = repository ?? FirebaseAdminWalletRepository();
 
-  // 2. La lista que realmente se muestra en la pantalla
-  List<StudentBillingStatus> _filteredStudents = [];
+  final AdminWalletRepository _repository;
 
-  WalletStudentStatusController() {
-    // Cuando el controlador nace, la lista filtrada es igual a la original
-    _filteredStudents = List.from(_allStudents);
+  List<AdminWalletStudentStatus> _allStudents = const [];
+  List<AdminWalletStudentStatus> _filteredStudents = const [];
+  String _searchQuery = '';
+  String? _selectedBranchId;
+  String? _selectedGroupId;
+  bool _isLoading = true;
+
+  List<AdminWalletStudentStatus> get students => List.unmodifiable(_filteredStudents);
+  List<AdminWalletFilterOption> get branchOptions =>
+      _allStudents
+          .map(
+            (student) => AdminWalletFilterOption(
+              id: student.branchId,
+              label: student.branchName,
+            ),
+          )
+          .toSet()
+          .toList();
+  List<AdminWalletFilterOption> get groupOptions =>
+      (_selectedBranchId == null
+              ? _allStudents
+              : _allStudents
+                  .where((student) => student.branchId == _selectedBranchId))
+          .map(
+            (student) => AdminWalletFilterOption(
+              id: student.groupId,
+              label: student.groupName,
+            ),
+          )
+          .toSet()
+          .toList();
+  bool get isLoading => _isLoading;
+  String? get selectedBranchId => _selectedBranchId;
+  String? get selectedGroupId => _selectedGroupId;
+  String get searchQuery => _searchQuery;
+
+  Future<void> load() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _allStudents = await _repository.loadStudentStatuses(
+        branchId: _selectedBranchId,
+        groupId: _selectedGroupId,
+      );
+      _applyFilters();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-  // El Getter ahora devuelve la lista filtrada
-  List<StudentBillingStatus> get students => _filteredStudents;
-
-  // 3. La función mágica de búsqueda
   void filterStudents(String query) {
-    if (query.isEmpty) {
-      // Si borran el texto, regresamos todos los alumnos
+    _searchQuery = query;
+    _applyFilters();
+    notifyListeners();
+  }
+
+  void setBranchFilter(String? branchId) {
+    _selectedBranchId = branchId;
+    _selectedGroupId = null;
+    load();
+  }
+
+  void setGroupFilter(String? groupId) {
+    _selectedGroupId = groupId;
+    load();
+  }
+
+  void clearFilters() {
+    _selectedBranchId = null;
+    _selectedGroupId = null;
+    load();
+  }
+
+  void _applyFilters() {
+    if (_searchQuery.trim().isEmpty) {
       _filteredStudents = List.from(_allStudents);
-    } else {
-      // Si hay texto, filtramos buscando coincidencias en el nombre ignorando mayúsculas
-      _filteredStudents =
-          _allStudents.where((student) {
-            return student.name.toLowerCase().contains(query.toLowerCase());
-          }).toList();
+      return;
     }
 
-    // Le gritamos a la UI: "¡Oye, la lista cambió, vuelve a dibujarte!"
-    notifyListeners();
+    final normalized = _searchQuery.toLowerCase();
+    _filteredStudents =
+        _allStudents.where((student) {
+          return student.studentName.toLowerCase().contains(normalized) ||
+              student.branchName.toLowerCase().contains(normalized) ||
+              student.groupName.toLowerCase().contains(normalized) ||
+              student.billingLabel.toLowerCase().contains(normalized);
+        }).toList();
   }
 }

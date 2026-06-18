@@ -3,6 +3,7 @@ import 'package:tae_app/app/router/app_routes.dart';
 import 'package:tae_app/features/admin/presentation/pages/main_branches_page.dart';
 import 'package:tae_app/features/admin/presentation/pages/wallet_fees_page.dart';
 import 'package:tae_app/features/admin/presentation/pages/wallet_page.dart';
+import 'package:tae_app/features/admin/presentation/pages/wallet_performance_detail_page.dart';
 import 'package:tae_app/features/admin/presentation/pages/wallet_student_status_page.dart';
 import 'package:tae_app/modules/admin/pages/cash_payment_requests.dart';
 import 'package:tae_app/features/auth/presentation/pages/forgot_password_page.dart';
@@ -22,6 +23,8 @@ class AppRouter {
     AppRoutes.licenseSelection: (context) => const LicenciaScreen(),
     AppRoutes.mainAdmin: (context) => const MainBranches(),
     AppRoutes.wallet: (context) => const WalletScreen(),
+    AppRoutes.walletPerformance:
+        (context) => const WalletPerformanceDetailPage(),
     AppRoutes.walletFees: (context) => const WalletFeesPage(),
     AppRoutes.walletStudentStatus: (context) => const WalletStudentStatusPage(),
     AppRoutes.cashPayments: (context) => const CashPaymentRequestsScreen(),

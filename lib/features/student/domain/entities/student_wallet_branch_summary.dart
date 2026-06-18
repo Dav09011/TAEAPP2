@@ -47,12 +47,36 @@ class StudentWalletBranchSummary {
   String get currentTariffLabel =>
       currentTariffName ?? 'Mensualidad no definida';
 
-  String get pendingTariffLabel =>
-      pendingTariffName ?? 'Sin cambio programado';
+  String get pendingTariffLabel => pendingTariffName ?? 'Sin cambio programado';
+
+  String? get effectiveTariffId => pendingTariffId ?? currentTariffId;
+
+  String? get effectiveTariffName => pendingTariffName ?? currentTariffName;
+
+  int? get effectiveTariffAmountCents =>
+      pendingTariffAmountCents ?? currentTariffAmountCents;
+
+  String? get effectiveTariffPeriodType =>
+      pendingTariffPeriodType ?? currentTariffPeriodType;
+
+  int? get effectiveTariffPeriodCount =>
+      pendingTariffPeriodCount ?? currentTariffPeriodCount;
+
+  String get effectiveTariffLabel =>
+      effectiveTariffName ?? 'Mensualidad no definida';
 
   String get currentAmountLabel =>
-      currentTariffAmountCents == null ? '---' : '\$${(currentTariffAmountCents! / 100).toStringAsFixed(2)}';
+      currentTariffAmountCents == null
+          ? '---'
+          : '\$${(currentTariffAmountCents! / 100).toStringAsFixed(2)}';
 
   String get pendingAmountLabel =>
-      pendingTariffAmountCents == null ? '---' : '\$${(pendingTariffAmountCents! / 100).toStringAsFixed(2)}';
+      pendingTariffAmountCents == null
+          ? '---'
+          : '\$${(pendingTariffAmountCents! / 100).toStringAsFixed(2)}';
+
+  String get effectiveAmountLabel =>
+      effectiveTariffAmountCents == null
+          ? '---'
+          : '\$${(effectiveTariffAmountCents! / 100).toStringAsFixed(2)}';
 }

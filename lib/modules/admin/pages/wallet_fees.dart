@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:tae_app/features/admin/domain/entities/admin_wallet_branch_summary.dart';
 import 'package:tae_app/features/admin/presentation/controllers/wallet_fees_controller.dart';
 import 'package:tae_app/features/payments/domain/entities/payment_tariff.dart';
 
@@ -39,7 +38,7 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
       backgroundColor: Colors.white,
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: primaryColor,
-        onPressed: () => _openTariffDialog(context),
+        onPressed: () => _openTariffSheet(context),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text(
           'Nueva tarifa',
@@ -55,22 +54,16 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 22.0,
-              vertical: 10.0,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 10),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20.0,
-                vertical: 16.0,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
                   color: Colors.grey.withValues(alpha: 0.2),
-                  width: 2.0,
+                  width: 2,
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -93,7 +86,7 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Tarifas reales del admin, por sucursal y con control de activación.',
+                    'Gestiona precios por sucursal. La activacion se controla desde cada tarjeta.',
                     style: TextStyle(fontSize: 13, color: Colors.grey),
                   ),
                 ],
@@ -107,13 +100,10 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
                     ? const Center(child: CircularProgressIndicator())
                     : _controller.tariffs.isEmpty
                     ? const Center(
-                      child: Text('Todavía no hay tarifas creadas.'),
+                      child: Text('Todavia no hay tarifas creadas.'),
                     )
                     : ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 92),
                       itemCount: _controller.tariffs.length,
                       itemBuilder: (context, index) {
                         return _buildTariffCard(_controller.tariffs[index]);
@@ -127,46 +117,61 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
 
   Widget _buildTariffCard(PaymentTariff tariff) {
     final isActive = tariff.isActive;
+    final branchName = _controller.branchNameFor(tariff.branchId);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.payments_outlined, color: primaryColor),
+              ),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  tariff.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tariff.name.isEmpty ? 'Tarifa sin nombre' : tariff.name,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      branchName,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
                 ),
               ),
               PopupMenuButton<String>(
                 onSelected: (value) {
                   if (value == 'edit') {
-                    _openTariffDialog(context, existing: tariff);
-                  } else if (value == 'toggle') {
-                    _controller.saveTariff(
-                      tariffId: tariff.id,
-                      branchId: tariff.branchId,
-                      name: tariff.name,
-                      amountCents: tariff.amountCents,
-                      currency: tariff.currency,
-                      periodType: tariff.periodType,
-                      periodCount: tariff.periodCount,
-                      groupId: tariff.groupId,
-                      description: tariff.description,
-                      isActive: !isActive,
-                    );
+                    _openTariffSheet(context, existing: tariff);
                   } else if (value == 'delete') {
                     _confirmDelete(tariff);
                   }
@@ -174,60 +179,111 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
                 itemBuilder:
                     (_) => const [
                       PopupMenuItem(value: 'edit', child: Text('Editar')),
-                      PopupMenuItem(value: 'toggle', child: Text('Activar / desactivar')),
                       PopupMenuItem(value: 'delete', child: Text('Eliminar')),
                     ],
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            _formatMoney(tariff.amountCents),
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: primaryColor,
-            ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _TariffInfoPill(
+                  label: 'Monto',
+                  value: _formatMoney(tariff.amountCents),
+                  color: primaryColor,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TariffInfoPill(
+                  label: 'Periodo',
+                  value:
+                      '${tariff.periodCount} ${_periodLabel(tariff.periodType)}',
+                  color: Colors.blue,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Periodo: ${tariff.periodCount} ${tariff.periodType}',
-            style: const TextStyle(fontSize: 13, color: Colors.black87),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Sucursal: ${tariff.branchId}',
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          if ((tariff.groupId ?? '').isNotEmpty) ...[
-            const SizedBox(height: 4),
+          if ((tariff.description ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
             Text(
-              'Grupo: ${tariff.groupId}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              tariff.description!.trim(),
+              style: const TextStyle(fontSize: 13, color: Colors.black54),
             ),
           ],
+          const SizedBox(height: 16),
+          Divider(color: Colors.grey.withValues(alpha: 0.18), height: 1),
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color:
-                  isActive
-                      ? Colors.green.withValues(alpha: 0.10)
-                      : Colors.orange.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              isActive ? 'Activa' : 'Inactiva',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isActive ? Colors.green[800] : Colors.orange[800],
+          Row(
+            children: [
+              _StatusChip(isActive: isActive),
+              const Spacer(),
+              const Text(
+                'Activa',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
-            ),
+              Switch(
+                value: isActive,
+                activeThumbColor: Colors.green,
+                onChanged:
+                    (value) =>
+                        value
+                            ? _setTariffActive(tariff, true)
+                            : _confirmDisableTariff(tariff),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _setTariffActive(PaymentTariff tariff, bool isActive) {
+    return _controller.saveTariff(
+      tariffId: tariff.id,
+      branchId: tariff.branchId,
+      name: tariff.name,
+      amountCents: tariff.amountCents,
+      currency: tariff.currency,
+      periodType: tariff.periodType,
+      periodCount: tariff.periodCount,
+      groupId: tariff.groupId,
+      description: tariff.description,
+      isActive: isActive,
+    );
+  }
+
+  Future<void> _confirmDisableTariff(PaymentTariff tariff) async {
+    final shouldDisable = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Apagar tarifa'),
+          content: Text(
+            'Esta tarifa esta conectada a la cartera del alumno. Si la apagas, dejara de aparecer como opcion activa para nuevos pagos.\n\nDeseas apagar "${tariff.name}"?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Apagar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDisable == true) {
+      await _setTariffActive(tariff, false);
+    }
   }
 
   void _confirmDelete(PaymentTariff tariff) {
@@ -236,7 +292,7 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Eliminar tarifa'),
-          content: Text('¿Seguro que deseas eliminar "${tariff.name}"?'),
+          content: Text('Seguro que deseas eliminar "${tariff.name}"?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
@@ -255,10 +311,7 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
     );
   }
 
-  void _openTariffDialog(
-    BuildContext context, {
-    PaymentTariff? existing,
-  }) {
+  void _openTariffSheet(BuildContext context, {PaymentTariff? existing}) {
     final nameController = TextEditingController(text: existing?.name ?? '');
     final amountController = TextEditingController(
       text:
@@ -272,167 +325,433 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
     final descriptionController = TextEditingController(
       text: existing?.description ?? '',
     );
-    final groupController = TextEditingController(text: existing?.groupId ?? '');
     String periodType = existing?.periodType ?? 'month';
-    bool isActive = existing?.isActive ?? true;
-    String? selectedBranchId = existing?.branchId;
-    String? selectedGroupId = existing?.groupId;
+    String? selectedBranchId =
+        existing?.branchId ??
+        (_controller.branches.isEmpty
+            ? null
+            : _controller.branches.first.branchId);
 
-    showDialog(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) {
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+          builder: (context, setStateSheet) {
+            final branches = _controller.branches;
+            final hasPriceChange = _hasPriceChange(
+              existing,
+              amountController.text,
+            );
+            if (selectedBranchId == null && branches.isNotEmpty) {
+              selectedBranchId = branches.first.branchId;
+            }
+
+            return Container(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                18,
+                20,
+                20 + MediaQuery.of(context).viewInsets.bottom,
               ),
-              title: Text(existing == null ? 'Nueva tarifa' : 'Editar tarifa'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        controller: nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre',
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.black12,
+                          borderRadius: BorderRadius.circular(999),
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: amountController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Monto en pesos',
-                          hintText: 'Ej. 500.00',
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.sell_outlined,
+                            color: primaryColor,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: periodCountController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Cantidad del periodo',
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
-                        initialValue: periodType,
-                        items: const [
-                          DropdownMenuItem(value: 'month', child: Text('Mes')),
-                          DropdownMenuItem(value: 'week', child: Text('Semana')),
-                          DropdownMenuItem(value: 'day', child: Text('Día')),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setStateDialog(() => periodType = value);
-                          }
-                        },
-                        decoration: const InputDecoration(labelText: 'Periodo'),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: descriptionController,
-                        maxLines: 2,
-                        decoration: const InputDecoration(
-                          labelText: 'Descripción',
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SwitchListTile(
-                        value: isActive,
-                        onChanged: (value) {
-                          setStateDialog(() => isActive = value);
-                        },
-                        title: const Text('Tarifa activa'),
-                      ),
-                      const SizedBox(height: 10),
-                      StreamBuilder<List<AdminWalletBranchSummary>>(
-                        stream: _controller.watchBranches(),
-                        builder: (context, snapshot) {
-                          final branches =
-                              snapshot.data ?? const <AdminWalletBranchSummary>[];
-                          if (branches.isEmpty) {
-                            return const Text('No hay sucursales disponibles.');
-                          }
-
-                          selectedBranchId ??= branches.first.branchId;
-
-                          return DropdownButtonFormField<String>(
-                            initialValue: selectedBranchId,
-                            items:
-                                branches
-                                    .map(
-                                      (branch) => DropdownMenuItem(
-                                        value: branch.branchId,
-                                        child: Text(branch.branchName),
-                                      ),
-                                    )
-                                    .toList(),
-                            onChanged: (value) {
-                              setStateDialog(() => selectedBranchId = value);
-                            },
-                            decoration: const InputDecoration(
-                              labelText: 'Sucursal',
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            existing == null ? 'Nueva tarifa' : 'Editar tarifa',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
                             ),
-                          );
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    TextField(
+                      controller: nameController,
+                      textInputAction: TextInputAction.next,
+                      decoration: _inputDecoration(
+                        label: 'Nombre',
+                        icon: Icons.badge_outlined,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) => setStateSheet(() {}),
+                      decoration: _inputDecoration(
+                        label: 'Monto en pesos',
+                        hint: 'Ej. 500.00',
+                        icon: Icons.attach_money,
+                      ),
+                    ),
+                    if (hasPriceChange) ...[
+                      const SizedBox(height: 10),
+                      const _NextMonthNotice(),
+                    ],
+                    const SizedBox(height: 12),
+                    if (branches.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF4F6FA),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Text(
+                          'No hay sucursales disponibles.',
+                          style: TextStyle(color: Colors.black54),
+                        ),
+                      )
+                    else
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedBranchId,
+                        isExpanded: true,
+                        decoration: _inputDecoration(
+                          label: 'Sucursal',
+                          icon: Icons.storefront_outlined,
+                        ),
+                        items:
+                            branches
+                                .map(
+                                  (branch) => DropdownMenuItem(
+                                    value: branch.branchId,
+                                    child: Text(branch.branchName),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (value) {
+                          setStateSheet(() => selectedBranchId = value);
                         },
                       ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: groupController,
-                        decoration: const InputDecoration(
-                          labelText: 'Grupo (opcional)',
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: periodCountController,
+                            keyboardType: TextInputType.number,
+                            decoration: _inputDecoration(
+                              label: 'Cantidad',
+                              icon: Icons.repeat,
+                            ),
+                          ),
                         ),
-                        onChanged: (value) =>
-                            selectedGroupId =
-                                value.trim().isEmpty ? null : value.trim(),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: periodType,
+                            decoration: _inputDecoration(
+                              label: 'Periodo',
+                              icon: Icons.calendar_month_outlined,
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'month',
+                                child: Text('Mes'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'week',
+                                child: Text('Semana'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'day',
+                                child: Text('Dia'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                setStateSheet(() => periodType = value);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      maxLines: 2,
+                      decoration: _inputDecoration(
+                        label: 'Descripcion',
+                        icon: Icons.notes_outlined,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: () async {
+                          final amount =
+                              double.tryParse(
+                                amountController.text.trim().replaceAll(
+                                  ',',
+                                  '.',
+                                ),
+                              ) ??
+                              0;
+                          final periodCount =
+                              int.tryParse(periodCountController.text.trim()) ??
+                              1;
+                          final branchId = selectedBranchId ?? '';
+                          final name = nameController.text.trim();
+                          final priceChanged = _hasPriceChange(
+                            existing,
+                            amountController.text,
+                          );
+
+                          if (name.isEmpty || amount <= 0 || branchId.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Completa nombre, monto y sucursal.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          await _controller.saveTariff(
+                            tariffId: existing?.id,
+                            branchId: branchId,
+                            name: name,
+                            amountCents: (amount * 100).round(),
+                            currency: 'mxn',
+                            periodType: periodType,
+                            periodCount: periodCount <= 0 ? 1 : periodCount,
+                            groupId: null,
+                            description:
+                                descriptionController.text.trim().isEmpty
+                                    ? null
+                                    : descriptionController.text.trim(),
+                            isActive: existing?.isActive ?? true,
+                          );
+                          if (sheetContext.mounted) {
+                            Navigator.pop(sheetContext);
+                          }
+                          if (priceChanged && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'El nuevo precio se va a aplicar al siguiente mes.',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Guardar tarifa'),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: () async {
-                    final amount = double.tryParse(
-                          amountController.text.trim().replaceAll(',', '.'),
-                        ) ??
-                        0;
-                    await _controller.saveTariff(
-                      tariffId: existing?.id,
-                      branchId: selectedBranchId ?? '',
-                      name: nameController.text.trim(),
-                      amountCents: (amount * 100).round(),
-                      currency: 'mxn',
-                      periodType: periodType,
-                      periodCount:
-                          int.tryParse(periodCountController.text.trim()) ?? 1,
-                      groupId: selectedGroupId,
-                      description: descriptionController.text.trim(),
-                      isActive: isActive,
-                    );
-                    if (context.mounted) {
-                      Navigator.pop(dialogContext);
-                    }
-                  },
-                  child: const Text('Guardar'),
-                ),
-              ],
             );
           },
         );
       },
+    ).whenComplete(() {
+      nameController.dispose();
+      amountController.dispose();
+      periodCountController.dispose();
+      descriptionController.dispose();
+    });
+  }
+
+  InputDecoration _inputDecoration({
+    required String label,
+    required IconData icon,
+    String? hint,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: Icon(icon),
+      filled: true,
+      fillColor: const Color(0xFFF7F8FB),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.16)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: primaryColor, width: 1.4),
+      ),
     );
+  }
+
+  bool _hasPriceChange(PaymentTariff? existing, String rawAmount) {
+    if (existing == null) return false;
+    final amount = double.tryParse(rawAmount.trim().replaceAll(',', '.'));
+    if (amount == null) return false;
+    return (amount * 100).round() != existing.amountCents;
   }
 
   String _formatMoney(int cents) {
     return '\$${(cents / 100).toStringAsFixed(2)}';
+  }
+
+  String _periodLabel(String periodType) {
+    switch (periodType) {
+      case 'week':
+        return 'semana';
+      case 'day':
+        return 'dia';
+      case 'month':
+      default:
+        return 'mes';
+    }
+  }
+}
+
+class _NextMonthNotice extends StatelessWidget {
+  const _NextMonthNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.blue.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.18)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.event_repeat_outlined, color: Colors.blue),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'El nuevo precio se va a aplicar al siguiente mes.',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TariffInfoPill extends StatelessWidget {
+  const _TariffInfoPill({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: color.withValues(alpha: 0.78),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.isActive});
+
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isActive ? Colors.green : Colors.orange;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        isActive ? 'Visible para alumnos' : 'Apagada',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color.shade800,
+        ),
+      ),
+    );
   }
 }

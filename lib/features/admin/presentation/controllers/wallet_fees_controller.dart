@@ -8,16 +8,27 @@ import 'package:tae_app/features/payments/domain/entities/payment_tariff.dart';
 
 class WalletFeesController extends ChangeNotifier {
   WalletFeesController({AdminWalletRepository? repository})
-      : _repository = repository ?? FirebaseAdminWalletRepository();
+    : _repository = repository ?? FirebaseAdminWalletRepository();
 
   final AdminWalletRepository _repository;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
   List<PaymentTariff> _tariffs = const [];
+  List<AdminWalletBranchSummary> _branches = const [];
   bool _isLoading = true;
 
   List<PaymentTariff> get tariffs => List.unmodifiable(_tariffs);
+  List<AdminWalletBranchSummary> get branches => List.unmodifiable(_branches);
   bool get isLoading => _isLoading;
+
+  String branchNameFor(String branchId) {
+    for (final branch in _branches) {
+      if (branch.branchId == branchId) {
+        return branch.branchName;
+      }
+    }
+    return branchId.isEmpty ? 'Sin sucursal' : branchId;
+  }
 
   Stream<List<AdminWalletBranchSummary>> watchBranches() {
     return _repository.watchBranchSummaries();
@@ -40,6 +51,12 @@ class WalletFeesController extends ChangeNotifier {
       _repository.watchTariffs().listen((items) {
         _tariffs = items;
         _isLoading = false;
+        notifyListeners();
+      }),
+    );
+    _subscriptions.add(
+      _repository.watchBranchSummaries().listen((items) {
+        _branches = items;
         notifyListeners();
       }),
     );

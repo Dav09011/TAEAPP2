@@ -28,6 +28,61 @@ class WalletController extends ChangeNotifier {
   String get adminName => _adminName;
   String get selectedBranchId => _selectedBranchId;
   String get selectedBranchName => _selectedBranchName;
+  int get totalPaidCount {
+    return _branchSummaries.fold<int>(
+      0,
+      (total, summary) => total + summary.paidCount,
+    );
+  }
+
+  int get totalPendingCount {
+    return _branchSummaries.fold<int>(
+      0,
+      (total, summary) => total + summary.pendingCount,
+    );
+  }
+
+  int get totalIncomeCents {
+    return _branchSummaries.fold<int>(
+      0,
+      (total, summary) => total + summary.totalPaidCents,
+    );
+  }
+
+  int get totalPendingCents {
+    return _branchSummaries.fold<int>(
+      0,
+      (total, summary) => total + summary.totalPendingCents,
+    );
+  }
+
+  int get totalStudentsCount {
+    return _branchSummaries.fold<int>(
+      0,
+      (total, summary) => total + summary.studentsCount,
+    );
+  }
+
+  int get totalGroupsCount {
+    return _branchSummaries.fold<int>(
+      0,
+      (total, summary) => total + summary.groupsCount,
+    );
+  }
+
+  int get totalCashRequestsCount {
+    return _branchSummaries.fold<int>(
+      0,
+      (total, summary) => total + summary.cashRequestsCount,
+    );
+  }
+
+  double get paidShare {
+    final total = totalPaidCount + totalPendingCount;
+    if (total == 0) return 0;
+    return totalPaidCount / total;
+  }
+
   int get selectedBranchCashRequestsCount {
     final selected = selectedBranchSummary;
     if (selected == null) return 0;
@@ -39,6 +94,7 @@ class WalletController extends ChangeNotifier {
         )
         .length;
   }
+
   List<AdminWalletBranchSummary> get branchSummaries =>
       List.unmodifiable(_branchSummaries);
 

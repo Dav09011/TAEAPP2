@@ -7,6 +7,7 @@ abstract final class AppRoutes {
   static const licenseSelection = '/license-selection';
   static const mainAdmin = '/main-admin';
   static const wallet = '/wallet';
+  static const walletPerformance = '/wallet-performance';
   static const walletFees = '/wallet-fees';
   static const walletStudentStatus = '/wallet-student-status';
   static const String cashPayments = '/cash-payments';

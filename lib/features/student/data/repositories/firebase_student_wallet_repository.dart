@@ -27,7 +27,9 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
       return const Stream<List<StudentWalletBranchSummary>>.empty();
     }
 
-    return _firestoreService.users().doc(uid).snapshots().asyncMap((snapshot) async {
+    return _firestoreService.users().doc(uid).snapshots().asyncMap((
+      snapshot,
+    ) async {
       final data = snapshot.data() ?? const <String, dynamic>{};
       final groups = _parseGroups(data);
       final branchCandidates = _parseBranchCandidates(data, groups);
@@ -37,24 +39,44 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
       final summaries = <StudentWalletBranchSummary>[];
       for (final candidate in branchCandidates) {
         try {
-          final resolvedBranchId = await _resolveBranchId(candidate.rawBranchToken);
+          final resolvedBranchId = await _resolveBranchId(
+            candidate.rawBranchToken,
+          );
           if (resolvedBranchId.isEmpty) continue;
 
           final resolvedBranch = await _loadBranchInfo(resolvedBranchId);
           if (resolvedBranch == null) continue;
 
-          final tariffs = await _loadTariffsSafely(resolvedBranch.adminId, resolvedBranch.branchId);
+          final tariffs = await _loadTariffsSafely(
+            resolvedBranch.adminId,
+            resolvedBranch.branchId,
+            branchName: resolvedBranch.branchName,
+          );
           final pref = preferences[resolvedBranch.branchId];
-          final matchingGroups = _groupsForBranch(groups, resolvedBranch.branchId, resolvedBranch.branchName, candidate.rawBranchToken);
-          final branchPendingRequest = pendingRequests.where((request) => request.branchId == resolvedBranch.branchId).toList();
-          final pendingRequest = branchPendingRequest.isNotEmpty ? branchPendingRequest.first : null;
+          final matchingGroups = _groupsForBranch(
+            groups,
+            resolvedBranch.branchId,
+            resolvedBranch.branchName,
+            candidate.rawBranchToken,
+          );
+          final branchPendingRequest =
+              pendingRequests
+                  .where(
+                    (request) => request.branchId == resolvedBranch.branchId,
+                  )
+                  .toList();
+          final pendingRequest =
+              branchPendingRequest.isNotEmpty
+                  ? branchPendingRequest.first
+                  : null;
 
           summaries.add(
             StudentWalletBranchSummary(
               branchId: resolvedBranch.branchId,
               branchName: resolvedBranch.branchName,
               adminId: resolvedBranch.adminId,
-              groups: matchingGroups.map((item) => item.toMembership()).toList(),
+              groups:
+                  matchingGroups.map((item) => item.toMembership()).toList(),
               availableTariffs: tariffs,
               hasPendingCashRequest: pendingRequest != null,
               branchColorValue: resolvedBranch.branchColorValue,
@@ -87,20 +109,36 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
       return const [];
     }
 
-    return _loadTariffsSafely(resolved.adminId, resolved.branchId);
+    return _loadTariffsSafely(
+      resolved.adminId,
+      resolved.branchId,
+      branchName: resolved.branchName,
+    );
   }
 
-  Future<List<PaymentTariff>> _loadTariffsSafely(String adminId, String branchId) async {
+  Future<List<PaymentTariff>> _loadTariffsSafely(
+    String adminId,
+    String branchId, {
+    String? branchName,
+  }) async {
     try {
-      final snapshot = await _firestoreService
-          .adminPaymentTariffs(adminId)
-          .where('branch_id', isEqualTo: branchId)
-          .get();
+      final snapshot =
+          await _firestoreService.adminPaymentTariffs(adminId).get();
+      final normalizedBranchId = branchId.trim().toLowerCase();
+      final normalizedBranchName = (branchName ?? '').trim().toLowerCase();
 
-      final tariffs = snapshot.docs
-        .map((doc) => PaymentTariff.fromMap(doc.id, doc.data()))
-        .where((tariff) => tariff.isActive)
-        .toList();
+      final tariffs =
+          snapshot.docs
+              .map((doc) => PaymentTariff.fromMap(doc.id, doc.data()))
+              .where((tariff) {
+                final tariffBranch = tariff.branchId.trim().toLowerCase();
+                final matchesBranch =
+                    tariffBranch == normalizedBranchId ||
+                    (normalizedBranchName.isNotEmpty &&
+                        tariffBranch == normalizedBranchName);
+                return tariff.isActive && matchesBranch;
+              })
+              .toList();
 
       tariffs.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       return tariffs;
@@ -134,31 +172,38 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
       throw const AppException('No se encontro la tarifa seleccionada.');
     }
 
-    final now = DateTime.now();
-    final profileRef = _firestoreService.users().doc(uid);
-    final profileSnapshot = await profileRef.get();
-    final currentPreferences = _parsePreferences(profileSnapshot.data() ?? {});
-    final existing = currentPreferences[branchId];
+    await _firestoreService.instance.runTransaction((transaction) async {
+      final profileRef = _firestoreService.users().doc(uid);
+      final profileSnapshot = await transaction.get(profileRef);
+      final currentPreferences =
+          _parsePreferences(profileSnapshot.data() ?? {});
+      final existing = currentPreferences[branchId];
 
-    currentPreferences[branchId] = _WalletPreference(
-      branchId: branchId,
-      branchName: resolved.branchName,
-      currentTariffId: existing?.currentTariffId,
-      currentTariffName: existing?.currentTariffName,
-      currentTariffAmountCents: existing?.currentTariffAmountCents,
-      currentTariffPeriodType: existing?.currentTariffPeriodType,
-      currentTariffPeriodCount: existing?.currentTariffPeriodCount,
-      pendingTariffId: tariffId,
-      pendingTariffName: tariffData['name'] as String? ?? 'Sin nombre',
-      pendingTariffAmountCents: (tariffData['amount_cents'] as num?)?.toInt(),
-      pendingTariffPeriodType: tariffData['period_type'] as String?,
-      pendingTariffPeriodCount: (tariffData['period_count'] as num?)?.toInt(),
-      updatedAt: now,
-    );
+      currentPreferences[branchId] = _WalletPreference(
+        branchId: branchId,
+        branchName: resolved.branchName,
+        currentTariffId: existing?.currentTariffId,
+        currentTariffName: existing?.currentTariffName,
+        currentTariffAmountCents: existing?.currentTariffAmountCents,
+        currentTariffPeriodType: existing?.currentTariffPeriodType,
+        currentTariffPeriodCount: existing?.currentTariffPeriodCount,
+        pendingTariffId: tariffId,
+        pendingTariffName: tariffData['name'] as String? ?? 'Sin nombre',
+        pendingTariffAmountCents: (tariffData['amount_cents'] as num?)?.toInt(),
+        pendingTariffPeriodType: tariffData['period_type'] as String?,
+        pendingTariffPeriodCount: (tariffData['period_count'] as num?)?.toInt(),
+        updatedAt: DateTime.now(),
+      );
 
-    await profileRef.set({
-      'wallet_preferences': currentPreferences.values.map((pref) => pref.toMap()).toList(),
-    }, SetOptions(merge: true));
+      transaction.set(
+        profileRef,
+        {
+          'wallet_preferences':
+              currentPreferences.values.map((pref) => pref.toMap()).toList(),
+        },
+        SetOptions(merge: true),
+      );
+    });
   }
 
   @override
@@ -168,24 +213,33 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
       throw const AppException('No hay sesion activa.');
     }
 
-    final profileRef = _firestoreService.users().doc(uid);
-    final profileSnapshot = await profileRef.get();
-    final preferences = _parsePreferences(profileSnapshot.data() ?? {});
-    final pref = preferences[branchId];
-    if (pref == null) return;
+    await _firestoreService.instance.runTransaction((transaction) async {
+      final profileRef = _firestoreService.users().doc(uid);
+      final profileSnapshot = await transaction.get(profileRef);
+      final preferences = _parsePreferences(profileSnapshot.data() ?? {});
+      final pref = preferences[branchId];
+      if (pref == null) return;
 
-    preferences[branchId] = pref.copyWith(
-      pendingTariffId: null,
-      pendingTariffName: null,
-      pendingTariffAmountCents: null,
-      pendingTariffPeriodType: null,
-      pendingTariffPeriodCount: null,
-      updatedAt: DateTime.now(),
-    );
+      preferences[branchId] = _WalletPreference(
+        branchId: pref.branchId,
+        branchName: pref.branchName,
+        currentTariffId: pref.currentTariffId,
+        currentTariffName: pref.currentTariffName,
+        currentTariffAmountCents: pref.currentTariffAmountCents,
+        currentTariffPeriodType: pref.currentTariffPeriodType,
+        currentTariffPeriodCount: pref.currentTariffPeriodCount,
+        updatedAt: DateTime.now(),
+      );
 
-    await profileRef.set({
-      'wallet_preferences': preferences.values.map((value) => value.toMap()).toList(),
-    }, SetOptions(merge: true));
+      transaction.set(
+        profileRef,
+        {
+          'wallet_preferences':
+              preferences.values.map((value) => value.toMap()).toList(),
+        },
+        SetOptions(merge: true),
+      );
+    });
   }
 
   @override
@@ -219,7 +273,9 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
 
     final profileSnapshot = await _firestoreService.users().doc(uid).get();
     final profileData = profileSnapshot.data() ?? const <String, dynamic>{};
-    final group = _resolveGroupById(profileData, groupId) ?? _resolvePrimaryGroup(profileData, branchId);
+    final group =
+        _resolveGroupById(profileData, groupId) ??
+        _resolvePrimaryGroup(profileData, branchId);
     final now = DateTime.now();
     final requestRef = _firestoreService.cashPaymentRequests().doc();
     await requestRef.set({
@@ -265,7 +321,8 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
   }
 
   Future<_BranchInfo?> _loadBranchInfo(String branchId) async {
-    final branchSnapshot = await _firestoreService.branches().doc(branchId).get();
+    final branchSnapshot =
+        await _firestoreService.branches().doc(branchId).get();
     final branchData = branchSnapshot.data();
     if (branchData == null) {
       return null;
@@ -306,8 +363,14 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
       return [
         _ResolvedGroup(
           groupId: singleGroupId,
-          groupName: _stringValue(userData['grupo_nombre'], fallback: singleGroupId),
-          branchIdOrName: _stringValue(userData['grupo_sucursal'], fallback: ''),
+          groupName: _stringValue(
+            userData['grupo_nombre'],
+            fallback: singleGroupId,
+          ),
+          branchIdOrName: _stringValue(
+            userData['grupo_sucursal'],
+            fallback: '',
+          ),
           beltType: _stringValue(userData['grupo_cinta'], fallback: ''),
           schedule: _stringValue(userData['grupo_horario'], fallback: ''),
           role: 'alumno',
@@ -369,11 +432,18 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
     String rawBranchToken,
   ) {
     return groups.where((group) {
-      return _matchesBranch(group.branchIdOrName, branchId, branchName, rawBranchToken);
+      return _matchesBranch(
+        group.branchIdOrName,
+        branchId,
+        branchName,
+        rawBranchToken,
+      );
     }).toList();
   }
 
-  Map<String, _WalletPreference> _parsePreferences(Map<String, dynamic> userData) {
+  Map<String, _WalletPreference> _parsePreferences(
+    Map<String, dynamic> userData,
+  ) {
     final rawPrefs = userData['wallet_preferences'];
     if (rawPrefs is! List) {
       return <String, _WalletPreference>{};
@@ -382,18 +452,21 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
     final prefs = <String, _WalletPreference>{};
     for (final rawPref in rawPrefs) {
       if (rawPref is! Map) continue;
-      final pref = _WalletPreference.fromMap(Map<String, dynamic>.from(rawPref));
+      final pref = _WalletPreference.fromMap(
+        Map<String, dynamic>.from(rawPref),
+      );
       prefs[pref.branchId] = pref;
     }
     return prefs;
   }
 
   Future<List<_CashRequestPreview>> _loadPendingRequests(String uid) async {
-    final snapshot = await _firestoreService
-        .cashPaymentRequests()
-        .where('student_id', isEqualTo: uid)
-        .where('status', isEqualTo: 'pending')
-        .get();
+    final snapshot =
+        await _firestoreService
+            .cashPaymentRequests()
+            .where('student_id', isEqualTo: uid)
+            .where('status', isEqualTo: 'pending')
+            .get();
 
     return snapshot.docs
         .map(
@@ -405,7 +478,10 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
         .toList();
   }
 
-  _ResolvedGroup? _resolveGroupById(Map<String, dynamic> userData, String groupId) {
+  _ResolvedGroup? _resolveGroupById(
+    Map<String, dynamic> userData,
+    String groupId,
+  ) {
     final groups = _parseGroups(userData);
     for (final group in groups) {
       if (group.groupId == groupId) {
@@ -415,9 +491,13 @@ class FirebaseStudentWalletRepository implements StudentWalletRepository {
     return null;
   }
 
-  _ResolvedGroup _resolvePrimaryGroup(Map<String, dynamic> userData, String branchId) {
+  _ResolvedGroup _resolvePrimaryGroup(
+    Map<String, dynamic> userData,
+    String branchId,
+  ) {
     final groups = _parseGroups(userData);
-    final byBranch = groups.where((group) => group.branchIdOrName == branchId).toList();
+    final byBranch =
+        groups.where((group) => group.branchIdOrName == branchId).toList();
     if (byBranch.isNotEmpty) return byBranch.first;
     if (groups.isNotEmpty) return groups.first;
     return _ResolvedGroup(
@@ -473,9 +553,7 @@ class _BranchInfo {
 }
 
 class _ResolvedBranchCandidate {
-  const _ResolvedBranchCandidate({
-    required this.rawBranchToken,
-  });
+  const _ResolvedBranchCandidate({required this.rawBranchToken});
 
   final String rawBranchToken;
 }
@@ -511,9 +589,7 @@ class _ResolvedGroup {
     );
   }
 
-  _ResolvedGroup copyWith({
-    String? branchId,
-  }) {
+  _ResolvedGroup copyWith({String? branchId}) {
     return _ResolvedGroup(
       groupId: groupId,
       groupName: groupName,
@@ -564,15 +640,21 @@ class _WalletPreference {
       branchName: map['branchName']?.toString() ?? '',
       currentTariffId: map['currentTariffId']?.toString(),
       currentTariffName: map['currentTariffName']?.toString(),
-      currentTariffAmountCents: (map['currentTariffAmountCents'] as num?)?.toInt(),
+      currentTariffAmountCents:
+          (map['currentTariffAmountCents'] as num?)?.toInt(),
       currentTariffPeriodType: map['currentTariffPeriodType']?.toString(),
-      currentTariffPeriodCount: (map['currentTariffPeriodCount'] as num?)?.toInt(),
+      currentTariffPeriodCount:
+          (map['currentTariffPeriodCount'] as num?)?.toInt(),
       pendingTariffId: map['pendingTariffId']?.toString(),
       pendingTariffName: map['pendingTariffName']?.toString(),
-      pendingTariffAmountCents: (map['pendingTariffAmountCents'] as num?)?.toInt(),
+      pendingTariffAmountCents:
+          (map['pendingTariffAmountCents'] as num?)?.toInt(),
       pendingTariffPeriodType: map['pendingTariffPeriodType']?.toString(),
-      pendingTariffPeriodCount: (map['pendingTariffPeriodCount'] as num?)?.toInt(),
-      updatedAt: DateTime.tryParse(map['updatedAt']?.toString() ?? '') ?? DateTime.now(),
+      pendingTariffPeriodCount:
+          (map['pendingTariffPeriodCount'] as num?)?.toInt(),
+      updatedAt:
+          DateTime.tryParse(map['updatedAt']?.toString() ?? '') ??
+          DateTime.now(),
     );
   }
 
@@ -613,24 +695,27 @@ class _WalletPreference {
       branchName: branchName ?? this.branchName,
       currentTariffId: currentTariffId ?? this.currentTariffId,
       currentTariffName: currentTariffName ?? this.currentTariffName,
-      currentTariffAmountCents: currentTariffAmountCents ?? this.currentTariffAmountCents,
-      currentTariffPeriodType: currentTariffPeriodType ?? this.currentTariffPeriodType,
-      currentTariffPeriodCount: currentTariffPeriodCount ?? this.currentTariffPeriodCount,
+      currentTariffAmountCents:
+          currentTariffAmountCents ?? this.currentTariffAmountCents,
+      currentTariffPeriodType:
+          currentTariffPeriodType ?? this.currentTariffPeriodType,
+      currentTariffPeriodCount:
+          currentTariffPeriodCount ?? this.currentTariffPeriodCount,
       pendingTariffId: pendingTariffId ?? this.pendingTariffId,
       pendingTariffName: pendingTariffName ?? this.pendingTariffName,
-      pendingTariffAmountCents: pendingTariffAmountCents ?? this.pendingTariffAmountCents,
-      pendingTariffPeriodType: pendingTariffPeriodType ?? this.pendingTariffPeriodType,
-      pendingTariffPeriodCount: pendingTariffPeriodCount ?? this.pendingTariffPeriodCount,
+      pendingTariffAmountCents:
+          pendingTariffAmountCents ?? this.pendingTariffAmountCents,
+      pendingTariffPeriodType:
+          pendingTariffPeriodType ?? this.pendingTariffPeriodType,
+      pendingTariffPeriodCount:
+          pendingTariffPeriodCount ?? this.pendingTariffPeriodCount,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 }
 
 class _CashRequestPreview {
-  const _CashRequestPreview({
-    required this.id,
-    required this.branchId,
-  });
+  const _CashRequestPreview({required this.id, required this.branchId});
 
   final String id;
   final String branchId;

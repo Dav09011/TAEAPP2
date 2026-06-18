@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:tae_app/features/payments/domain/entities/payment_tariff.dart';
 import 'package:tae_app/features/student/domain/entities/student_wallet_branch_summary.dart';
@@ -18,6 +20,28 @@ class WalletScreenStudent extends StatefulWidget {
 
 class _WalletScreenStudentState extends State<WalletScreenStudent> {
   final StudentWalletController _controller = StudentWalletController();
+  final Map<String, PaymentTariff> _tariffPreviews = {};
+
+  late final Stream<bool> _hasPendingCashRequestStream;
+  late final Stream<List<StudentWalletBranchSummary>> _walletBranchesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _hasPendingCashRequestStream = _controller.watchHasPendingCashRequest();
+    _walletBranchesStream = _controller.watchWalletBranches();
+  }
+
+  void _setTariffPreview(String branchId, PaymentTariff? tariff) {
+    if (!mounted) return;
+    setState(() {
+      if (tariff == null) {
+        _tariffPreviews.remove(branchId);
+      } else {
+        _tariffPreviews[branchId] = tariff;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,31 +50,29 @@ class _WalletScreenStudentState extends State<WalletScreenStudent> {
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: _buildHeader(),
-            ),
+            Padding(padding: const EdgeInsets.all(20), child: _buildHeader()),
             Expanded(
               child: StreamBuilder<bool>(
-                stream: _controller.watchHasPendingCashRequest(),
+                stream: _hasPendingCashRequestStream,
                 builder: (context, pendingSnapshot) {
                   final hasGlobalPending = pendingSnapshot.data ?? false;
                   return StreamBuilder<List<StudentWalletBranchSummary>>(
-                    stream: _controller.watchWalletBranches(),
+                    stream: _walletBranchesStream,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
 
                       if (snapshot.hasError) {
-                        return _EmptyState(
+                        return const _EmptyState(
                           title: 'No pudimos cargar tu cartera',
                           message:
                               'Revisa tu conexion o vuelve a intentarlo mas tarde.',
                         );
                       }
 
-                      final branches = snapshot.data ?? const <StudentWalletBranchSummary>[];
+                      final branches =
+                          snapshot.data ?? const <StudentWalletBranchSummary>[];
                       if (branches.isEmpty) {
                         return const _EmptyState();
                       }
@@ -59,9 +81,9 @@ class _WalletScreenStudentState extends State<WalletScreenStudent> {
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                         children: [
                           if (hasGlobalPending) ...[
-                            _PendingBanner(
+                            const _PendingBanner(
                               text:
-                                  'Tienes una solicitud en efectivo pendiente. Cuando se apruebe, tu cartera se actualizará automáticamente.',
+                                  'Tienes una solicitud en efectivo pendiente. Cuando se apruebe, tu cartera se actualizara automaticamente.',
                             ),
                             const SizedBox(height: 14),
                           ],
@@ -71,6 +93,12 @@ class _WalletScreenStudentState extends State<WalletScreenStudent> {
                               child: _BranchWalletCard(
                                 controller: _controller,
                                 branch: branch,
+                                previewTariff: _tariffPreviews[branch.branchId],
+                                onTariffPreviewChanged:
+                                    (tariff) => _setTariffPreview(
+                                      branch.branchId,
+                                      tariff,
+                                    ),
                               ),
                             ),
                           ),
@@ -147,10 +175,14 @@ class _BranchWalletCard extends StatelessWidget {
   const _BranchWalletCard({
     required this.controller,
     required this.branch,
+    required this.previewTariff,
+    required this.onTariffPreviewChanged,
   });
 
   final StudentWalletController controller;
   final StudentWalletBranchSummary branch;
+  final PaymentTariff? previewTariff;
+  final ValueChanged<PaymentTariff?> onTariffPreviewChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -159,8 +191,16 @@ class _BranchWalletCard extends StatelessWidget {
       fallback: Colors.white,
     );
     final foregroundColor = resolveOnColor(backgroundColor);
+    final membershipLabel = previewTariff?.name ?? branch.effectiveTariffLabel;
+    final priceLabel =
+        previewTariff == null
+            ? branch.effectiveAmountLabel
+            : _money(previewTariff!.amountCents);
+    final hasPendingChange =
+        previewTariff != null || branch.pendingTariffId != null;
 
     return Container(
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(22),
@@ -172,151 +212,114 @@ class _BranchWalletCard extends StatelessWidget {
           ),
         ],
       ),
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-        childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        collapsedShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-        ),
-        iconColor: foregroundColor,
-        collapsedIconColor: foregroundColor,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              branch.branchName,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: foregroundColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${branch.groups.length} grupo${branch.groups.length == 1 ? '' : 's'} inscrito${branch.groups.length == 1 ? '' : 's'}',
-              style: TextStyle(fontSize: 13, color: foregroundColor.withValues(alpha: 0.75)),
-            ),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 10),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MiniInfoChip(
-                label: 'Actual',
-                value: branch.currentTariffLabel,
-                backgroundColor: foregroundColor.withValues(alpha: 0.08),
-                textColor: foregroundColor,
-              ),
-              _MiniInfoChip(
-                label: 'Siguiente',
-                value: branch.pendingTariffLabel,
-                backgroundColor: Colors.white.withValues(alpha: 0.55),
-                textColor: foregroundColor,
-              ),
-              if (branch.hasPendingCashRequest)
-                _MiniInfoChip(
-                  label: 'En revisión',
-                  value: 'Efectivo',
-                  backgroundColor: Colors.orange.withValues(alpha: 0.16),
-                  textColor: Colors.orange.shade900,
-                ),
-            ],
-          ),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 10),
-          _DetailRow(
-            label: 'Mensualidad actual',
-            value: '${branch.currentTariffLabel} · ${branch.currentAmountLabel}',
-          ),
-          const SizedBox(height: 8),
-          _DetailRow(
-            label: 'Cambio programado',
-            value: '${branch.pendingTariffLabel} · ${branch.pendingAmountLabel}',
-          ),
-          const SizedBox(height: 14),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Tus grupos',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children:
-                branch.groups
-                    .map(
-                      (group) => Chip(
-                        label: Text('${group.groupName} · ${group.schedule}'),
-                        backgroundColor: Colors.white.withValues(alpha: 0.7),
-                      ),
-                    )
-                    .toList(),
-          ),
-          const SizedBox(height: 16),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _openTariffSelector(context),
-                  icon: const Icon(Icons.swap_horiz),
-                  label: const Text('Cambiar mensualidad'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      branch.branchName,
+                      style: TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.bold,
+                        color: foregroundColor,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      membershipLabel,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: foregroundColor.withValues(alpha: 0.78),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _groupSummary,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: foregroundColor.withValues(alpha: 0.68),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed:
-                      branch.hasPendingCashRequest
-                          ? null
-                          : () => _openPaymentSheet(context),
-                  icon: const Icon(Icons.payments_outlined),
-                  label: const Text('Pagar'),
-                ),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    priceLabel,
+                    style: TextStyle(
+                      fontSize: 25,
+                      fontWeight: FontWeight.bold,
+                      color: foregroundColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if (branch.hasPendingCashRequest)
+                    const _SmallStateChip(
+                      label: 'En revision',
+                      color: Colors.orange,
+                    )
+                  else if (hasPendingChange)
+                    const _SmallStateChip(
+                      label: 'Cambio pendiente',
+                      color: Colors.blue,
+                    ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 18),
           Row(
             children: [
               Expanded(
-                child: TextButton.icon(
-                  onPressed:
-                      branch.pendingTariffId == null
-                          ? null
-                          : () async {
-                            await controller.clearPendingTariff(branch.branchId);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Cambio programado cancelado.'),
-                                ),
-                              );
-                            }
-                          },
-                  icon: const Icon(Icons.cancel_outlined),
-                  label: const Text('Cancelar cambio'),
+                child: SizedBox(
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openManageSheet(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: foregroundColor,
+                      side: BorderSide(
+                        color: foregroundColor.withValues(alpha: 0.35),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      backgroundColor: Colors.white.withValues(alpha: 0.16),
+                    ),
+                    icon: const Icon(Icons.tune),
+                    label: const Text('Administrar'),
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
-                child: TextButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Pago con tarjeta se conecta en el siguiente corte.'),
+                child: SizedBox(
+                  height: 50,
+                  child: FilledButton.icon(
+                    onPressed:
+                        branch.hasPendingCashRequest
+                            ? null
+                            : () => _openPaymentOptionsSheet(context),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: foregroundColor,
+                      foregroundColor: backgroundColor,
+                      disabledBackgroundColor: Colors.black12,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.credit_card),
-                  label: const Text('Tarjeta'),
+                    ),
+                    icon: const Icon(Icons.payments_outlined),
+                    label: const Text('Pagar'),
+                  ),
                 ),
               ),
             ],
@@ -326,101 +329,141 @@ class _BranchWalletCard extends StatelessWidget {
     );
   }
 
-  Future<void> _openTariffSelector(BuildContext context) async {
-    final tariffs = await controller.loadAvailableTariffs(branch.branchId);
-    if (!context.mounted) return;
-
-    if (tariffs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aun no hay tarifas definidas para esta sucursal.')),
-      );
-      return;
+  String get _groupSummary {
+    if (branch.groups.isEmpty) {
+      return 'Sin grupos activos';
     }
+    if (branch.groups.length == 1) {
+      return branch.groups.first.groupName;
+    }
+    return '${branch.groups.length} grupos activos';
+  }
+
+  Future<void> _openPaymentOptionsSheet(BuildContext context) async {
+    final paymentData = await _resolvePaymentData(context);
+    if (paymentData == null || !context.mounted) return;
 
     await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return _BottomActionShell(
+          title: 'Pagar mensualidad',
+          subtitle:
+              '${branch.branchName} / ${_money(paymentData.tariff.amountCents)}',
+          child: Column(
+            children: [
+              _LargeSheetButton(
+                icon: Icons.payments_outlined,
+                title: 'Pagar con efectivo',
+                subtitle: 'Enviar solicitud al administrador',
+                onTap: () async {
+                  final confirmed = await _confirmCashPayment(context);
+                  if (confirmed != true) return;
+                  if (!sheetContext.mounted) return;
+                  Navigator.pop(sheetContext);
+                  await _sendCashPaymentRequest(context, paymentData);
+                },
+              ),
+              const SizedBox(height: 12),
+              _LargeSheetButton(
+                icon: Icons.credit_card,
+                title: 'Pagar con tarjeta',
+                subtitle: 'Disponible en el siguiente corte',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Pago con tarjeta se conectara en el siguiente corte.',
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openManageSheet(BuildContext context) async {
+    _ManageAction selectedAction = _ManageAction.pay;
+
+    final action = await showModalBottomSheet<_ManageAction>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        PaymentTariff? selectedTariff = tariffs.first;
         return StatefulBuilder(
           builder: (context, setStateSheet) {
-            return Container(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                20 + MediaQuery.of(context).viewInsets.bottom,
-              ),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-              ),
+            return _BottomActionShell(
+              title: 'Administrar',
+              subtitle:
+                  '${branch.branchName} / ${previewTariff?.name ?? branch.effectiveTariffLabel}',
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 44,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
+                  _ManageActionButton(
+                    selected: selectedAction == _ManageAction.pay,
+                    icon: Icons.payments_outlined,
+                    title: 'Pagar',
+                    subtitle: 'Abrir opciones de pago',
+                    onTap: () {
+                      setStateSheet(() => selectedAction = _ManageAction.pay);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _ManageActionButton(
+                    selected: selectedAction == _ManageAction.change,
+                    icon: Icons.swap_horiz,
+                    title: 'Cambiar Mensualidad',
+                    subtitle: 'Programar otra tarifa',
+                    onTap: () {
+                      setStateSheet(
+                        () => selectedAction = _ManageAction.change,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _ManageActionButton(
+                    selected: selectedAction == _ManageAction.cancel,
+                    icon: Icons.cancel_outlined,
+                    title: 'Cancelarla',
+                    subtitle: 'Cancelar el cambio programado o dejar pendiente',
+                    onTap: () {
+                      setStateSheet(
+                        () => selectedAction = _ManageAction.cancel,
+                      );
+                    },
                   ),
                   const SizedBox(height: 18),
-                  const Text(
-                    'Cambiar mensualidad',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'El cambio se guarda como pendiente para el siguiente periodo.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: tariffs.length,
-                      separatorBuilder: (context, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final tariff = tariffs[index];
-                        return RadioListTile<PaymentTariff>(
-                          value: tariff,
-                          groupValue: selectedTariff,
-                          onChanged: (value) {
-                            if (value == null) return;
-                            setStateSheet(() => selectedTariff = value);
-                          },
-                          title: Text(tariff.name),
-                          subtitle: Text(
-                            '${_money(tariff.amountCents)} · ${tariff.periodCount} ${tariff.periodType}',
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.pop(sheetContext),
+                            icon: const Icon(Icons.arrow_back),
+                            label: const Text('Cancelar'),
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () async {
-                        await controller.setPendingTariff(
-                          branchId: branch.branchId,
-                          tariffId: selectedTariff!.id,
-                        );
-                        if (context.mounted) {
-                          Navigator.pop(sheetContext);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Cambio guardado para el siguiente periodo.'),
-                            ),
-                          );
-                        }
-                      },
-                      child: const Text('Guardar cambio'),
-                    ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: FilledButton.icon(
+                            onPressed:
+                                () =>
+                                    Navigator.pop(sheetContext, selectedAction),
+                            icon: const Icon(Icons.save_outlined),
+                            label: const Text('Guardar'),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -429,277 +472,624 @@ class _BranchWalletCard extends StatelessWidget {
         );
       },
     );
+
+    if (action == null || !context.mounted) return;
+    await _handleManageAction(context, action);
   }
 
-  Future<void> _openPaymentSheet(
+  Future<void> _handleManageAction(
+    BuildContext context,
+    _ManageAction action,
+  ) async {
+    switch (action) {
+      case _ManageAction.pay:
+        await _openPaymentOptionsSheet(context);
+      case _ManageAction.change:
+        await _openTariffSelector(context);
+      case _ManageAction.cancel:
+        if (branch.pendingTariffId == null && previewTariff == null) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No hay cambios programados para cancelar.'),
+            ),
+          );
+          return;
+        }
+        await controller.clearPendingTariff(branch.branchId);
+        onTariffPreviewChanged(null);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cambio programado cancelado.')),
+        );
+    }
+  }
+
+  Future<void> _openTariffSelector(BuildContext context) async {
+    final tariffsFuture = controller.loadAvailableTariffs(branch.branchId);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return FutureBuilder<List<PaymentTariff>>(
+          future: tariffsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const _BottomActionShell(
+                title: 'Cambiar mensualidad',
+                subtitle: 'Cargando tarifas disponibles.',
+                child: SizedBox(
+                  height: 120,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return _BottomActionShell(
+                title: 'Cambiar mensualidad',
+                subtitle: 'No pudimos cargar las tarifas.',
+                child: _SheetMessage(
+                  icon: Icons.error_outline,
+                  title: controller.errorMessage(snapshot.error!),
+                  actionLabel: 'Cerrar',
+                  onAction: () => Navigator.pop(sheetContext),
+                ),
+              );
+            }
+
+            final tariffs = snapshot.data ?? const <PaymentTariff>[];
+            if (tariffs.isEmpty) {
+              return _BottomActionShell(
+                title: 'Cambiar mensualidad',
+                subtitle: 'No hay tarifas para esta sucursal.',
+                child: _SheetMessage(
+                  icon: Icons.price_change_outlined,
+                  title: 'Aun no hay tarifas definidas para esta sucursal.',
+                  actionLabel: 'Cerrar',
+                  onAction: () => Navigator.pop(sheetContext),
+                ),
+              );
+            }
+
+            return _BottomActionShell(
+              title: 'Cambiar mensualidad',
+              subtitle: 'El precio se actualiza en tu cartera al guardar.',
+              child: _TariffSelectorBody(
+                branch: branch,
+                controller: controller,
+                tariffs: tariffs,
+                selectedTariffId: previewTariff?.id ?? branch.effectiveTariffId,
+                onSaved: onTariffPreviewChanged,
+                money: _money,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String? get _effectiveTariffId =>
+      previewTariff?.id ?? branch.effectiveTariffId;
+
+  Future<_ResolvedPaymentData?> _resolvePaymentData(
     BuildContext context,
   ) async {
-    final tariffs = branch.availableTariffs.isNotEmpty
-        ? branch.availableTariffs
-        : await controller.loadAvailableTariffs(branch.branchId);
+    final tariffs =
+        branch.availableTariffs.isNotEmpty
+            ? branch.availableTariffs
+            : await controller.loadAvailableTariffs(branch.branchId);
 
-    if (!context.mounted) return;
+    if (!context.mounted) return null;
 
     if (tariffs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No hay tarifas disponibles para pagar.')),
       );
-      return;
+      return null;
     }
 
-    final groupOptions = branch.groups;
-    StudentWalletBranchSummary localBranch = branch;
-    PaymentTariff selectedTariff = tariffs.firstWhere(
-      (item) => item.id == branch.currentTariffId,
-      orElse: () => branch.pendingTariffId != null
-          ? tariffs.firstWhere((item) => item.id == branch.pendingTariffId, orElse: () => tariffs.first)
-          : tariffs.first,
-    );
-    StudentWalletGroupMembership selectedGroup = groupOptions.first;
-    final noteController = TextEditingController();
+    if (branch.groups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay grupos disponibles para cobrar.')),
+      );
+      return null;
+    }
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setStateSheet) {
-            return Container(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                20 + MediaQuery.of(context).viewInsets.bottom,
-              ),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'Pagar mensualidad',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    branch.hasPendingCashRequest
-                        ? 'Esta sucursal ya tiene una solicitud en proceso. Podras generar otra cuando se resuelva.'
-                        : 'Elige el grupo y la mensualidad que quieres solicitar.',
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<StudentWalletGroupMembership>(
-                    initialValue: selectedGroup,
-                    items:
-                        groupOptions
-                            .map(
-                              (group) => DropdownMenuItem(
-                                value: group,
-                                child: Text(group.groupName),
-                              ),
-                            )
-                            .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setStateSheet(() => selectedGroup = value);
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Grupo a cobrar',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<PaymentTariff>(
-                    initialValue: selectedTariff,
-                    items:
-                        tariffs
-                            .map(
-                              (tariff) => DropdownMenuItem(
-                                value: tariff,
-                                child: Text(
-                                  '${tariff.name} · ${_money(tariff.amountCents)}',
-                                ),
-                              ),
-                            )
-                            .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setStateSheet(() => selectedTariff = value);
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Mensualidad a pagar',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: noteController,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Nota opcional',
-                      hintText: 'Si quieres agregar un comentario para el admin',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _blueLight,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          selectedTariff.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: _blueDark,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _money(selectedTariff.amountCents),
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: _blueDark,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Se cobrara a ${selectedGroup.groupName} en ${localBranch.branchName}',
-                          style: const TextStyle(fontSize: 12, color: Colors.black54),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: branch.hasPendingCashRequest
-                          ? null
-                          : () async {
-                              await controller.createCashPaymentRequest(
-                                branchId: branch.branchId,
-                                groupId: selectedGroup.groupId,
-                                tariffId: selectedTariff.id,
-                                tariffName: selectedTariff.name,
-                                amountCents: selectedTariff.amountCents,
-                                note:
-                                    noteController.text.trim().isEmpty
-                                        ? null
-                                        : noteController.text.trim(),
-                              );
-                              if (context.mounted) {
-                                Navigator.pop(sheetContext);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Solicitud enviada al administrador.'),
-                                  ),
-                                );
-                              }
-                            },
-                      icon: const Icon(Icons.payments_outlined),
-                      label: const Text('Solicitar pago en efectivo'),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Pago con tarjeta se conectara en el siguiente corte.'),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.credit_card),
-                      label: const Text('Pagar con tarjeta'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+    final selectedTariff = tariffs.firstWhere(
+      (item) => item.id == _effectiveTariffId,
+      orElse: () => tariffs.first,
     );
+
+    return _ResolvedPaymentData(
+      tariff: selectedTariff,
+      group: branch.groups.first,
+    );
+  }
+
+  Future<bool?> _confirmCashPayment(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Pagar con efectivo'),
+            content: const Text(
+              'Estas seguro de pagar con efectivo? Se enviara una solicitud al administrador para revision.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Confirmar'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Future<void> _sendCashPaymentRequest(
+    BuildContext context,
+    _ResolvedPaymentData paymentData,
+  ) async {
+    try {
+      await controller.createCashPaymentRequest(
+        branchId: branch.branchId,
+        groupId: paymentData.group.groupId,
+        tariffId: paymentData.tariff.id,
+        tariffName: paymentData.tariff.name,
+        amountCents: paymentData.tariff.amountCents,
+      );
+      onTariffPreviewChanged(paymentData.tariff);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Solicitud enviada al administrador.')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(controller.errorMessage(error))));
+    }
   }
 
   String _money(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 }
 
-class _MiniInfoChip extends StatelessWidget {
-  const _MiniInfoChip({
-    required this.label,
-    required this.value,
-    required this.backgroundColor,
-    required this.textColor,
+enum _ManageAction { pay, change, cancel }
+
+class _ResolvedPaymentData {
+  const _ResolvedPaymentData({required this.tariff, required this.group});
+
+  final PaymentTariff tariff;
+  final StudentWalletGroupMembership group;
+}
+
+class _TariffSelectorBody extends StatefulWidget {
+  const _TariffSelectorBody({
+    required this.branch,
+    required this.controller,
+    required this.tariffs,
+    required this.selectedTariffId,
+    required this.onSaved,
+    required this.money,
   });
 
-  final String label;
-  final String value;
-  final Color backgroundColor;
-  final Color textColor;
+  final StudentWalletBranchSummary branch;
+  final StudentWalletController controller;
+  final List<PaymentTariff> tariffs;
+  final String? selectedTariffId;
+  final ValueChanged<PaymentTariff?> onSaved;
+  final String Function(int cents) money;
+
+  @override
+  State<_TariffSelectorBody> createState() => _TariffSelectorBodyState();
+}
+
+class _TariffSelectorBodyState extends State<_TariffSelectorBody> {
+  late PaymentTariff _selectedTariff;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTariff = widget.tariffs.firstWhere(
+      (item) => item.id == widget.selectedTariffId,
+      orElse: () => widget.tariffs.first,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        ...widget.tariffs.map(
+          (tariff) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _TariffOptionTile(
+              selected: _selectedTariff.id == tariff.id,
+              title: tariff.name,
+              subtitle:
+                  '${widget.money(tariff.amountCents)} / ${tariff.periodCount} ${tariff.periodType}',
+              onTap:
+                  _isSaving
+                      ? () {}
+                      : () {
+                        setState(() => _selectedTariff = tariff);
+                      },
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: FilledButton.icon(
+            onPressed: _isSaving ? null : _save,
+            icon:
+                _isSaving
+                    ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const Icon(Icons.save_outlined),
+            label: Text(_isSaving ? 'Guardando...' : 'Guardar cambio'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _save() async {
+    setState(() => _isSaving = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    try {
+      await widget.controller.setPendingTariff(
+        branchId: widget.branch.branchId,
+        tariffId: _selectedTariff.id,
+      );
+      widget.onSaved(_selectedTariff);
+      if (!mounted) return;
+      navigator.pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Mensualidad actualizada en tu cartera.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      messenger.showSnackBar(
+        SnackBar(content: Text(widget.controller.errorMessage(error))),
+      );
+    }
+  }
+}
+
+class _SheetMessage extends StatelessWidget {
+  const _SheetMessage({
+    required this.icon,
+    required this.title,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, size: 42, color: Colors.grey),
+        const SizedBox(height: 10),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: OutlinedButton(onPressed: onAction, child: Text(actionLabel)),
+        ),
+      ],
+    );
+  }
+}
+
+class _BottomActionShell extends StatelessWidget {
+  const _BottomActionShell({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        18,
+        20,
+        20 + MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: Text(
-        '$label: $value',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: textColor),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 18),
+              child,
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
+class _LargeSheetButton extends StatelessWidget {
+  const _LargeSheetButton({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
-  final String label;
-  final String value;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: Colors.black54),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF6F8FC),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.grey.withValues(alpha: 0.16)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _blue.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: _blue),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ManageActionButton extends StatelessWidget {
+  const _ManageActionButton({
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: selected ? _blueLight : const Color(0xFFF7F8FB),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color:
+                selected
+                    ? _blue.withValues(alpha: 0.55)
+                    : Colors.grey.withValues(alpha: 0.14),
+            width: selected ? 1.5 : 1,
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.right,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? _blue : Colors.grey,
+            ),
+            const SizedBox(width: 12),
+            Icon(icon, color: selected ? _blueDark : Colors.black54),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: selected ? _blueDark : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TariffOptionTile extends StatelessWidget {
+  const _TariffOptionTile({
+    required this.selected,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected ? _blueLight : const Color(0xFFF7F8FB),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color:
+                selected
+                    ? _blue.withValues(alpha: 0.55)
+                    : Colors.grey.withValues(alpha: 0.14),
           ),
         ),
-      ],
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.check_circle : Icons.circle_outlined,
+              color: selected ? _blue : Colors.grey,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SmallStateChip extends StatelessWidget {
+  const _SmallStateChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }
@@ -738,7 +1128,7 @@ class _EmptyState extends StatelessWidget {
   const _EmptyState({
     this.title = 'Aun no tienes sucursales activas',
     this.message =
-        'Cuando estés inscrito en una sucursal, aquí aparecerán tus tarjetas de mensualidad.',
+        'Cuando estes inscrito en una sucursal, aqui apareceran tus tarjetas de mensualidad.',
   });
 
   final String title;
@@ -752,7 +1142,11 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.storefront_outlined, size: 78, color: Colors.black54),
+            const Icon(
+              Icons.storefront_outlined,
+              size: 78,
+              color: Colors.black54,
+            ),
             const SizedBox(height: 18),
             Text(
               title,

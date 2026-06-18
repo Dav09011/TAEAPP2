@@ -1,7 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:tae_app/app/router/app_routes.dart';
-import 'package:tae_app/features/admin/domain/entities/admin_wallet_branch_summary.dart';
 import 'package:tae_app/features/admin/presentation/controllers/wallet_controller.dart';
+import 'package:tae_app/modules/admin/pages/wallet_performance_detail.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -10,12 +12,10 @@ class WalletScreen extends StatefulWidget {
   State<WalletScreen> createState() => _WalletScreenState();
 }
 
-/// Transitional wallet dashboard.
-///
-/// This cut migrates the admin greeting and branch selector away from direct
-/// Firebase usage. Financial summary cards remain static placeholders for now.
 class _WalletScreenState extends State<WalletScreen> {
   final WalletController _controller = WalletController();
+
+  static const Color _primaryColor = Color.fromARGB(255, 41, 53, 119);
 
   @override
   void initState() {
@@ -40,13 +40,11 @@ class _WalletScreenState extends State<WalletScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color.fromARGB(255, 255, 255, 255);
-
     return Scaffold(
-      backgroundColor: primaryColor,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: primaryColor,
+        backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: SingleChildScrollView(
@@ -54,170 +52,15 @@ class _WalletScreenState extends State<WalletScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            InkWell(
-              onTap: () => _showBranchSelector(context),
-              onHighlightChanged: _controller.setPressed,
-              borderRadius: BorderRadius.circular(15),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 25,
-                  horizontal: 25,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(
-                    color:
-                        _controller.isPressed
-                            ? const Color.fromARGB(
-                              255,
-                              41,
-                              53,
-                              119,
-                            ).withValues(alpha: 0.5)
-                            : Colors.grey.withValues(alpha: 0.2),
-                    width: 2.0,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: _controller.isPressed ? 0.12 : 0.05,
-                      ),
-                      blurRadius: _controller.isPressed ? 25 : 15,
-                      offset:
-                          _controller.isPressed
-                              ? const Offset(0, 8)
-                              : const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'CARTERA',
-                            style: TextStyle(
-                              fontSize: 35,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1,
-                              color: Colors.black,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.person_outline,
-                                size: 20,
-                                color: Colors.blueAccent,
-                              ),
-                              const SizedBox(width: 8),
-                              _controller.isLoadingHeader
-                                  ? const Text(
-                                    'Cargando...',
-                                    style: TextStyle(fontSize: 14),
-                                  )
-                                  : Text(
-                                    'Hola, ${_controller.adminName}',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey[800],
-                                    ),
-                                  ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.storefront_rounded,
-                          size: 32,
-                          color: Color.fromARGB(255, 41, 53, 119),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Sucursales',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 25),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black12, blurRadius: 10),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    _controller.selectedBranchName,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color.fromARGB(255, 41, 53, 119),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const Divider(),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildSummaryItem(
-                        'Pagados',
-                        _formatCount(
-                          _controller.selectedBranchSummary?.paidCount ?? 0,
-                        ),
-                        Colors.green,
-                      ),
-                      _buildSummaryItem(
-                        'Pendientes',
-                        _formatCount(
-                          _controller.selectedBranchSummary?.pendingCount ?? 0,
-                        ),
-                        Colors.orange,
-                      ),
-                      _buildSummaryItem(
-                        'Por Validar',
-                        _formatMoney(
-                          _controller.selectedBranchSummary?.totalPendingCents ??
-                              0,
-                        ),
-                        const Color.fromARGB(255, 41, 53, 119),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 30),
+            _buildHeaderCard(),
+            const SizedBox(height: 22),
+            _buildGeneralPerformanceCard(context),
+            const SizedBox(height: 28),
             _buildWalletActionCard(
               context,
               title: 'Pagos en Efectivo',
               subtitle:
-                  '${_controller.selectedBranchCashRequestsCount} solicitudes pendientes por revisar',
+                  '${_controller.totalCashRequestsCount} solicitudes pendientes por revisar',
               icon: Icons.account_balance_wallet_outlined,
               color: Colors.green,
               onTap: () => Navigator.pushNamed(context, AppRoutes.cashPayments),
@@ -244,8 +87,193 @@ class _WalletScreenState extends State<WalletScreen> {
               color: Colors.purple,
               onTap: () => Navigator.pushNamed(context, AppRoutes.walletFees),
             ),
+            const SizedBox(height: 24),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 25, horizontal: 25),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.2), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'CARTERA',
+            style: TextStyle(
+              fontSize: 35,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Row(
+            children: [
+              const Icon(
+                Icons.person_outline,
+                size: 20,
+                color: Colors.blueAccent,
+              ),
+              const SizedBox(width: 8),
+              _controller.isLoadingHeader
+                  ? const Text('Cargando...', style: TextStyle(fontSize: 14))
+                  : Text(
+                    'Hola, ${_controller.adminName}',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGeneralPerformanceCard(BuildContext context) {
+    return InkWell(
+      onTap:
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const WalletPerformanceDetailPage(),
+            ),
+          ),
+      onHighlightChanged: _controller.setPressed,
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color:
+                _controller.isPressed
+                    ? _primaryColor.withValues(alpha: 0.35)
+                    : Colors.grey.withValues(alpha: 0.16),
+            width: _controller.isPressed ? 1.8 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.07),
+              blurRadius: _controller.isPressed ? 20 : 14,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child:
+            _controller.isLoadingSummary
+                ? const SizedBox(
+                  height: 150,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+                : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Rendimiento General',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${_controller.branchSummaries.length} sucursales conectadas',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, color: Colors.grey),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        _WalletPieChart(
+                          paidCount: _controller.totalPaidCount,
+                          pendingCount: _controller.totalPendingCount,
+                        ),
+                        const SizedBox(width: 18),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              _MetricRow(
+                                label: 'Pagados',
+                                value: _formatCount(_controller.totalPaidCount),
+                                color: Colors.green,
+                              ),
+                              const SizedBox(height: 10),
+                              _MetricRow(
+                                label: 'Pendientes',
+                                value: _formatCount(
+                                  _controller.totalPendingCount,
+                                ),
+                                color: Colors.orange,
+                              ),
+                              const SizedBox(height: 10),
+                              _MetricRow(
+                                label: 'Ingresos',
+                                value: _formatMoney(
+                                  _controller.totalIncomeCents,
+                                ),
+                                color: _primaryColor,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SmallSummaryPill(
+                            label: 'Alumnos',
+                            value: _formatCount(_controller.totalStudentsCount),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _SmallSummaryPill(
+                            label: 'Grupos',
+                            value: _formatCount(_controller.totalGroupsCount),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
       ),
     );
   }
@@ -260,6 +288,7 @@ class _WalletScreenState extends State<WalletScreen> {
   }) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -303,23 +332,6 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  Widget _buildSummaryItem(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      ],
-    );
-  }
-
   String _formatMoney(int cents) {
     return '\$${(cents / 100).toStringAsFixed(2)}';
   }
@@ -327,110 +339,145 @@ class _WalletScreenState extends State<WalletScreen> {
   String _formatCount(int value) {
     return value.toString();
   }
+}
 
-  void _showBranchSelector(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (BuildContext context) {
-        return Container(
-          padding: const EdgeInsets.only(top: 15),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(30),
-              topRight: Radius.circular(30),
+class _WalletPieChart extends StatelessWidget {
+  const _WalletPieChart({required this.paidCount, required this.pendingCount});
+
+  final int paidCount;
+  final int pendingCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 92,
+      height: 92,
+      child: CustomPaint(
+        painter: _WalletPiePainter(
+          paidCount: paidCount,
+          pendingCount: pendingCount,
+        ),
+      ),
+    );
+  }
+}
+
+class _WalletPiePainter extends CustomPainter {
+  const _WalletPiePainter({
+    required this.paidCount,
+    required this.pendingCount,
+  });
+
+  final int paidCount;
+  final int pendingCount;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = paidCount + pendingCount;
+    final rect = Offset.zero & size;
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    if (total == 0) {
+      paint.color = const Color(0xFFE9EAF0);
+      canvas.drawOval(rect, paint);
+      return;
+    }
+
+    final paidSweep = (paidCount / total) * math.pi * 2;
+    paint.color = Colors.green;
+    canvas.drawArc(rect, -math.pi / 2, paidSweep, true, paint);
+    paint.color = Colors.orange;
+    canvas.drawArc(
+      rect,
+      -math.pi / 2 + paidSweep,
+      math.pi * 2 - paidSweep,
+      true,
+      paint,
+    );
+
+    paint.color = Colors.white;
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2),
+      size.width * 0.28,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _WalletPiePainter oldDelegate) {
+    return oldDelegate.paidCount != paidCount ||
+        oldDelegate.pendingCount != pendingCount;
+  }
+}
+
+class _MetricRow extends StatelessWidget {
+  const _MetricRow({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 9,
+          height: 9,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: Colors.black54),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SmallSummaryPill extends StatelessWidget {
+  const _SmallSummaryPill({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F6FA),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20.0),
-                child: Text(
-                  'Seleccionar Sucursal',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ),
-              Flexible(
-                child: StreamBuilder<List<AdminWalletBranchSummary>>(
-                  stream: _controller.watchBranchSummaries(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Text('Error al cargar datos'),
-                      );
-                    }
-
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: CircularProgressIndicator(),
-                      );
-                    }
-
-                    final branches =
-                        snapshot.data ?? const <AdminWalletBranchSummary>[];
-
-                    if (branches.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Text('No hay sucursales registradas'),
-                      );
-                    }
-
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: branches.length,
-                      itemBuilder: (context, index) {
-                        final branch = branches[index];
-                        return ListTile(
-                          leading: const Icon(
-                            Icons.location_on_outlined,
-                            color: Color.fromARGB(255, 41, 53, 119),
-                          ),
-                          title: Text(
-                            branch.branchName,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          trailing: const Icon(Icons.chevron_right, size: 20),
-                          onTap: () {
-                            _controller.selectBranch(
-                              branch.branchId,
-                              branch.branchName,
-                            );
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Viendo finanzas de: ${branch.branchName}',
-                                ),
-                                duration: const Duration(seconds: 1),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
+          Text(
+            value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

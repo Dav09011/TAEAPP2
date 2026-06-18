@@ -8,7 +8,7 @@ import 'package:tae_app/features/admin/domain/repositories/admin_wallet_reposito
 
 class CashPaymentRequestsController extends ChangeNotifier {
   CashPaymentRequestsController({AdminWalletRepository? repository})
-      : _repository = repository ?? FirebaseAdminWalletRepository();
+    : _repository = repository ?? FirebaseAdminWalletRepository();
 
   final AdminWalletRepository _repository;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
@@ -19,7 +19,8 @@ class CashPaymentRequestsController extends ChangeNotifier {
   String _searchQuery = '';
   bool _isLoading = true;
 
-  List<AdminCashPaymentRequest> get requests => List.unmodifiable(_filteredRequests);
+  List<AdminCashPaymentRequest> get requests =>
+      List.unmodifiable(_filteredRequests);
   List<AdminWalletStudentStatus> get students => List.unmodifiable(_students);
   bool get isLoading => _isLoading;
   bool get isSelectionMode => _selectedRequestIds.isNotEmpty;
@@ -99,18 +100,20 @@ class CashPaymentRequestsController extends ChangeNotifier {
     return _selectedRequestIds.contains(requestId);
   }
 
-  Future<void> approveRequest(String requestId) {
-    return _repository.approveCashPaymentRequest(requestId);
+  Future<void> approveRequest(String requestId) async {
+    await _repository.approveCashPaymentRequest(requestId);
+    _removeRequest(requestId);
   }
 
-  Future<void> rejectRequest(String requestId) {
-    return _repository.rejectCashPaymentRequest(requestId);
+  Future<void> rejectRequest(String requestId) async {
+    await _repository.rejectCashPaymentRequest(requestId);
+    _removeRequest(requestId);
   }
 
   Future<void> approveSelectedRequests() async {
     final ids = _selectedRequestIds.toList();
     for (final requestId in ids) {
-      await _repository.approveCashPaymentRequest(requestId);
+      await approveRequest(requestId);
     }
     clearSelection();
   }
@@ -118,7 +121,7 @@ class CashPaymentRequestsController extends ChangeNotifier {
   Future<void> rejectSelectedRequests() async {
     final ids = _selectedRequestIds.toList();
     for (final requestId in ids) {
-      await _repository.rejectCashPaymentRequest(requestId);
+      await rejectRequest(requestId);
     }
     clearSelection();
   }
@@ -143,6 +146,15 @@ class CashPaymentRequestsController extends ChangeNotifier {
       amountCents: amountCents,
       note: note,
     );
+  }
+
+  void _removeRequest(String requestId) {
+    final nextRequests =
+        _requests.where((request) => request.id != requestId).toList();
+    if (nextRequests.length == _requests.length) return;
+    _requests = nextRequests;
+    _selectedRequestIds.remove(requestId);
+    notifyListeners();
   }
 
   @override

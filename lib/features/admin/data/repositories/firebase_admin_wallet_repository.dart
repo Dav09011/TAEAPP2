@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tae_app/core/errors/app_exception.dart';
 import 'package:tae_app/core/services/auth_service.dart';
@@ -47,52 +49,144 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
       return const Stream<List<AdminWalletBranchSummary>>.empty();
     }
 
-    return _firestoreService
-        .branches()
-        .where('id_usuario', isEqualTo: uid)
-        .orderBy('name')
-        .snapshots()
-        .asyncMap((snapshot) async {
-          final chargesSnapshot = await _firestoreService
-              .adminPaymentCharges(uid)
+    late final StreamController<List<AdminWalletBranchSummary>> controller;
+    StreamSubscription<dynamic>? branchesSubscription;
+    StreamSubscription<dynamic>? chargesSubscription;
+    StreamSubscription<dynamic>? requestsSubscription;
+    var isRefreshing = false;
+    var refreshAgain = false;
+
+    Future<void> refresh() async {
+      if (isRefreshing) {
+        refreshAgain = true;
+        return;
+      }
+
+      isRefreshing = true;
+      try {
+        final summaries = await _loadBranchSummaries(uid);
+        if (!controller.isClosed) {
+          controller.add(summaries);
+        }
+      } catch (error, stackTrace) {
+        if (!controller.isClosed) {
+          controller.addError(error, stackTrace);
+        }
+      } finally {
+        isRefreshing = false;
+        if (refreshAgain && !controller.isClosed) {
+          refreshAgain = false;
+          unawaited(refresh());
+        }
+      }
+    }
+
+    controller = StreamController<List<AdminWalletBranchSummary>>(
+      onListen: () {
+        branchesSubscription = _firestoreService
+            .branches()
+            .where('id_usuario', isEqualTo: uid)
+            .orderBy('name')
+            .snapshots()
+            .listen((_) => unawaited(refresh()), onError: controller.addError);
+        chargesSubscription = _firestoreService
+            .adminPaymentCharges(uid)
+            .snapshots()
+            .listen((_) => unawaited(refresh()), onError: controller.addError);
+        requestsSubscription = _firestoreService
+            .cashPaymentRequests()
+            .where('admin_id', isEqualTo: uid)
+            .snapshots()
+            .listen((_) => unawaited(refresh()), onError: controller.addError);
+        unawaited(refresh());
+      },
+      onCancel: () async {
+        await branchesSubscription?.cancel();
+        await chargesSubscription?.cancel();
+        await requestsSubscription?.cancel();
+      },
+    );
+
+    return controller.stream;
+  }
+
+  Future<List<AdminWalletBranchSummary>> _loadBranchSummaries(
+    String uid,
+  ) async {
+    final branchesSnapshot =
+        await _firestoreService
+            .branches()
+            .where('id_usuario', isEqualTo: uid)
+            .orderBy('name')
+            .get();
+    final chargesSnapshot =
+        await _firestoreService.adminPaymentCharges(uid).get();
+    final requestsSnapshot =
+        await _firestoreService
+            .cashPaymentRequests()
+            .where('admin_id', isEqualTo: uid)
+            .get();
+
+    final summaries = <AdminWalletBranchSummary>[];
+    for (final branchDoc in branchesSnapshot.docs) {
+      final branchData = branchDoc.data();
+      final branchId = branchDoc.id;
+      final branchName = branchData['name'] as String? ?? 'Sin nombre';
+      final groupsSnapshot =
+          await _db
+              .collection('grupos')
+              .where('id_sucursal', isEqualTo: branchId)
               .get();
-          final requestsSnapshot = await _firestoreService.cashPaymentRequests().where('admin_id', isEqualTo: uid).get();
+      var studentsCount = 0;
+      for (final groupDoc in groupsSnapshot.docs) {
+        final studentsSnapshot =
+            await groupDoc.reference.collection('alumnos').get();
+        studentsCount += studentsSnapshot.docs.length;
+      }
 
-          final summaries = <AdminWalletBranchSummary>[];
-          for (final branchDoc in snapshot.docs) {
-            final branchData = branchDoc.data();
-            final branchId = branchDoc.id;
-            final branchName = branchData['name'] as String? ?? 'Sin nombre';
-            final groupsSnapshot = await _db
-                .collection('grupos')
-                .where('id_sucursal', isEqualTo: branchId)
-                .get();
-            var studentsCount = 0;
-            for (final groupDoc in groupsSnapshot.docs) {
-              final studentsSnapshot = await groupDoc.reference.collection('alumnos').get();
-              studentsCount += studentsSnapshot.docs.length;
-            }
+      final paidCharges =
+          chargesSnapshot.docs.where((doc) {
+            final data = doc.data();
+            return data['branch_id']?.toString() == branchId &&
+                data['status']?.toString() == 'paid';
+          }).toList();
+      final pendingCharges =
+          chargesSnapshot.docs.where((doc) {
+            final data = doc.data();
+            return data['branch_id']?.toString() == branchId &&
+                data['status']?.toString() == 'pending';
+          }).toList();
 
-            summaries.add(
-              AdminWalletBranchSummary(
-                branchId: branchId,
-                branchName: branchName,
-                groupsCount: groupsSnapshot.docs.length,
-                studentsCount: studentsCount,
-                paidCount: chargesSnapshot.docs.where((doc) => doc.data()['branch_id']?.toString() == branchId && doc.data()['status']?.toString() == 'paid').length,
-                pendingCount: chargesSnapshot.docs.where((doc) => doc.data()['branch_id']?.toString() == branchId && doc.data()['status']?.toString() == 'pending').length,
-                totalPaidCents: chargesSnapshot.docs
-                    .where((doc) => doc.data()['branch_id']?.toString() == branchId && doc.data()['status']?.toString() == 'paid')
-                    .fold<int>(0, (total, doc) => total + ((doc.data()['total_amount_cents'] as num?)?.toInt() ?? 0)),
-                totalPendingCents: chargesSnapshot.docs
-                    .where((doc) => doc.data()['branch_id']?.toString() == branchId && doc.data()['status']?.toString() == 'pending')
-                    .fold<int>(0, (total, doc) => total + ((doc.data()['total_amount_cents'] as num?)?.toInt() ?? 0)),
-                cashRequestsCount: requestsSnapshot.docs.where((doc) => doc.data()['branch_id']?.toString() == branchId && doc.data()['status']?.toString() == 'pending').length,
-              ),
-            );
-          }
-          return summaries;
-        });
+      summaries.add(
+        AdminWalletBranchSummary(
+          branchId: branchId,
+          branchName: branchName,
+          groupsCount: groupsSnapshot.docs.length,
+          studentsCount: studentsCount,
+          paidCount: paidCharges.length,
+          pendingCount: pendingCharges.length,
+          totalPaidCents: paidCharges.fold<int>(
+            0,
+            (total, doc) =>
+                total +
+                ((doc.data()['total_amount_cents'] as num?)?.toInt() ?? 0),
+          ),
+          totalPendingCents: pendingCharges.fold<int>(
+            0,
+            (total, doc) =>
+                total +
+                ((doc.data()['total_amount_cents'] as num?)?.toInt() ?? 0),
+          ),
+          cashRequestsCount:
+              requestsSnapshot.docs.where((doc) {
+                final data = doc.data();
+                return data['branch_id']?.toString() == branchId &&
+                    data['status']?.toString() == 'pending';
+              }).length,
+        ),
+      );
+    }
+    return summaries;
   }
 
   @override
@@ -107,9 +201,10 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
         .orderBy('updated_at', descending: true)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => PaymentTariff.fromMap(doc.id, doc.data()))
-              .toList(),
+          (snapshot) =>
+              snapshot.docs
+                  .map((doc) => PaymentTariff.fromMap(doc.id, doc.data()))
+                  .toList(),
         );
   }
 
@@ -126,9 +221,13 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
         .orderBy('created_at', descending: true)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => AdminCashPaymentRequest.fromMap(doc.id, doc.data()))
-              .toList(),
+          (snapshot) =>
+              snapshot.docs
+                  .map(
+                    (doc) =>
+                        AdminCashPaymentRequest.fromMap(doc.id, doc.data()),
+                  )
+                  .toList(),
         );
   }
 
@@ -146,9 +245,10 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
       final latest = charges[student.studentId];
       final status = latest?.status ?? 'unregistered';
       final lastPaymentCents = latest?.totalAmountCents ?? 0;
-      final pendingCents = latest == null || latest.status != 'paid'
-          ? latest?.totalAmountCents ?? 0
-          : 0;
+      final pendingCents =
+          latest == null || latest.status != 'paid'
+              ? latest?.totalAmountCents ?? 0
+              : 0;
       return AdminWalletStudentStatus(
         studentId: student.studentId,
         studentName: student.studentName,
@@ -157,16 +257,18 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
         groupId: student.groupId,
         groupName: student.groupName,
         status: status,
-        billingLabel: latest == null
-            ? 'Sin cobro registrado'
-            : latest.status == 'paid'
+        billingLabel:
+            latest == null
+                ? 'Sin cobro registrado'
+                : latest.status == 'paid'
                 ? 'Mensualidad pagada'
                 : latest.status == 'pending'
-                    ? 'Mensualidad pendiente'
-                    : 'Cobro ${latest.status}',
-        lastPaymentLabel: latest == null
-            ? 'Sin pagos registrados'
-            : 'Ultimo pago: \$${(lastPaymentCents / 100).toStringAsFixed(2)}',
+                ? 'Mensualidad pendiente'
+                : 'Cobro ${latest.status}',
+        lastPaymentLabel:
+            latest == null
+                ? 'Sin pagos registrados'
+                : 'Ultimo pago: \$${(lastPaymentCents / 100).toStringAsFixed(2)}',
         lastPaymentCents: lastPaymentCents,
         pendingCents: pendingCents,
         isScholarship: false,
@@ -329,10 +431,10 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
       throw const AppException('No hay sesion activa.');
     }
 
-    final now = DateTime.now();
-    final ref = tariffId == null
-        ? _firestoreService.adminPaymentTariffs(uid).doc()
-        : _firestoreService.adminPaymentTariffs(uid).doc(tariffId);
+    final ref =
+        tariffId == null
+            ? _firestoreService.adminPaymentTariffs(uid).doc()
+            : _firestoreService.adminPaymentTariffs(uid).doc(tariffId);
 
     await ref.set({
       'admin_id': uid,
@@ -350,7 +452,7 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
       'stripe_product_id': null,
       'stripe_price_id': null,
       'created_at': FieldValue.serverTimestamp(),
-      'updated_at': Timestamp.fromDate(now),
+      'updated_at': Timestamp.fromDate(DateTime.now()),
     }, SetOptions(merge: true));
   }
 
@@ -360,6 +462,7 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
     if (uid == null) {
       throw const AppException('No hay sesion activa.');
     }
+
     await _firestoreService.adminPaymentTariffs(uid).doc(tariffId).delete();
   }
 
@@ -376,36 +479,44 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
         .branches()
         .where('id_usuario', isEqualTo: uid);
     final branchesSnapshot = await branchesQuery.get();
-    final branchDocs = branchesSnapshot.docs.where((doc) {
-      if (branchId == null || branchId.isEmpty) return true;
-      return doc.id == branchId;
-    }).toList();
+    final branchDocs =
+        branchesSnapshot.docs.where((doc) {
+          if (branchId == null || branchId.isEmpty) return true;
+          return doc.id == branchId;
+        }).toList();
 
     final candidatesByStudentId = <String, _StudentCandidate>{};
     for (final branchDoc in branchDocs) {
       final branchName = branchDoc.data()['name'] as String? ?? 'Sin sucursal';
-      final groupsSnapshot = await _db
-          .collection('grupos')
-          .where('id_sucursal', isEqualTo: branchDoc.id)
-          .get();
+      final groupsSnapshot =
+          await _db
+              .collection('grupos')
+              .where('id_sucursal', isEqualTo: branchDoc.id)
+              .get();
 
       for (final groupDoc in groupsSnapshot.docs) {
         final groupData = groupDoc.data();
         final currentGroupId = groupDoc.id;
-        if (groupId != null && groupId.isNotEmpty && currentGroupId != groupId) {
+        if (groupId != null &&
+            groupId.isNotEmpty &&
+            currentGroupId != groupId) {
           continue;
         }
 
         final groupName = groupData['nombre_grupo'] as String? ?? 'Sin grupo';
-        final studentsSnapshot = await groupDoc.reference.collection('alumnos').get();
+        final studentsSnapshot =
+            await groupDoc.reference.collection('alumnos').get();
         for (final studentDoc in studentsSnapshot.docs) {
           final studentData = studentDoc.data();
-          final studentId = studentData['uid']?.toString().trim().isNotEmpty == true
-              ? studentData['uid'].toString()
-              : studentDoc.id;
-          final studentName = studentData['nombre']?.toString().trim().isNotEmpty == true
-              ? studentData['nombre'].toString()
-              : (studentData['nombre_completo']?.toString() ?? 'Sin nombre');
+          final studentId =
+              studentData['uid']?.toString().trim().isNotEmpty == true
+                  ? studentData['uid'].toString()
+                  : studentDoc.id;
+          final studentName =
+              studentData['nombre']?.toString().trim().isNotEmpty == true
+                  ? studentData['nombre'].toString()
+                  : (studentData['nombre_completo']?.toString() ??
+                      'Sin nombre');
           candidatesByStudentId.putIfAbsent(
             studentId,
             () => _StudentCandidate(
@@ -430,7 +541,11 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
       return const {};
     }
 
-    final snapshot = await _firestoreService.adminPaymentCharges(uid).orderBy('created_at', descending: true).get();
+    final snapshot =
+        await _firestoreService
+            .adminPaymentCharges(uid)
+            .orderBy('created_at', descending: true)
+            .get();
     final index = <String, PaymentCharge>{};
     for (final doc in snapshot.docs) {
       final charge = PaymentCharge.fromMap(doc.id, doc.data());
@@ -457,7 +572,8 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
     final existing = preferences[branchId];
     preferences[branchId] = _WalletPreference(
       branchId: branchId,
-      branchName: existing?.branchName ?? data['grupo_sucursal']?.toString() ?? '',
+      branchName:
+          existing?.branchName ?? data['grupo_sucursal']?.toString() ?? '',
       currentTariffId: tariffId,
       currentTariffName: tariffName,
       currentTariffAmountCents: amountCents,
@@ -472,11 +588,14 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
     );
 
     await ref.set({
-      'wallet_preferences': preferences.values.map((pref) => pref.toMap()).toList(),
+      'wallet_preferences':
+          preferences.values.map((pref) => pref.toMap()).toList(),
     }, SetOptions(merge: true));
   }
 
-  Map<String, _WalletPreference> _parseWalletPreferences(Map<String, dynamic> data) {
+  Map<String, _WalletPreference> _parseWalletPreferences(
+    Map<String, dynamic> data,
+  ) {
     final raw = data['wallet_preferences'];
     if (raw is! List) return <String, _WalletPreference>{};
 
@@ -558,7 +677,8 @@ class _WalletPreference {
       pendingTariffPeriodCount:
           (map['pendingTariffPeriodCount'] as num?)?.toInt(),
       updatedAt:
-          DateTime.tryParse(map['updatedAt']?.toString() ?? '') ?? DateTime.now(),
+          DateTime.tryParse(map['updatedAt']?.toString() ?? '') ??
+          DateTime.now(),
     );
   }
 

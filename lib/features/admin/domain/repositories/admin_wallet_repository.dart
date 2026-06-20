@@ -52,5 +52,17 @@ abstract class AdminWalletRepository {
     bool isActive,
   });
 
+  Future<void> createTariffsForBranches({
+    required List<String> branchIds,
+    required String name,
+    required int amountCents,
+    required String currency,
+    required String periodType,
+    required int periodCount,
+    String? groupId,
+    String? description,
+    bool isActive,
+  });
+
   Future<void> deleteTariff(String tariffId);
 }

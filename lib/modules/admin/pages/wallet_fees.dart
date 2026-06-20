@@ -326,11 +326,8 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
       text: existing?.description ?? '',
     );
     String periodType = existing?.periodType ?? 'month';
-    String? selectedBranchId =
-        existing?.branchId ??
-        (_controller.branches.isEmpty
-            ? null
-            : _controller.branches.first.branchId);
+    final selectedBranchIds = <String>{if (existing != null) existing.branchId};
+    bool isSaving = false;
 
     showModalBottomSheet<void>(
       context: context,
@@ -344,9 +341,9 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
               existing,
               amountController.text,
             );
-            if (selectedBranchId == null && branches.isNotEmpty) {
-              selectedBranchId = branches.first.branchId;
-            }
+            final allBranchesSelected =
+                branches.isNotEmpty &&
+                selectedBranchIds.length == branches.length;
 
             return Container(
               padding: EdgeInsets.fromLTRB(
@@ -440,9 +437,9 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
                           style: TextStyle(color: Colors.black54),
                         ),
                       )
-                    else
+                    else if (existing != null)
                       DropdownButtonFormField<String>(
-                        initialValue: selectedBranchId,
+                        initialValue: selectedBranchIds.first,
                         isExpanded: true,
                         decoration: _inputDecoration(
                           label: 'Sucursal',
@@ -458,8 +455,91 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
                                 )
                                 .toList(),
                         onChanged: (value) {
-                          setStateSheet(() => selectedBranchId = value);
+                          if (value == null) return;
+                          setStateSheet(() {
+                            selectedBranchIds
+                              ..clear()
+                              ..add(value);
+                          });
                         },
+                      )
+                    else
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F8FB),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.grey.withValues(alpha: 0.18),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 10, 8, 6),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.storefront_outlined,
+                                    color: Colors.black54,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Expanded(
+                                    child: Text(
+                                      'Sucursales',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      setStateSheet(() {
+                                        if (allBranchesSelected) {
+                                          selectedBranchIds.clear();
+                                        } else {
+                                          selectedBranchIds
+                                            ..clear()
+                                            ..addAll(
+                                              branches.map(
+                                                (branch) => branch.branchId,
+                                              ),
+                                            );
+                                        }
+                                      });
+                                    },
+                                    child: Text(
+                                      allBranchesSelected
+                                          ? 'Limpiar'
+                                          : 'Seleccionar todas',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Divider(height: 1),
+                            ...branches.map(
+                              (branch) => CheckboxListTile(
+                                value: selectedBranchIds.contains(
+                                  branch.branchId,
+                                ),
+                                dense: true,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                title: Text(branch.branchName),
+                                onChanged: (selected) {
+                                  setStateSheet(() {
+                                    if (selected == true) {
+                                      selectedBranchIds.add(branch.branchId);
+                                    } else {
+                                      selectedBranchIds.remove(branch.branchId);
+                                    }
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     const SizedBox(height: 12),
                     Row(
@@ -495,6 +575,10 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
                                 value: 'day',
                                 child: Text('Dia'),
                               ),
+                              DropdownMenuItem(
+                                value: 'year',
+                                child: Text('Año'),
+                              ),
                             ],
                             onChanged: (value) {
                               if (value != null) {
@@ -526,66 +610,133 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        onPressed: () async {
-                          final amount =
-                              double.tryParse(
-                                amountController.text.trim().replaceAll(
-                                  ',',
-                                  '.',
-                                ),
-                              ) ??
-                              0;
-                          final periodCount =
-                              int.tryParse(periodCountController.text.trim()) ??
-                              1;
-                          final branchId = selectedBranchId ?? '';
-                          final name = nameController.text.trim();
-                          final priceChanged = _hasPriceChange(
-                            existing,
-                            amountController.text,
-                          );
+                        onPressed:
+                            isSaving
+                                ? null
+                                : () async {
+                                  final amount =
+                                      double.tryParse(
+                                        amountController.text.trim().replaceAll(
+                                          ',',
+                                          '.',
+                                        ),
+                                      ) ??
+                                      0;
+                                  final periodCount =
+                                      int.tryParse(
+                                        periodCountController.text.trim(),
+                                      ) ??
+                                      1;
+                                  final branchIds = selectedBranchIds.toList();
+                                  final name = nameController.text.trim();
+                                  final priceChanged = _hasPriceChange(
+                                    existing,
+                                    amountController.text,
+                                  );
 
-                          if (name.isEmpty || amount <= 0 || branchId.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Completa nombre, monto y sucursal.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
+                                  if (name.isEmpty ||
+                                      amount <= 0 ||
+                                      branchIds.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Completa nombre, monto y selecciona al menos una sucursal.',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
 
-                          await _controller.saveTariff(
-                            tariffId: existing?.id,
-                            branchId: branchId,
-                            name: name,
-                            amountCents: (amount * 100).round(),
-                            currency: 'mxn',
-                            periodType: periodType,
-                            periodCount: periodCount <= 0 ? 1 : periodCount,
-                            groupId: null,
-                            description:
-                                descriptionController.text.trim().isEmpty
-                                    ? null
-                                    : descriptionController.text.trim(),
-                            isActive: existing?.isActive ?? true,
-                          );
-                          if (sheetContext.mounted) {
-                            Navigator.pop(sheetContext);
-                          }
-                          if (priceChanged && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'El nuevo precio se va a aplicar al siguiente mes.',
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.save_outlined),
-                        label: const Text('Guardar tarifa'),
+                                  setStateSheet(() => isSaving = true);
+                                  final description =
+                                      descriptionController.text.trim().isEmpty
+                                          ? null
+                                          : descriptionController.text.trim();
+                                  try {
+                                    if (existing == null) {
+                                      await _controller.saveTariffForBranches(
+                                        branchIds: branchIds,
+                                        name: name,
+                                        amountCents: (amount * 100).round(),
+                                        currency: 'mxn',
+                                        periodType: periodType,
+                                        periodCount:
+                                            periodCount <= 0 ? 1 : periodCount,
+                                        groupId: null,
+                                        description: description,
+                                      );
+                                    } else {
+                                      await _controller.saveTariff(
+                                        tariffId: existing.id,
+                                        branchId: branchIds.first,
+                                        name: name,
+                                        amountCents: (amount * 100).round(),
+                                        currency: 'mxn',
+                                        periodType: periodType,
+                                        periodCount:
+                                            periodCount <= 0 ? 1 : periodCount,
+                                        groupId: null,
+                                        description: description,
+                                        isActive: existing.isActive,
+                                      );
+                                    }
+                                    if (sheetContext.mounted) {
+                                      Navigator.pop(sheetContext);
+                                    }
+                                    if (!context.mounted) return;
+                                    if (priceChanged) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'El nuevo precio se va a aplicar al siguiente mes.',
+                                          ),
+                                        ),
+                                      );
+                                    } else if (existing == null &&
+                                        branchIds.length > 1) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Tarifa creada en ${branchIds.length} sucursales.',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } catch (_) {
+                                    if (sheetContext.mounted) {
+                                      setStateSheet(() => isSaving = false);
+                                    }
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'No se pudo guardar la tarifa. Intenta de nuevo.',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                        icon:
+                            isSaving
+                                ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Icon(Icons.save_outlined),
+                        label: Text(
+                          isSaving
+                              ? 'Guardando...'
+                              : existing == null && selectedBranchIds.length > 1
+                              ? 'Crear ${selectedBranchIds.length} tarifas'
+                              : 'Guardar tarifa',
+                        ),
                       ),
                     ),
                   ],
@@ -642,6 +793,8 @@ class _WalletFeesPageState extends State<WalletFeesPage> {
 
   String _periodLabel(String periodType) {
     switch (periodType) {
+      case 'year':
+        return 'año';
       case 'week':
         return 'semana';
       case 'day':

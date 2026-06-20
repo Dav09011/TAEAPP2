@@ -436,7 +436,83 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
             ? _firestoreService.adminPaymentTariffs(uid).doc()
             : _firestoreService.adminPaymentTariffs(uid).doc(tariffId);
 
-    await ref.set({
+    await ref.set(
+      _tariffData(
+        uid: uid,
+        branchId: branchId,
+        name: name,
+        amountCents: amountCents,
+        currency: currency,
+        periodType: periodType,
+        periodCount: periodCount,
+        groupId: groupId,
+        description: description,
+        isActive: isActive,
+      ),
+      SetOptions(merge: true),
+    );
+  }
+
+  @override
+  Future<void> createTariffsForBranches({
+    required List<String> branchIds,
+    required String name,
+    required int amountCents,
+    required String currency,
+    required String periodType,
+    required int periodCount,
+    String? groupId,
+    String? description,
+    bool isActive = true,
+  }) async {
+    final uid = currentUserId;
+    if (uid == null) {
+      throw const AppException('No hay sesion activa.');
+    }
+
+    final uniqueBranchIds =
+        branchIds.map((branchId) => branchId.trim()).where((branchId) {
+          return branchId.isNotEmpty;
+        }).toSet();
+    if (uniqueBranchIds.isEmpty) {
+      throw const AppException('Selecciona al menos una sucursal.');
+    }
+
+    final batch = _db.batch();
+    for (final branchId in uniqueBranchIds) {
+      final ref = _firestoreService.adminPaymentTariffs(uid).doc();
+      batch.set(
+        ref,
+        _tariffData(
+          uid: uid,
+          branchId: branchId,
+          name: name,
+          amountCents: amountCents,
+          currency: currency,
+          periodType: periodType,
+          periodCount: periodCount,
+          groupId: groupId,
+          description: description,
+          isActive: isActive,
+        ),
+      );
+    }
+    await batch.commit();
+  }
+
+  Map<String, dynamic> _tariffData({
+    required String uid,
+    required String branchId,
+    required String name,
+    required int amountCents,
+    required String currency,
+    required String periodType,
+    required int periodCount,
+    required String? groupId,
+    required String? description,
+    required bool isActive,
+  }) {
+    return {
       'admin_id': uid,
       'branch_id': branchId,
       'group_id': groupId,
@@ -453,7 +529,7 @@ class FirebaseAdminWalletRepository implements AdminWalletRepository {
       'stripe_price_id': null,
       'created_at': FieldValue.serverTimestamp(),
       'updated_at': Timestamp.fromDate(DateTime.now()),
-    }, SetOptions(merge: true));
+    };
   }
 
   @override

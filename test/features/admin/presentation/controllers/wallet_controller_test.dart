@@ -109,6 +109,17 @@ void main() {
       expect(repository.savedTariffId, 't1');
       expect(repository.savedIsActive, isFalse);
 
+      await controller.saveTariffForBranches(
+        branchIds: const ['b1', 'b2'],
+        name: 'Mensualidad multiple',
+        amountCents: 65000,
+        currency: 'mxn',
+        periodType: 'month',
+        periodCount: 1,
+      );
+
+      expect(repository.savedBranchIds, const ['b1', 'b2']);
+
       controller.dispose();
     },
   );
@@ -125,6 +136,7 @@ class _FakeAdminWalletRepository implements AdminWalletRepository {
 
   String? savedTariffId;
   bool? savedIsActive;
+  List<String>? savedBranchIds;
 
   @override
   String? get currentUserId => 'admin-1';
@@ -198,6 +210,21 @@ class _FakeAdminWalletRepository implements AdminWalletRepository {
   }) async {
     savedTariffId = tariffId;
     savedIsActive = isActive;
+  }
+
+  @override
+  Future<void> createTariffsForBranches({
+    required List<String> branchIds,
+    required String name,
+    required int amountCents,
+    required String currency,
+    required String periodType,
+    required int periodCount,
+    String? groupId,
+    String? description,
+    bool isActive = true,
+  }) async {
+    savedBranchIds = List.of(branchIds);
   }
 
   @override

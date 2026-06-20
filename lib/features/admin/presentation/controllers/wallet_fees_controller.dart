@@ -88,6 +88,30 @@ class WalletFeesController extends ChangeNotifier {
     );
   }
 
+  Future<void> saveTariffForBranches({
+    required List<String> branchIds,
+    required String name,
+    required int amountCents,
+    required String currency,
+    required String periodType,
+    required int periodCount,
+    String? groupId,
+    String? description,
+    bool isActive = true,
+  }) {
+    return _repository.createTariffsForBranches(
+      branchIds: branchIds,
+      name: name,
+      amountCents: amountCents,
+      currency: currency,
+      periodType: periodType,
+      periodCount: periodCount,
+      groupId: groupId,
+      description: description,
+      isActive: isActive,
+    );
+  }
+
   Future<void> deleteTariff(String tariffId) {
     return _repository.deleteTariff(tariffId);
   }

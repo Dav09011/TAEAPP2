@@ -42,21 +42,20 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
         elevation: 0,
         backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.black),
-        actions: [
-          if (_controller.isSelectionMode)
-            TextButton(
-              onPressed: _controller.clearSelection,
-              child: const Text('Cancelar'),
-            ),
-        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+              vertical: 8.0,
+            ),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 16.0,
+              ),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
@@ -90,7 +89,10 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
                       color: const Color(0xfff1f3f6),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 2,
+                    ),
                     child: Row(
                       children: [
                         const Icon(Icons.search, color: Colors.grey),
@@ -131,68 +133,15 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
                 SizedBox(height: 4),
                 Text(
                   'Las solicitudes salen de Firestore y se aprueban o rechazan desde aqui.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey, height: 1.2),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'Mantener presionada una solicitud permite seleccionar varias.',
-                  style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.2),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey,
+                    height: 1.2,
+                  ),
                 ),
               ],
             ),
           ),
-          if (_controller.isSelectionMode)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: primaryColor.withValues(alpha: 0.18)),
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      '${_controller.selectedRequestsCount} seleccionadas',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: primaryColor,
-                      ),
-                    ),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: _controller.clearSelection,
-                      child: const Text('Cancelar'),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton.tonal(
-                      onPressed:
-                          _controller.selectedRequestsCount == 0
-                              ? null
-                              : () async {
-                                await _controller.approveSelectedRequests();
-                              },
-                      child: const Text('Aceptar'),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed:
-                          _controller.selectedRequestsCount == 0
-                              ? null
-                              : () async {
-                                await _controller.rejectSelectedRequests();
-                              },
-                      child: const Text('Rechazar'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           Expanded(
             child:
                 _controller.isLoading
@@ -212,7 +161,11 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
                         itemCount: _controller.requests.length,
                         itemBuilder: (context, index) {
                           final request = _controller.requests[index];
-                          return _buildRequestItem(context, request, primaryColor);
+                          return _buildRequestItem(
+                            context,
+                            request,
+                            primaryColor,
+                          );
                         },
                       ),
                     ),
@@ -222,19 +175,65 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
     );
   }
 
+  Future<bool> _showPaymentDecisionDialog(
+    BuildContext context, {
+    required bool approve,
+    required String studentName,
+    required String amountLabel,
+  }) async {
+    final target = '$studentName por $amountLabel';
+    final result = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            icon: Icon(
+              approve ? Icons.payments_outlined : Icons.warning_amber_rounded,
+              color: approve ? Colors.green : Colors.red,
+              size: 34,
+            ),
+            title: Text(
+              approve
+                  ? 'Confirmar pago en efectivo'
+                  : 'Denegar pago en efectivo',
+            ),
+            content: Text(
+              approve
+                  ? 'Confirmas el pago de $target? Se registrara como pagado.'
+                  : 'Deseas denegar el pago de $target? La solicitud se retirara de la bandeja.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: approve ? Colors.green : Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(approve ? 'Confirmar pago' : 'Denegar pago'),
+              ),
+            ],
+          ),
+    );
+    return result ?? false;
+  }
+
+  void _showProcessError(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No se pudo procesar la solicitud.')),
+    );
+  }
+
   Widget _buildRequestItem(
     BuildContext context,
     AdminCashPaymentRequest request,
     Color primaryColor,
   ) {
-    final isSelected = _controller.isRequestSelected(request.id);
-
     return Dismissible(
       key: ValueKey(request.id),
-      direction:
-          _controller.isSelectionMode
-              ? DismissDirection.none
-              : DismissDirection.horizontal,
+      direction: DismissDirection.horizontal,
       background: _SwipeActionBackground(
         color: Colors.green,
         icon: Icons.check_circle_outline,
@@ -248,111 +247,82 @@ class _CashPaymentRequestsScreenState extends State<CashPaymentRequestsScreen> {
         alignment: Alignment.centerRight,
       ),
       confirmDismiss: (direction) async {
+        final approve = direction == DismissDirection.startToEnd;
+        final confirmed = await _showPaymentDecisionDialog(
+          context,
+          approve: approve,
+          studentName: request.studentName,
+          amountLabel: _formatMoney(request.amountCents),
+        );
+        if (!confirmed) return false;
+
         try {
-          if (direction == DismissDirection.startToEnd) {
+          if (approve) {
             await _controller.approveRequest(request.id);
-          } else if (direction == DismissDirection.endToStart) {
+          } else {
             await _controller.rejectRequest(request.id);
           }
           return true;
         } catch (error) {
           if (!context.mounted) return false;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('No se pudo procesar la solicitud.')),
-          );
+          _showProcessError(context);
           return false;
         }
       },
-      child: GestureDetector(
-        onLongPress: () => _controller.toggleRequestSelection(request.id),
-        onTap:
-            _controller.isSelectionMode
-                ? () => _controller.toggleRequestSelection(request.id)
-                : null,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFEFF3FF) : Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color:
-                  isSelected
-                      ? primaryColor.withValues(alpha: 0.35)
-                      : Colors.grey.withValues(alpha: 0.15),
-              width: isSelected ? 1.6 : 1,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
               ),
-            ],
-          ),
-          child: Row(
-            children: [
-              if (_controller.isSelectionMode)
-                Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: Icon(
-                    isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                    color: isSelected ? primaryColor : Colors.grey,
-                  ),
-                ),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.person_outline, color: Colors.green),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      request.studentName,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    Text(
-                      '${request.branchName} · ${request.groupName}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 13),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _formatMoney(request.amountCents),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: primaryColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
+              child: const Icon(Icons.person_outline, color: Colors.green),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    tooltip: 'Aprobar',
-                    onPressed: () async {
-                      await _controller.approveRequest(request.id);
-                    },
-                    icon: const Icon(Icons.check_circle, color: Colors.green),
+                  Text(
+                    request.studentName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                  IconButton(
-                    tooltip: 'Rechazar',
-                    onPressed: () async {
-                      await _controller.rejectRequest(request.id);
-                    },
-                    icon: const Icon(Icons.cancel, color: Colors.red),
+                  Text(
+                    '${request.branchName} · ${request.groupName}',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatMoney(request.amountCents),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: primaryColor,
+                    ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
